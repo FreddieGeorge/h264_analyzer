@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QMetaType>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <cstdint>
@@ -99,7 +100,14 @@ struct MacroblockInfo
 {
     int address = 0;
     QString mbType;
+    QString predictionMode;
+    int codedBlockPattern = -1;
+    int codedBlockPatternLuma = -1;
+    int codedBlockPatternChroma = -1;
     int qp = 26;
+    int mbQpDelta = 0;
+    bool skipped = false;
+    bool parsed = false;
     QString note;
     QVector<MotionVectorInfo> motionVectors;
 };
@@ -136,6 +144,8 @@ struct SliceInfo
     int derivedQp = 26;
     int picWidthInMbs = 0;
     int picHeightInMbs = 0;
+    bool macroblocksParsed = false;
+    QStringList macroblockParseWarnings;
     QVector<SyntaxFieldInfo> fields;
     QVector<MacroblockInfo> macroblocks;
 };
@@ -191,12 +201,16 @@ private:
     SpsInfo parseSps(const QByteArray &rbsp) const;
     PpsInfo parsePps(const QByteArray &rbsp) const;
     SliceInfo parseSliceHeader(const QByteArray &rbsp, int nalUnitType, int nalRefIdc) const;
+    void parseSliceData(BitReader &reader, SliceInfo &slice, const PpsInfo &pps, const SpsInfo &sps) const;
 
     static QByteArray rbspFromEbsp(const uint8_t *data, qsizetype size);
     static bool hasAnnexBStartCode(const QByteArray &data);
     static qsizetype startCodeSizeAt(const QByteArray &data, qsizetype offset);
     static int readBigEndianLength(const uint8_t *data, int size);
     static void skipScalingList(BitReader &reader, int sizeOfScalingList);
+    static int codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType);
+    static QString intraMbTypeName(int mbType);
+    static QString pMbTypeName(int mbType);
 
     QHash<int, SpsInfo> m_spsById;
     QHash<int, PpsInfo> m_ppsById;

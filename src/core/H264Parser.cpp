@@ -864,26 +864,198 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
     slice.derivedQp = std::clamp(26 + pps.picInitQpMinus26 + slice.sliceQpDelta, 0, 51);
     slice.valid = !reader.hasError();
 
-    MacroblockInfo firstMb;
+    if (slice.valid) {
+        parseSliceData(reader, slice, pps, sps);
+    }
+    return slice;
+}
+
+void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsInfo &pps, const SpsInfo &sps) const
+{
     const int totalMacroblocks = std::max(1, slice.picWidthInMbs * slice.picHeightInMbs);
-    const int startMacroblock = std::clamp(slice.firstMbInSlice, 0, totalMacroblocks - 1);
-    for (int address = startMacroblock; address < totalMacroblocks; ++address) {
+    int currentAddress = std::clamp(slice.firstMbInSlice, 0, totalMacroblocks - 1);
+    int currentQp = slice.derivedQp;
+    const int normalizedSliceType = slice.sliceType % 5;
+    const bool isISlice = normalizedSliceType == 2 || normalizedSliceType == 4;
+    const bool isPSlice = normalizedSliceType == 0 || normalizedSliceType == 3;
+    const int chromaArrayType = sps.chromaFormatIdc == 0 ? 0 : sps.chromaFormatIdc;
+
+    auto appendEstimatedRemainder = [&](const QString &reason) {
+        if (!reason.isEmpty()) {
+            slice.macroblockParseWarnings.append(reason);
+        }
+        for (int address = currentAddress; address < totalMacroblocks; ++address) {
+            MacroblockInfo mb;
+            mb.address = address;
+            mb.mbType = QStringLiteral("Estimated");
+            mb.predictionMode = QStringLiteral("unknown");
+            mb.qp = currentQp;
+            mb.note = reason.isEmpty()
+                ? QStringLiteral("QP carried forward after slice_data parsing stopped.")
+                : reason;
+            slice.macroblocks.append(mb);
+        }
+    };
+
+    if (pps.entropyCodingModeFlag) {
+        appendEstimatedRemainder(QStringLiteral("CABAC slice_data parsing is not implemented; macroblock QP is carried forward from the slice header."));
+        return;
+    }
+
+    if (!sps.frameMbsOnlyFlag || pps.numSliceGroupsMinus1 > 0) {
+        appendEstimatedRemainder(QStringLiteral("Interlaced/MBAFF or FMO slice_data parsing is not implemented; macroblock QP is carried forward from the slice header."));
+        return;
+    }
+
+    while (currentAddress < totalMacroblocks && reader.moreRbspData() && !reader.hasError()) {
+        if (!isISlice) {
+            const quint32 mbSkipRun = reader.readUE();
+            if (reader.hasError()) {
+                break;
+            }
+            for (quint32 i = 0; i < mbSkipRun && currentAddress < totalMacroblocks; ++i) {
+                MacroblockInfo mb;
+                mb.address = currentAddress++;
+                mb.mbType = isPSlice ? QStringLiteral("P_Skip") : QStringLiteral("B_Skip/Direct");
+                mb.predictionMode = isPSlice ? QStringLiteral("Pred_L0") : QStringLiteral("Direct");
+                mb.codedBlockPattern = 0;
+                mb.codedBlockPatternLuma = 0;
+                mb.codedBlockPatternChroma = 0;
+                mb.qp = currentQp;
+                mb.skipped = true;
+                mb.parsed = true;
+                mb.note = QStringLiteral("Parsed from mb_skip_run.");
+                slice.macroblocks.append(mb);
+            }
+            if (mbSkipRun > 0 && !reader.moreRbspData()) {
+                break;
+            }
+            if (currentAddress >= totalMacroblocks) {
+                break;
+            }
+        }
+
+        const quint32 rawMbType = reader.readUE();
+        if (reader.hasError()) {
+            break;
+        }
+
         MacroblockInfo mb;
-        mb.address = address;
-        mb.mbType = QStringLiteral("Estimated");
-        mb.qp = slice.derivedQp;
-        mb.note = QStringLiteral("QP is estimated from PPS pic_init_qp_minus26 + slice_qp_delta until slice_data macroblock parsing is implemented.");
+        mb.address = currentAddress++;
+        mb.qp = currentQp;
+        mb.parsed = true;
+
+        bool intra = isISlice;
+        int localMbType = static_cast<int>(rawMbType);
+        if (isPSlice && localMbType >= 5) {
+            intra = true;
+            localMbType -= 5;
+        }
+
+        const bool intra16x16 = intra && localMbType >= 1 && localMbType <= 24;
+        const bool iPcm = intra && localMbType == 25;
+        const bool p8x8 = isPSlice && !intra && (localMbType == 3 || localMbType == 4);
+
+        if (intra) {
+            mb.mbType = intraMbTypeName(localMbType);
+            mb.predictionMode = intra16x16 ? QStringLiteral("Intra_16x16")
+                                           : (iPcm ? QStringLiteral("I_PCM") : QStringLiteral("Intra_4x4/8x8"));
+        } else if (isPSlice) {
+            mb.mbType = pMbTypeName(localMbType);
+            mb.predictionMode = QStringLiteral("Pred_L0");
+        } else {
+            mb.mbType = QStringLiteral("B/unsupported");
+            mb.predictionMode = QStringLiteral("unsupported");
+            mb.note = QStringLiteral("B slice macroblock parsing is not implemented.");
+            slice.macroblocks.append(mb);
+            appendEstimatedRemainder(mb.note);
+            return;
+        }
+
+        if (iPcm) {
+            mb.note = QStringLiteral("I_PCM macroblock payload is byte aligned raw samples; skipping exact payload is not implemented.");
+            slice.macroblocks.append(mb);
+            appendEstimatedRemainder(mb.note);
+            return;
+        }
+
+        if (intra && !intra16x16) {
+            const bool transform8x8 = pps.transform8x8ModeFlag && reader.readBit();
+            const int predictionBlocks = transform8x8 ? 4 : 16;
+            for (int i = 0; i < predictionBlocks; ++i) {
+                if (!reader.readBit()) {
+                    reader.readBits(3);
+                }
+            }
+            reader.readUE();
+        } else if (intra16x16) {
+            reader.readUE();
+        } else if (isPSlice) {
+            int partitionCount = 1;
+            if (localMbType == 1 || localMbType == 2) {
+                partitionCount = 2;
+            } else if (p8x8) {
+                mb.note = QStringLiteral("P_8x8 sub-macroblock prediction parsing is not implemented.");
+                slice.macroblocks.append(mb);
+                appendEstimatedRemainder(mb.note);
+                return;
+            }
+
+            if (slice.numRefIdxL0ActiveMinus1 > 0) {
+                for (int i = 0; i < partitionCount; ++i) {
+                    reader.readUE();
+                }
+            }
+            for (int i = 0; i < partitionCount; ++i) {
+                reader.readSE();
+                reader.readSE();
+            }
+        }
+
+        if (reader.hasError()) {
+            break;
+        }
+
+        if (intra16x16) {
+            const int typeOffset = localMbType - 1;
+            mb.codedBlockPatternChroma = (typeOffset / 4) % 3;
+            mb.codedBlockPatternLuma = (typeOffset / 12) != 0 ? 15 : 0;
+            mb.codedBlockPattern = mb.codedBlockPatternLuma | (mb.codedBlockPatternChroma << 4);
+        } else {
+            mb.codedBlockPattern = codedBlockPatternFromCodeNum(reader.readUE(), intra, chromaArrayType);
+            mb.codedBlockPatternLuma = mb.codedBlockPattern & 0x0f;
+            mb.codedBlockPatternChroma = (mb.codedBlockPattern >> 4) & 0x03;
+            if (mb.codedBlockPatternLuma > 0 && pps.transform8x8ModeFlag && !intra) {
+                reader.readBit();
+            }
+        }
+
+        const bool hasResidual = intra16x16 || mb.codedBlockPatternLuma > 0 || mb.codedBlockPatternChroma > 0;
+        if (hasResidual) {
+            mb.mbQpDelta = reader.readSE();
+            currentQp = (currentQp + mb.mbQpDelta + 52) % 52;
+            mb.qp = currentQp;
+            mb.note = QStringLiteral("Parsed macroblock header and mb_qp_delta; residual CAVLC coefficient parsing is not implemented, so subsequent macroblocks are estimated.");
+            slice.macroblocks.append(mb);
+            appendEstimatedRemainder(mb.note);
+            slice.macroblocksParsed = !slice.macroblocks.isEmpty();
+            return;
+        }
+
+        mb.qp = currentQp;
+        mb.note = QStringLiteral("Parsed macroblock header; no residual data present.");
         slice.macroblocks.append(mb);
     }
 
-    if (slice.macroblocks.isEmpty()) {
-        firstMb.address = slice.firstMbInSlice;
-        firstMb.mbType = QStringLiteral("Not parsed yet");
-        firstMb.qp = slice.derivedQp;
-        firstMb.note = QStringLiteral("QP derived from PPS pic_init_qp_minus26 + slice_qp_delta; mb_type requires slice_data CABAC/CAVLC parsing.");
-        slice.macroblocks.append(firstMb);
+    if (reader.hasError()) {
+        appendEstimatedRemainder(QStringLiteral("slice_data ended unexpectedly; remaining macroblocks are estimated."));
     }
-    return slice;
+
+    if (slice.macroblocks.isEmpty()) {
+        appendEstimatedRemainder(QStringLiteral("No macroblock data could be parsed; QP is carried forward from the slice header."));
+    }
+
+    slice.macroblocksParsed = !slice.macroblocks.isEmpty();
 }
 
 QByteArray H264Parser::rbspFromEbsp(const uint8_t *data, qsizetype size)
@@ -955,5 +1127,60 @@ void H264Parser::skipScalingList(BitReader &reader, int sizeOfScalingList)
             nextScale = (lastScale + deltaScale + 256) % 256;
         }
         lastScale = nextScale == 0 ? lastScale : nextScale;
+    }
+}
+
+int H264Parser::codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType)
+{
+    static constexpr int codedBlockPatternChromaTable[48][2] = {
+        {0, 47}, {16, 31}, {1, 15}, {2, 0}, {4, 23}, {8, 27}, {32, 29}, {3, 30},
+        {5, 7}, {10, 11}, {12, 13}, {15, 14}, {47, 39}, {7, 43}, {11, 45}, {13, 46},
+        {14, 16}, {6, 3}, {9, 5}, {31, 10}, {35, 12}, {37, 19}, {42, 21}, {44, 26},
+        {33, 28}, {34, 35}, {36, 37}, {40, 42}, {39, 44}, {43, 33}, {45, 34}, {46, 36},
+        {17, 40}, {18, 8}, {20, 17}, {24, 18}, {19, 20}, {21, 24}, {26, 6}, {28, 9},
+        {23, 22}, {27, 25}, {29, 32}, {30, 38}, {22, 41}, {25, 4}, {38, 1}, {41, 2}
+    };
+
+    static constexpr int codedBlockPatternMonoTable[16][2] = {
+        {0, 15}, {1, 0}, {2, 7}, {4, 11}, {8, 13}, {3, 14}, {5, 3}, {10, 5},
+        {12, 10}, {15, 12}, {7, 1}, {11, 2}, {13, 4}, {14, 8}, {6, 6}, {9, 9}
+    };
+
+    if (chromaArrayType == 1 || chromaArrayType == 2) {
+        if (codeNum >= 48) {
+            return 0;
+        }
+        return codedBlockPatternChromaTable[codeNum][intra ? 1 : 0];
+    }
+
+    if (codeNum >= 16) {
+        return 0;
+    }
+    return codedBlockPatternMonoTable[codeNum][intra ? 1 : 0];
+}
+
+QString H264Parser::intraMbTypeName(int mbType)
+{
+    if (mbType == 0) {
+        return QStringLiteral("I_NxN");
+    }
+    if (mbType == 25) {
+        return QStringLiteral("I_PCM");
+    }
+    if (mbType >= 1 && mbType <= 24) {
+        return QStringLiteral("I_16x16");
+    }
+    return QStringLiteral("I_Unknown(%1)").arg(mbType);
+}
+
+QString H264Parser::pMbTypeName(int mbType)
+{
+    switch (mbType) {
+    case 0: return QStringLiteral("P_L0_16x16");
+    case 1: return QStringLiteral("P_L0_L0_16x8");
+    case 2: return QStringLiteral("P_L0_L0_8x16");
+    case 3: return QStringLiteral("P_8x8");
+    case 4: return QStringLiteral("P_8x8ref0");
+    default: return QStringLiteral("P_Unknown(%1)").arg(mbType);
     }
 }

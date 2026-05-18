@@ -147,11 +147,25 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         addPair(sliceItem, tr("dec_ref_pic_marking"), slice.decRefPicMarkingPresent ? slice.decRefPicMarkingSummary : presentValue(false));
         addPair(sliceItem, tr("slice_qp_delta"), QString::number(slice.sliceQpDelta));
         addPair(sliceItem, tr("derived QP"), QString::number(slice.derivedQp));
+        addPair(sliceItem, tr("macroblocks_parsed"), boolValue(slice.macroblocksParsed));
+        if (!slice.macroblockParseWarnings.isEmpty()) {
+            auto *warningsRoot = new QTreeWidgetItem(sliceItem, {tr("Macroblock parse warnings"), QString::number(slice.macroblockParseWarnings.size())});
+            for (int warningIndex = 0; warningIndex < slice.macroblockParseWarnings.size(); ++warningIndex) {
+                addPair(warningsRoot, tr("warning %1").arg(warningIndex), slice.macroblockParseWarnings[warningIndex]);
+            }
+        }
         addSyntaxFields(sliceItem, slice.fields);
 
         auto *mbRoot = new QTreeWidgetItem(sliceItem, {tr("Macroblocks"), QString::number(slice.macroblocks.size())});
         for (const MacroblockInfo &mb : slice.macroblocks) {
             auto *mbItem = new QTreeWidgetItem(mbRoot, {tr("MB %1").arg(mb.address), mb.mbType});
+            addPair(mbItem, tr("parsed"), boolValue(mb.parsed));
+            addPair(mbItem, tr("skipped"), boolValue(mb.skipped));
+            addPair(mbItem, tr("prediction mode"), mb.predictionMode.isEmpty() ? QStringLiteral("-") : mb.predictionMode);
+            addPair(mbItem, tr("coded_block_pattern"), mb.codedBlockPattern >= 0 ? QString::number(mb.codedBlockPattern) : QStringLiteral("-"));
+            addPair(mbItem, tr("coded_block_pattern_luma"), mb.codedBlockPatternLuma >= 0 ? QString::number(mb.codedBlockPatternLuma) : QStringLiteral("-"));
+            addPair(mbItem, tr("coded_block_pattern_chroma"), mb.codedBlockPatternChroma >= 0 ? QString::number(mb.codedBlockPatternChroma) : QStringLiteral("-"));
+            addPair(mbItem, tr("mb_qp_delta"), QString::number(mb.mbQpDelta));
             addPair(mbItem, tr("QP"), QString::number(mb.qp));
             addPair(mbItem, tr("note"), mb.note);
 
