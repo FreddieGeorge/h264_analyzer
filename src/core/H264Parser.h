@@ -17,6 +17,12 @@ struct SyntaxFieldInfo
     QString value;
 };
 
+struct ParserDiagnosticInfo
+{
+    QString code;
+    QString message;
+};
+
 struct SpsInfo
 {
     bool valid = false;
@@ -106,6 +112,9 @@ struct MacroblockInfo
     int codedBlockPatternChroma = -1;
     int qp = 26;
     int mbQpDelta = 0;
+    int residualBlockCount = 0;
+    int residualCoefficientCount = 0;
+    bool residualParsed = false;
     bool skipped = false;
     bool parsed = false;
     QString note;
@@ -145,6 +154,7 @@ struct SliceInfo
     int picWidthInMbs = 0;
     int picHeightInMbs = 0;
     bool macroblocksParsed = false;
+    QVector<ParserDiagnosticInfo> diagnostics;
     QStringList macroblockParseWarnings;
     QVector<SyntaxFieldInfo> fields;
     QVector<MacroblockInfo> macroblocks;
@@ -182,6 +192,7 @@ public:
 
     void reset();
     void parseDecoderConfigurationRecord(const QByteArray &extraData);
+    void setParameterSets(const QHash<int, SpsInfo> &spsById, const QHash<int, PpsInfo> &ppsById);
     FrameSyntaxInfo parsePacket(const QByteArray &packetData, qint64 pts, qint64 dts, int packetIndex);
 
     const QHash<int, SpsInfo> &spsMap() const;
@@ -225,6 +236,7 @@ private:
 Q_DECLARE_METATYPE(SpsInfo)
 Q_DECLARE_METATYPE(PpsInfo)
 Q_DECLARE_METATYPE(SyntaxFieldInfo)
+Q_DECLARE_METATYPE(ParserDiagnosticInfo)
 Q_DECLARE_METATYPE(MotionVectorInfo)
 Q_DECLARE_METATYPE(MacroblockInfo)
 Q_DECLARE_METATYPE(SliceInfo)

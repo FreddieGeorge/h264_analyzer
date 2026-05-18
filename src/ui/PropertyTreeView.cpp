@@ -152,6 +152,13 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         addPair(sliceItem, tr("slice_qp_delta"), QString::number(slice.sliceQpDelta));
         addPair(sliceItem, tr("derived QP"), QString::number(slice.derivedQp));
         addPair(sliceItem, tr("macroblocks_parsed"), boolValue(slice.macroblocksParsed));
+        if (!slice.diagnostics.isEmpty()) {
+            auto *diagnosticsRoot = new QTreeWidgetItem(sliceItem, {tr("Parser diagnostics"), QString::number(slice.diagnostics.size())});
+            for (int diagnosticIndex = 0; diagnosticIndex < slice.diagnostics.size(); ++diagnosticIndex) {
+                const ParserDiagnosticInfo &diagnostic = slice.diagnostics[diagnosticIndex];
+                addPair(diagnosticsRoot, diagnostic.code, diagnostic.message);
+            }
+        }
         if (!slice.macroblockParseWarnings.isEmpty()) {
             auto *warningsRoot = new QTreeWidgetItem(sliceItem, {tr("Macroblock parse warnings"), QString::number(slice.macroblockParseWarnings.size())});
             for (int warningIndex = 0; warningIndex < slice.macroblockParseWarnings.size(); ++warningIndex) {
@@ -180,6 +187,9 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
             addPair(mbItem, tr("coded_block_pattern_chroma"), mb.codedBlockPatternChroma >= 0 ? QString::number(mb.codedBlockPatternChroma) : QStringLiteral("-"));
             addPair(mbItem, tr("mb_qp_delta"), QString::number(mb.mbQpDelta));
             addPair(mbItem, tr("QP"), QString::number(mb.qp));
+            addPair(mbItem, tr("residual parsed"), boolValue(mb.residualParsed));
+            addPair(mbItem, tr("residual blocks"), QString::number(mb.residualBlockCount));
+            addPair(mbItem, tr("residual coefficients"), QString::number(mb.residualCoefficientCount));
             addPair(mbItem, tr("note"), mb.note);
 
             if (!mb.motionVectors.isEmpty()) {

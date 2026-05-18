@@ -74,6 +74,14 @@ QJsonObject motionVectorToJson(const MotionVectorInfo &mv)
     };
 }
 
+QJsonObject diagnosticToJson(const ParserDiagnosticInfo &diagnostic)
+{
+    return {
+        {QStringLiteral("code"), diagnostic.code},
+        {QStringLiteral("message"), diagnostic.message}
+    };
+}
+
 QJsonObject macroblockToJson(const MacroblockInfo &mb)
 {
     QJsonArray motionVectors;
@@ -90,6 +98,9 @@ QJsonObject macroblockToJson(const MacroblockInfo &mb)
         {QStringLiteral("coded_block_pattern_chroma"), mb.codedBlockPatternChroma},
         {QStringLiteral("qp"), mb.qp},
         {QStringLiteral("mb_qp_delta"), mb.mbQpDelta},
+        {QStringLiteral("residual_block_count"), mb.residualBlockCount},
+        {QStringLiteral("residual_coefficient_count"), mb.residualCoefficientCount},
+        {QStringLiteral("residual_parsed"), mb.residualParsed},
         {QStringLiteral("skipped"), mb.skipped},
         {QStringLiteral("parsed"), mb.parsed},
         {QStringLiteral("note"), mb.note},
@@ -152,6 +163,11 @@ QJsonObject sliceToJson(const SliceInfo &slice)
         macroblocks.append(macroblockToJson(mb));
     }
 
+    QJsonArray diagnostics;
+    for (const ParserDiagnosticInfo &diagnostic : slice.diagnostics) {
+        diagnostics.append(diagnosticToJson(diagnostic));
+    }
+
     QJsonArray warnings;
     for (const QString &warning : slice.macroblockParseWarnings) {
         warnings.append(warning);
@@ -169,6 +185,7 @@ QJsonObject sliceToJson(const SliceInfo &slice)
         {QStringLiteral("pic_width_in_mbs"), slice.picWidthInMbs},
         {QStringLiteral("pic_height_in_mbs"), slice.picHeightInMbs},
         {QStringLiteral("macroblocks_parsed"), slice.macroblocksParsed},
+        {QStringLiteral("diagnostics"), diagnostics},
         {QStringLiteral("macroblock_parse_warnings"), warnings},
         {QStringLiteral("macroblocks"), macroblocks}
     };
@@ -205,6 +222,7 @@ MainWindow::MainWindow(QWidget *parent)
     qRegisterMetaType<StreamInfo>("StreamInfo");
     qRegisterMetaType<DecodedVideoFramePtr>("DecodedVideoFramePtr");
     qRegisterMetaType<FrameSyntaxInfo>("FrameSyntaxInfo");
+    qRegisterMetaType<FrameSeekCheckpoint>("FrameSeekCheckpoint");
 
     setWindowTitle(tr("H.264 Analyzer"));
     resize(1440, 900);
@@ -409,6 +427,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameListView->clearFrames();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_frameCache.clear();
+    m_seekCheckpoints.clear();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_playbackPaused = false;
@@ -417,7 +436,10 @@ void MainWindow::openStreamFile(const QString &filePath)
     startDecoder(stream.absoluteFilePath);
 }
 
-void MainWindow::startDecoder(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame)
+void MainWindow::startDecoder(const QString &filePath,
+                              int startFrameIndex,
+                              bool pauseAfterFirstFrame,
+                              const FrameSeekCheckpoint &seekCheckpoint)
 {
     stopDecoder();
 
@@ -425,8 +447,12 @@ void MainWindow::startDecoder(const QString &filePath, int startFrameIndex, bool
     m_decodeWorker = new DecodeWorker;
     m_decodeWorker->moveToThread(m_decodeThread);
 
-    connect(m_decodeThread, &QThread::started, m_decodeWorker, [worker = m_decodeWorker.data(), filePath, startFrameIndex, pauseAfterFirstFrame]() {
-        worker->decodeFileFromFrame(filePath, startFrameIndex, pauseAfterFirstFrame);
+    connect(m_decodeThread, &QThread::started, m_decodeWorker, [worker = m_decodeWorker.data(), filePath, startFrameIndex, pauseAfterFirstFrame, seekCheckpoint]() {
+        if (seekCheckpoint.frameIndex >= 0) {
+            worker->decodeFileFromCheckpoint(filePath, startFrameIndex, pauseAfterFirstFrame, seekCheckpoint);
+        } else {
+            worker->decodeFileFromFrame(filePath, startFrameIndex, pauseAfterFirstFrame);
+        }
     });
 
     connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this](const StreamInfo &streamInfo) {
@@ -448,6 +474,9 @@ void MainWindow::startDecoder(const QString &filePath, int startFrameIndex, bool
 
     connect(m_decodeWorker, &DecodeWorker::frameReady,
             this, &MainWindow::handleFrameReady,
+            Qt::QueuedConnection);
+    connect(m_decodeWorker, &DecodeWorker::seekCheckpointReady,
+            this, &MainWindow::handleSeekCheckpoint,
             Qt::QueuedConnection);
     connect(m_decodeWorker, &DecodeWorker::logMessage,
             m_logDock, &LogDock::appendLine,
@@ -686,6 +715,25 @@ void MainWindow::handleFrameReady(int frameIndex,
     showFrameFromCache(frameIndex, true, m_playbackPaused);
 }
 
+void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
+{
+    if (checkpoint.frameIndex < 0) {
+        return;
+    }
+
+    for (FrameSeekCheckpoint &existing : m_seekCheckpoints) {
+        if (existing.frameIndex == checkpoint.frameIndex) {
+            existing = checkpoint;
+            return;
+        }
+    }
+
+    m_seekCheckpoints.append(checkpoint);
+    std::sort(m_seekCheckpoints.begin(), m_seekCheckpoints.end(), [](const FrameSeekCheckpoint &a, const FrameSeekCheckpoint &b) {
+        return a.frameIndex < b.frameIndex;
+    });
+}
+
 void MainWindow::handleFrameListSelection(int frameIndex)
 {
     if (!m_decodeWorker.isNull()) {
@@ -734,10 +782,26 @@ void MainWindow::seekToFrame(int frameIndex)
     setPlaybackControlsEnabled(false);
     m_videoCanvas->setOverlayMessage(tr("Buffering to frame %1...").arg(frameIndex + 1));
     statusBar()->showMessage(tr("Buffering to frame %1").arg(frameIndex + 1), 3000);
-    m_logDock->appendLine(tr("[Info] Frame %1 is outside the recent cache; decoding from the beginning to rebuild it.")
-                              .arg(frameIndex));
 
-    startDecoder(m_document.streamInfo().absoluteFilePath, frameIndex, true);
+    FrameSeekCheckpoint checkpoint;
+    for (const FrameSeekCheckpoint &candidate : std::as_const(m_seekCheckpoints)) {
+        if (candidate.frameIndex <= frameIndex
+            && candidate.frameIndex >= checkpoint.frameIndex
+            && (candidate.keyframe || candidate.idr || candidate.frameIndex == 0)) {
+            checkpoint = candidate;
+        }
+    }
+
+    if (checkpoint.frameIndex >= 0) {
+        m_logDock->appendLine(tr("[Info] Frame %1 is outside the recent cache; seeking from checkpoint frame %2.")
+                                  .arg(frameIndex)
+                                  .arg(checkpoint.frameIndex));
+        startDecoder(m_document.streamInfo().absoluteFilePath, frameIndex, true, checkpoint);
+    } else {
+        m_logDock->appendLine(tr("[Info] Frame %1 is outside the recent cache; no checkpoint is available yet, decoding from the beginning.")
+                                  .arg(frameIndex));
+        startDecoder(m_document.streamInfo().absoluteFilePath, frameIndex, true);
+    }
 }
 
 const MainWindow::CachedFrame *MainWindow::currentCachedFrame() const

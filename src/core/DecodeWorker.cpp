@@ -14,6 +14,14 @@ void DecodeWorker::decodeFile(const QString &filePath)
 
 void DecodeWorker::decodeFileFromFrame(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame)
 {
+    decodeFileFromCheckpoint(filePath, startFrameIndex, pauseAfterFirstFrame, FrameSeekCheckpoint {});
+}
+
+void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
+                                            int targetFrameIndex,
+                                            bool pauseAfterFirstFrame,
+                                            const FrameSeekCheckpoint &checkpoint)
+{
     m_stopRequested.store(false);
     {
         std::lock_guard<std::mutex> lock(m_controlMutex);
@@ -41,9 +49,29 @@ void DecodeWorker::decodeFileFromFrame(const QString &filePath, int startFrameIn
         : 0UL;
 
     int frameIndex = 0;
+    if (checkpoint.frameIndex >= 0) {
+        if (decoder.seekToCheckpoint(checkpoint)) {
+            frameIndex = checkpoint.frameIndex;
+            emit logMessage(tr("[Info] Seeking from checkpoint frame %1 toward frame %2.")
+                                .arg(checkpoint.frameIndex)
+                                .arg(targetFrameIndex));
+        } else {
+            const QString seekError = decoder.lastError();
+            emit logMessage(tr("[Warning] Checkpoint seek failed (%1); decoding from frame 0.")
+                                .arg(seekError.isEmpty() ? tr("unknown error") : seekError));
+            decoder.close();
+            if (!decoder.openFile(filePath)) {
+                emit errorOccurred(decoder.lastError());
+                emit finished();
+                return;
+            }
+            emit streamOpened(decoder.getStreamInfo());
+        }
+    }
+
     bool firstEmittedFrame = true;
     while (!m_stopRequested.load()) {
-        const bool emitThisFrame = frameIndex >= startFrameIndex;
+        const bool emitThisFrame = frameIndex >= targetFrameIndex;
         if (emitThisFrame && !waitForPlaybackPermission()) {
             break;
         }
@@ -60,6 +88,14 @@ void DecodeWorker::decodeFileFromFrame(const QString &filePath, int startFrameIn
         FrameSyntaxInfo syntaxInfo = decoder.lastFrameSyntaxInfo();
         syntaxInfo.index = frameIndex;
         syntaxInfo.pts = copy ? copy->pts : syntaxInfo.pts;
+        FrameSeekCheckpoint seekCheckpoint = decoder.lastFrameSeekCheckpoint();
+        seekCheckpoint.frameIndex = frameIndex;
+        if ((seekCheckpoint.keyframe || seekCheckpoint.idr || frameIndex == 0)
+            && (seekCheckpoint.packetPosition >= 0
+                || seekCheckpoint.packetPts != AV_NOPTS_VALUE
+                || seekCheckpoint.packetDts != AV_NOPTS_VALUE)) {
+            emit seekCheckpointReady(seekCheckpoint);
+        }
         if (copy && emitThisFrame) {
             emit frameDecoded(copy);
             emit frameReady(frameIndex, copy, syntaxInfo);

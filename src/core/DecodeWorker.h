@@ -19,6 +19,10 @@ public:
 public slots:
     void decodeFile(const QString &filePath);
     void decodeFileFromFrame(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame);
+    void decodeFileFromCheckpoint(const QString &filePath,
+                                  int targetFrameIndex,
+                                  bool pauseAfterFirstFrame,
+                                  const FrameSeekCheckpoint &checkpoint);
     void play();
     void pause();
     void setPaused(bool paused);
@@ -29,6 +33,7 @@ signals:
     void streamOpened(const StreamInfo &streamInfo);
     void frameDecoded(const DecodedVideoFramePtr &frame);
     void frameSyntaxDecoded(const FrameSyntaxInfo &syntaxInfo);
+    void seekCheckpointReady(const FrameSeekCheckpoint &checkpoint);
     void frameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
     void logMessage(const QString &message);
     void errorOccurred(const QString &message);

@@ -11,8 +11,9 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Open local H.264/video files through `File -> Open` or drag and drop.
 - Decode video streams in a background thread with FFmpeg.
 - Play, pause, stop, and step frame-by-frame.
+- Rebuffer evicted frames from indexed keyframe/IDR seek checkpoints when available.
 - Render decoded frames through `QOpenGLWidget`.
-- Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
+- Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show frame list information such as frame type, POC, and `frame_num`.
 - Overlay analysis data on the video canvas:
@@ -25,7 +26,7 @@ The project currently supports video loading/decoding, controllable playback, H.
 
 Current limitations:
 
-- Macroblock residual coefficient parsing is still incomplete.
+- CAVLC residual parsing consumes and counts residual blocks so macroblock parsing can continue, but individual coefficient values are not yet exposed in the UI/export model.
 - CABAC, B-slice motion vectors, MBAFF/FMO, and sub-macroblock motion vectors are reported as unsupported or partially parsed.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 
@@ -203,11 +204,11 @@ Key modules:
 
 Recommended next work:
 
-1. Complete residual CAVLC parsing and broaden macroblock support.
-2. Add CABAC support or mark unsupported syntax with richer diagnostics.
-3. Extend B-slice and sub-macroblock motion vector parsing.
-4. Add more sample bitstream tests and regression fixtures.
-5. Improve release notes and versioned packaging.
+1. Expose richer residual coefficient details and broaden macroblock support.
+2. Add P_8x8 / P_8x8ref0 sub-macroblock parsing.
+3. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
+4. Extend B-slice and sub-macroblock motion vector parsing.
+5. Add CABAC support after the CAVLC paths are broader and well tested.
 
 For a staged AI continuation plan, see [docs/ai-next-steps.md](docs/ai-next-steps.md).
 

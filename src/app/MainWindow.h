@@ -49,7 +49,10 @@ private:
     void createDocks();
     void openStream();
     void openStreamFile(const QString &filePath);
-    void startDecoder(const QString &filePath, int startFrameIndex = 0, bool pauseAfterFirstFrame = false);
+    void startDecoder(const QString &filePath,
+                      int startFrameIndex = 0,
+                      bool pauseAfterFirstFrame = false,
+                      const FrameSeekCheckpoint &seekCheckpoint = FrameSeekCheckpoint {});
     void stopDecoder();
     void togglePlayback();
     void pausePlayback();
@@ -61,6 +64,7 @@ private:
     void exportFrameListCsv();
     void exportScreenshot();
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
+    void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
     void seekToFrame(int frameIndex);
@@ -99,6 +103,7 @@ private:
     QPointer<DecodeWorker> m_decodeWorker;
     QString m_lastOpenDirectory;
     QVector<CachedFrame> m_frameCache;
+    QVector<FrameSeekCheckpoint> m_seekCheckpoints;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;
     bool m_playbackPaused = false;

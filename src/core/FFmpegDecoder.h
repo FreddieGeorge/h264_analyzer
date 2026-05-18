@@ -29,6 +29,19 @@ struct DecodedVideoFrame
 
 using DecodedVideoFramePtr = std::shared_ptr<DecodedVideoFrame>;
 
+struct FrameSeekCheckpoint
+{
+    int frameIndex = -1;
+    int packetIndex = -1;
+    qint64 packetPosition = -1;
+    qint64 packetPts = AV_NOPTS_VALUE;
+    qint64 packetDts = AV_NOPTS_VALUE;
+    bool keyframe = false;
+    bool idr = false;
+    QHash<int, SpsInfo> spsById;
+    QHash<int, PpsInfo> ppsById;
+};
+
 class FFmpegDecoder
 {
 public:
@@ -42,9 +55,11 @@ public:
     FFmpegDecoder &operator=(FFmpegDecoder &&) = delete;
 
     bool openFile(const QString &filePath);
+    bool seekToCheckpoint(const FrameSeekCheckpoint &checkpoint);
     AVFrame *decodeNextFrame();
     StreamInfo getStreamInfo() const;
     FrameSyntaxInfo lastFrameSyntaxInfo() const;
+    FrameSeekCheckpoint lastFrameSeekCheckpoint() const;
     QString lastError() const;
     void close();
 
@@ -54,6 +69,12 @@ private:
     void setError(const QString &message);
     static QString ffmpegErrorString(int errorCode);
     static double rationalToDouble(AVRational value);
+
+    struct PendingFrameInfo
+    {
+        FrameSyntaxInfo syntax;
+        FrameSeekCheckpoint checkpoint;
+    };
 
     AVFormatContext *m_formatContext = nullptr;
     AVCodecContext *m_codecContext = nullptr;
@@ -65,10 +86,12 @@ private:
     bool m_draining = false;
     StreamInfo m_streamInfo;
     H264Parser m_h264Parser;
-    QVector<FrameSyntaxInfo> m_pendingSyntax;
+    QVector<PendingFrameInfo> m_pendingFrames;
     FrameSyntaxInfo m_lastFrameSyntax;
+    FrameSeekCheckpoint m_lastFrameSeekCheckpoint;
     QString m_lastError;
 };
 
 Q_DECLARE_METATYPE(StreamInfo)
 Q_DECLARE_METATYPE(DecodedVideoFramePtr)
+Q_DECLARE_METATYPE(FrameSeekCheckpoint)

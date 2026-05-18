@@ -24,7 +24,10 @@ Implemented capabilities:
 - Background FFmpeg decoding through `DecodeWorker` on `QThread`.
 - Playback controls: play/pause, previous frame, next frame, stop, current frame indicator.
 - Frame synchronization between decoded image, frame list selection, property tree, and overlays.
-- Recent decoded frame cache plus on-demand rebuffering when a selected frame was evicted.
+- Recent decoded frame cache plus checkpoint-based rebuffering when a selected frame was evicted.
+- Indexed seek checkpoints built from decoded keyframe/IDR packets, including
+  packet timestamps/byte positions and parser parameter-set state for resumed
+  syntax parsing.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
@@ -33,6 +36,7 @@ Implemented capabilities:
   - prediction mode
   - coded block pattern
   - QP / `mb_qp_delta`
+  - residual CAVLC block parsing/counting for common 4:2:0 streams
   - P-slice L0 motion vector differences for supported partition types
 - Analysis overlays:
   - macroblock grid
@@ -48,6 +52,9 @@ Implemented capabilities:
   - output under `dist/H264Analyzer-windows-ucrt64`
   - zip at `dist/H264Analyzer-windows-ucrt64.zip`
 - CTest parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
+- Tiny checked-in parser fixtures under `tests/fixtures/` for Annex B, AVCC,
+  CAVLC I/P macroblocks, P-slice motion vectors, and unsupported CABAC
+  diagnostics.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 
 ## Build And Verification
@@ -93,15 +100,26 @@ Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. Use the portable fo
 Current behavior:
 
 - The app has a recent decoded frame cache.
-- If the user selects an old frame that was evicted, `MainWindow::seekToFrame()` restarts decoding from the beginning and buffers until the target frame.
-- This is correct but can be slow for long streams.
+- If the user selects an old frame that was evicted, `MainWindow::seekToFrame()`
+  picks the nearest previous keyframe/IDR checkpoint and buffers from there.
+- If FFmpeg cannot seek to the selected checkpoint, the worker falls back to
+  decoding from frame 0.
 
-Recommended improvement:
+Implemented:
 
-- Add an indexed seek strategy:
-  - record packet/frame checkpoints while decoding
-  - keep keyframe/IDR packet offsets where possible
-  - restart decoding from the nearest previous checkpoint instead of frame 0
+- Records packet/frame checkpoints while decoding.
+- Keeps keyframe/IDR packet timestamps and byte offsets where FFmpeg provides them.
+- Restarts rebuffer decoding from the nearest previous checkpoint instead of
+  always restarting from frame 0.
+- Carries SPS/PPS parser state in checkpoints so syntax parsing can resume after
+  a seek.
+
+Recommended remaining improvement:
+
+- Add cancellation if the user clicks another frame while a checkpoint rebuffer
+  is already in progress.
+- Add visible progress reporting during long checkpoint rebuffer seeks.
+- Add more real stream smoke tests for raw Annex B `.264` files and containers.
 - Keep UI behavior unchanged: selecting an old frame should show buffering, then land on that frame and pause.
 - Be careful: H.264 raw `.264` streams may not have container timestamps or seek indexes, so Annex B byte offsets and IDR detection matter.
 
@@ -116,7 +134,9 @@ Suggested files:
 
 Current limitations:
 
-- Residual CAVLC coefficient parsing is not implemented.
+- CAVLC residual parsing now consumes residual blocks and counts coefficients so
+  macroblock parsing can continue, but individual residual coefficient values
+  are not yet represented in the public syntax model.
 - CABAC macroblock parsing is not implemented.
 - B-slice motion vectors are not implemented.
 - P_8x8 and sub-macroblock prediction parsing are not implemented.
@@ -125,12 +145,11 @@ Current limitations:
 
 Recommended next parser milestones:
 
-1. Complete CAVLC residual parsing for common 4:2:0 streams.
-2. Continue macroblock parsing after residuals instead of stopping and estimating remaining macroblocks.
-3. Implement P_8x8 / P_8x8ref0 sub-macroblock parsing.
-4. Add B-slice direct/list0/list1/bi prediction modes and L1 MV visualization.
-5. Add CABAC support only after the CAVLC path is well tested.
-6. Add richer diagnostics for unsupported syntax instead of generic notes.
+1. Expose residual coefficient details where useful instead of only block/coeff counts.
+2. Implement P_8x8 / P_8x8ref0 sub-macroblock parsing.
+3. Add B-slice direct/list0/list1/bi prediction modes and L1 MV visualization.
+4. Add CABAC support only after the CAVLC path is well tested.
+5. Add richer diagnostics for unsupported syntax instead of generic notes.
 
 Acceptance focus:
 
@@ -140,25 +159,27 @@ Acceptance focus:
 
 ### 3. Test Fixtures And Regression Coverage
 
-Current tests are synthetic and narrow.
+Current tests now combine small synthetic bit-writing tests with checked-in
+hex fixtures under `tests/fixtures/`.
 
-Recommended improvement:
+Completed fixture coverage:
 
-- Add tiny checked-in bitstream fixtures under `tests/fixtures/`.
-- Cover:
-  - Annex B with SPS/PPS/IDR
-  - AVCC packet with SPS/PPS
-  - one CAVLC I-frame stream
-  - one CAVLC P-frame stream with non-zero `mb_qp_delta`
-  - one P-slice with motion vectors
-  - one unsupported CABAC stream that must not crash
-- Add parser assertions for:
-  - frame count
-  - SPS dimensions
-  - macroblock count
-  - at least one parsed QP delta
-  - at least one parsed motion vector
-  - unsupported warnings for unsupported streams
+- Annex B with SPS/PPS/IDR
+- AVCC packet with SPS/PPS
+- CAVLC I-slice with non-zero `mb_qp_delta`
+- CAVLC P-slice skip macroblock
+- CAVLC P-slice with non-zero L0 motion vector
+- Unsupported CABAC stream that reports a structured diagnostic and does not crash
+
+Recommended remaining improvement:
+
+- Add multi-macroblock and multi-frame fixtures.
+- Add decoded-real-world samples where redistribution is legally safe.
+- Expand assertions as parser coverage grows:
+  - residual CAVLC coefficient totals
+  - sub-macroblock P_8x8 motion vectors
+  - B-slice L0/L1/bi prediction modes
+  - richer unsupported diagnostics for MBAFF/FMO and truncated streams
 
 Suggested files:
 

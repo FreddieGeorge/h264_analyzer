@@ -115,7 +115,10 @@ if(BUILD_TESTING)
     )
     target_include_directories(H264AnalyzerParserTests PRIVATE src)
     target_link_libraries(H264AnalyzerParserTests PRIVATE Qt6::Core)
-    target_compile_definitions(H264AnalyzerParserTests PRIVATE H264_ANALYZER_ENABLE_TESTS)
+    target_compile_definitions(H264AnalyzerParserTests PRIVATE
+        H264_ANALYZER_ENABLE_TESTS
+        H264_ANALYZER_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+    )
     target_compile_features(H264AnalyzerParserTests PRIVATE cxx_std_17)
     add_test(NAME H264AnalyzerParserTests COMMAND H264AnalyzerParserTests)
 endif()
