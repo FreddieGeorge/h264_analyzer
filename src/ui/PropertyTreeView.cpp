@@ -2,8 +2,12 @@
 
 #include <QTreeWidgetItem>
 
+#include <algorithm>
+
 namespace
 {
+constexpr int MaxDisplayedMacroblocks = 256;
+
 QString boolValue(bool value)
 {
     return value ? QStringLiteral("1") : QStringLiteral("0");
@@ -157,7 +161,16 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         addSyntaxFields(sliceItem, slice.fields);
 
         auto *mbRoot = new QTreeWidgetItem(sliceItem, {tr("Macroblocks"), QString::number(slice.macroblocks.size())});
-        for (const MacroblockInfo &mb : slice.macroblocks) {
+        const int displayedMacroblocks = std::min(MaxDisplayedMacroblocks, static_cast<int>(slice.macroblocks.size()));
+        if (slice.macroblocks.size() > displayedMacroblocks) {
+            addPair(mbRoot,
+                    tr("display limit"),
+                    tr("Showing first %1 of %2 macroblocks to keep the UI responsive.")
+                        .arg(displayedMacroblocks)
+                        .arg(slice.macroblocks.size()));
+        }
+        for (int mbIndex = 0; mbIndex < displayedMacroblocks; ++mbIndex) {
+            const MacroblockInfo &mb = slice.macroblocks[mbIndex];
             auto *mbItem = new QTreeWidgetItem(mbRoot, {tr("MB %1").arg(mb.address), mb.mbType});
             addPair(mbItem, tr("parsed"), boolValue(mb.parsed));
             addPair(mbItem, tr("skipped"), boolValue(mb.skipped));

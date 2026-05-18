@@ -50,8 +50,8 @@ private:
     void stepToNextFrame();
     void stopPlayback();
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
-    void handleFrameListSelection(int frameIndex, const FrameSyntaxInfo &syntaxInfo);
-    bool showFrameFromCache(int frameIndex, const FrameSyntaxInfo &fallbackSyntaxInfo = FrameSyntaxInfo {}, bool selectInList = true);
+    void handleFrameListSelection(int frameIndex);
+    bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
     void setPlaybackControlsEnabled(bool enabled);
     void updatePlaybackActionState();
     void updateFrameIndexDisplay();

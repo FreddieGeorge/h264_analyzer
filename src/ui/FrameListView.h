@@ -17,8 +17,7 @@ public:
     bool selectFrameIndex(int frameIndex);
 
 signals:
-    void frameSyntaxSelected(const FrameSyntaxInfo &syntaxInfo);
-    void frameSelected(int frameIndex, const FrameSyntaxInfo &syntaxInfo);
+    void frameSelected(int frameIndex);
 
 private:
     void handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);

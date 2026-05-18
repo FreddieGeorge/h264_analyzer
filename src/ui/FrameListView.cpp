@@ -6,7 +6,7 @@
 
 namespace
 {
-constexpr int FrameSyntaxRole = Qt::UserRole + 1;
+constexpr int FrameIndexRole = Qt::UserRole + 1;
 }
 
 FrameListView::FrameListView(QWidget *parent)
@@ -39,7 +39,7 @@ void FrameListView::clearFrames()
 
 void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
 {
-    if (topLevelItemCount() == 1 && topLevelItem(0)->data(0, FrameSyntaxRole).isNull()) {
+    if (topLevelItemCount() == 1 && topLevelItem(0)->data(0, FrameIndexRole).isNull()) {
         clear();
     }
 
@@ -52,20 +52,30 @@ void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         poc,
         frameNum
     });
-    item->setData(0, FrameSyntaxRole, QVariant::fromValue(syntaxInfo));
+    item->setData(0, FrameIndexRole, syntaxInfo.index);
     addTopLevelItem(item);
 }
 
 bool FrameListView::selectFrameIndex(int frameIndex)
 {
+    if (frameIndex >= 0 && frameIndex < topLevelItemCount()) {
+        QTreeWidgetItem *item = topLevelItem(frameIndex);
+        if (item->data(0, FrameIndexRole).toInt() == frameIndex) {
+            const QSignalBlocker blocker(this);
+            setCurrentItem(item);
+            scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            return true;
+        }
+    }
+
     for (int row = 0; row < topLevelItemCount(); ++row) {
         QTreeWidgetItem *item = topLevelItem(row);
-        const QVariant value = item->data(0, FrameSyntaxRole);
-        if (!value.isValid() || !value.canConvert<FrameSyntaxInfo>()) {
+        const QVariant value = item->data(0, FrameIndexRole);
+        if (!value.isValid()) {
             continue;
         }
 
-        if (value.value<FrameSyntaxInfo>().index == frameIndex) {
+        if (value.toInt() == frameIndex) {
             const QSignalBlocker blocker(this);
             setCurrentItem(item);
             scrollToItem(item, QAbstractItemView::PositionAtCenter);
@@ -83,10 +93,8 @@ void FrameListView::handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidg
         return;
     }
 
-    const QVariant value = current->data(0, FrameSyntaxRole);
-    if (value.isValid() && value.canConvert<FrameSyntaxInfo>()) {
-        const FrameSyntaxInfo syntaxInfo = value.value<FrameSyntaxInfo>();
-        emit frameSyntaxSelected(syntaxInfo);
-        emit frameSelected(syntaxInfo.index, syntaxInfo);
+    const QVariant value = current->data(0, FrameIndexRole);
+    if (value.isValid()) {
+        emit frameSelected(value.toInt());
     }
 }

@@ -33,7 +33,7 @@
 
 namespace
 {
-constexpr int MaxCachedFrames = 240;
+constexpr int MaxCachedFrames = 80;
 
 QString firstWritableLocation(QStandardPaths::StandardLocation location)
 {
@@ -301,6 +301,7 @@ void MainWindow::pausePlayback()
     m_decodeWorker->pause();
     m_playbackPaused = true;
     updatePlaybackActionState();
+    showFrameFromCache(m_currentFrameIndex, true, true);
     statusBar()->showMessage(tr("Paused"), 2000);
 }
 
@@ -325,7 +326,7 @@ void MainWindow::stepToPreviousFrame()
     if (!m_decodeWorker.isNull()) {
         pausePlayback();
     }
-    showFrameFromCache(m_currentFrameIndex - 1);
+    showFrameFromCache(m_currentFrameIndex - 1, true, true);
 }
 
 void MainWindow::stepToNextFrame()
@@ -335,7 +336,7 @@ void MainWindow::stepToNextFrame()
     }
 
     const int nextIndex = m_currentFrameIndex + 1;
-    if (nextIndex <= m_latestFrameIndex && showFrameFromCache(nextIndex)) {
+    if (nextIndex <= m_latestFrameIndex && showFrameFromCache(nextIndex, true, true)) {
         return;
     }
 
@@ -370,21 +371,23 @@ void MainWindow::handleFrameReady(int frameIndex,
 
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
     m_frameListView->addFrameSyntax(syntaxInfo);
-    showFrameFromCache(frameIndex);
+    showFrameFromCache(frameIndex, true, m_playbackPaused);
 }
 
-void MainWindow::handleFrameListSelection(int frameIndex, const FrameSyntaxInfo &syntaxInfo)
+void MainWindow::handleFrameListSelection(int frameIndex)
 {
     if (!m_decodeWorker.isNull()) {
         pausePlayback();
     }
-    showFrameFromCache(frameIndex, syntaxInfo, false);
+    showFrameFromCache(frameIndex, false, true);
 }
 
-bool MainWindow::showFrameFromCache(int frameIndex,
-                                    const FrameSyntaxInfo &fallbackSyntaxInfo,
-                                    bool selectInList)
+bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool updatePropertyTree)
 {
+    if (frameIndex < 0) {
+        return false;
+    }
+
     for (const CachedFrame &cached : std::as_const(m_frameCache)) {
         if (cached.index != frameIndex) {
             continue;
@@ -393,7 +396,9 @@ bool MainWindow::showFrameFromCache(int frameIndex,
         m_currentFrameIndex = frameIndex;
         m_videoCanvas->setFrame(cached.frame);
         m_videoCanvas->setAnalysisOverlay(cached.syntaxInfo);
-        m_propertyTreeView->showFrameSyntax(cached.syntaxInfo);
+        if (updatePropertyTree) {
+            m_propertyTreeView->showFrameSyntax(cached.syntaxInfo);
+        }
         if (selectInList) {
             m_frameListView->selectFrameIndex(frameIndex);
         }
@@ -401,14 +406,7 @@ bool MainWindow::showFrameFromCache(int frameIndex,
         return true;
     }
 
-    if (fallbackSyntaxInfo.index == frameIndex) {
-        m_currentFrameIndex = frameIndex;
-        m_videoCanvas->setAnalysisOverlay(fallbackSyntaxInfo);
-        m_propertyTreeView->showFrameSyntax(fallbackSyntaxInfo);
-        updateFrameIndexDisplay();
-        m_logDock->appendLine(tr("[Warning] Frame %1 is no longer in the recent frame cache.").arg(frameIndex));
-    }
-
+    m_logDock->appendLine(tr("[Warning] Frame %1 is no longer in the recent frame cache.").arg(frameIndex));
     return false;
 }
 
