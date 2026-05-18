@@ -1,8 +1,6 @@
 # AI Next Steps for H264 Analyzer
 
-This document is intended for the next AI/coding agent that continues development of this project.
-
-## Project Context
+This document is the current continuation note for future AI/coding agents working on this repository.
 
 Repository:
 
@@ -16,389 +14,301 @@ Typical local path:
 D:\Desktop\h264_analyzer
 ```
 
-Technology stack:
+## Current State
 
-- C++17
-- Qt 6 Widgets
-- `QOpenGLWidget`
-- CMake
-- FFmpeg
-- Windows development environment: MSYS2 UCRT64
-- Windows portable deployment script is already available
+The project is now a usable Qt/FFmpeg-based H.264 bitstream analysis tool.
 
-Important existing files:
+Implemented capabilities:
 
-```text
-CMakeLists.txt
-src/app/MainWindow.*
-src/core/FFmpegDecoder.*
-src/core/DecodeWorker.*
-src/core/H264Parser.*
-src/ui/VideoCanvas.*
-src/ui/FrameListView.*
-src/ui/PropertyTreeView.*
-src/ui/LogDock.*
-scripts/deploy-windows-msys2.ps1
-docs/windows-deployment.md
-installEnv.md
-```
+- Qt 6 Widgets main window with dockable frame list, property tree, log panel, and `QOpenGLWidget` video canvas.
+- Background FFmpeg decoding through `DecodeWorker` on `QThread`.
+- Playback controls: play/pause, previous frame, next frame, stop, current frame indicator.
+- Frame synchronization between decoded image, frame list selection, property tree, and overlays.
+- Recent decoded frame cache plus on-demand rebuffering when a selected frame was evicted.
+- Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
+- SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
+- Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
+  - macroblock address
+  - `mb_type`
+  - prediction mode
+  - coded block pattern
+  - QP / `mb_qp_delta`
+  - P-slice L0 motion vector differences for supported partition types
+- Analysis overlays:
+  - macroblock grid
+  - macroblock QP heatmap
+  - P-slice L0 motion vectors
+  - overlay opacity control
+- Export features:
+  - selected frame syntax JSON
+  - frame list CSV
+  - screenshot including visible overlays
+- Windows portable deployment script:
+  - `scripts/deploy-windows-msys2.ps1`
+  - output under `dist/H264Analyzer-windows-ucrt64`
+  - zip at `dist/H264Analyzer-windows-ucrt64.zip`
+- CTest parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
+- GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 
-## Current Capabilities
+## Build And Verification
 
-The project currently has:
-
-1. Qt main window framework
-   - `MainWindow`
-   - left dock: `FrameListView`
-   - center: `VideoCanvas`
-   - right dock: `PropertyTreeView`
-   - bottom dock: `LogDock`
-
-2. FFmpeg decoding
-   - `FFmpegDecoder`
-   - `DecodeWorker`
-   - decoding runs on a background `QThread`
-
-3. Basic H.264 syntax parsing
-   - custom `H264Parser`
-   - NALU splitting
-   - Annex B and AVCC/length-prefixed support
-   - Exp-Golomb decoding
-   - SPS/PPS/Slice Header basic fields
-
-4. UI binding
-   - frame list shows frame type, POC, and `frame_num`
-   - property tree shows NALU/SPS/PPS/Slice information
-
-5. `VideoCanvas` overlay foundation
-   - video texture rendering
-   - macroblock grid
-   - QP heatmap
-   - motion vector drawing interface
-
-6. Windows deployment
-   - `scripts/deploy-windows-msys2.ps1`
-   - creates portable package under `dist/H264Analyzer-windows-ucrt64`
-   - creates `dist/H264Analyzer-windows-ucrt64.zip`
-
-## Build And Verification Commands
-
-Use MSYS2 UCRT64 toolchain:
+Use MSYS2 UCRT64 on Windows:
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64 -DBUILD_TESTING=ON"
 C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ctest --test-dir build-msys2-ucrt --output-on-failure"
 ```
 
-Run from development environment:
+Run from the development environment:
 
 ```powershell
 C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ./build-msys2-ucrt/H264Analyzer.exe"
 ```
 
-Create Windows portable package:
+Create portable package:
 
 ```powershell
-.\scripts\deploy-windows-msys2.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-windows-msys2.ps1
 ```
 
-Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. Distribute:
+Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. Use the portable folder or zip in `dist/`.
+
+## Important Rules
+
+- Do not commit `build*/`, `build-msys2-ucrt/`, `dist/`, or generated package artifacts.
+- Do not use FFmpeg's H.264 parser as the main syntax parser. `H264Parser` is intentionally a direct bitstream parser.
+- Keep decoding, seeking, and heavy parsing off the UI thread.
+- Parser failures must be fault tolerant: log or mark unsupported syntax, do not crash.
+- Reuse `VideoCanvas` coordinate helpers:
+  - `videoDisplayRect()`
+  - `mapVideoPointToWidget()`
+  - `macroblockWidgetRect()`
+- After meaningful code changes, run build and tests. If deployment script changes, run the deployment script too.
+
+## Highest Priority Improvements
+
+### 1. Real Random Access And Seeking
+
+Current behavior:
+
+- The app has a recent decoded frame cache.
+- If the user selects an old frame that was evicted, `MainWindow::seekToFrame()` restarts decoding from the beginning and buffers until the target frame.
+- This is correct but can be slow for long streams.
+
+Recommended improvement:
+
+- Add an indexed seek strategy:
+  - record packet/frame checkpoints while decoding
+  - keep keyframe/IDR packet offsets where possible
+  - restart decoding from the nearest previous checkpoint instead of frame 0
+- Keep UI behavior unchanged: selecting an old frame should show buffering, then land on that frame and pause.
+- Be careful: H.264 raw `.264` streams may not have container timestamps or seek indexes, so Annex B byte offsets and IDR detection matter.
+
+Suggested files:
+
+- `src/core/FFmpegDecoder.*`
+- `src/core/DecodeWorker.*`
+- `src/app/MainWindow.*`
+- `src/core/H264Parser.*`
+
+### 2. Parser Correctness And Coverage
+
+Current limitations:
+
+- Residual CAVLC coefficient parsing is not implemented.
+- CABAC macroblock parsing is not implemented.
+- B-slice motion vectors are not implemented.
+- P_8x8 and sub-macroblock prediction parsing are not implemented.
+- MBAFF/interlaced and FMO are not implemented.
+- Some fields are safely skipped or summarized instead of fully represented.
+
+Recommended next parser milestones:
+
+1. Complete CAVLC residual parsing for common 4:2:0 streams.
+2. Continue macroblock parsing after residuals instead of stopping and estimating remaining macroblocks.
+3. Implement P_8x8 / P_8x8ref0 sub-macroblock parsing.
+4. Add B-slice direct/list0/list1/bi prediction modes and L1 MV visualization.
+5. Add CABAC support only after the CAVLC path is well tested.
+6. Add richer diagnostics for unsupported syntax instead of generic notes.
+
+Acceptance focus:
+
+- Unsupported streams should remain usable.
+- QP heatmap should become genuinely macroblock-level across entire supported frames.
+- Motion vector overlay should avoid drawing guessed data as if it were fully parsed.
+
+### 3. Test Fixtures And Regression Coverage
+
+Current tests are synthetic and narrow.
+
+Recommended improvement:
+
+- Add tiny checked-in bitstream fixtures under `tests/fixtures/`.
+- Cover:
+  - Annex B with SPS/PPS/IDR
+  - AVCC packet with SPS/PPS
+  - one CAVLC I-frame stream
+  - one CAVLC P-frame stream with non-zero `mb_qp_delta`
+  - one P-slice with motion vectors
+  - one unsupported CABAC stream that must not crash
+- Add parser assertions for:
+  - frame count
+  - SPS dimensions
+  - macroblock count
+  - at least one parsed QP delta
+  - at least one parsed motion vector
+  - unsupported warnings for unsupported streams
+
+Suggested files:
+
+- `tests/test_h264_parser.cpp`
+- `tests/fixtures/`
+- `CMakeLists.txt`
+
+### 4. Playback Performance
+
+Current performance safeguards:
+
+- Property tree is not rebuilt on every playing frame.
+- Frame list stores frame indexes rather than full syntax objects.
+- Macroblock display in the property tree is capped.
+- Old frame cache misses rebuffer on demand.
+
+Remaining optimizations:
+
+- Avoid copying very large `FrameSyntaxInfo` objects more than needed.
+- Consider `QSharedPointer<const FrameSyntaxInfo>` for cache and UI handoff.
+- Consider a model/view table for frame list instead of `QTreeWidget`.
+- Add a bounded syntax cache separate from decoded image cache.
+- Add cancellation if the user clicks another frame while a rebuffer seek is in progress.
+- Add progress reporting during long rebuffer seeks.
+
+Suggested files:
+
+- `src/app/MainWindow.*`
+- `src/ui/FrameListView.*`
+- `src/ui/PropertyTreeView.*`
+- `src/core/DecodeWorker.*`
+
+### 5. Export Quality
+
+Current exports work but are basic.
+
+Recommended improvement:
+
+- Add JSON schema version and stream metadata.
+- Add frame list CSV export from an explicit internal frame model rather than reading UI text.
+- Add batch export for all decoded frame syntax.
+- Add screenshot size options and overlay-only export.
+- Add export failure details to status bar and log.
+- Preserve last export directory separately from last open directory.
+
+Suggested files:
+
+- `src/app/MainWindow.*`
+- potential new `src/core/ExportWriter.*`
+
+### 6. UI/UX Polish
+
+Recommended improvement:
+
+- Add a real timeline/seek bar separate from the frame list.
+- Add visible buffering state during rebuffer seek.
+- Add disabled/enabled states for export actions when no frame is available.
+- Add overlay legend for QP heatmap and MV colors.
+- Add option to cap MV drawing density for high-resolution clips.
+- Persist UI settings with `QSettings`:
+  - window geometry
+  - dock positions
+  - overlay toggles
+  - opacity
+  - last open/export directories
+
+Suggested files:
+
+- `src/app/MainWindow.*`
+- `src/ui/VideoCanvas.*`
+
+### 7. CI And Release Hardening
+
+Current CI:
+
+- Windows MSYS2 configure/build/test/package workflow exists.
+- Portable zip is uploaded as an artifact.
+
+Recommended improvement:
+
+- Add workflow status badge to README.
+- Add release workflow triggered by tags.
+- Add artifact retention and versioned zip names.
+- Run tests on Linux too if Qt/FFmpeg packages are stable enough.
+- Cache MSYS2 packages if workflow time becomes painful.
+- Add a small smoke test that runs the parser test binary from the packaged environment.
+
+Suggested files:
+
+- `.github/workflows/windows-msys2.yml`
+- `scripts/deploy-windows-msys2.ps1`
+- `README.md`
+
+## Lower Priority Ideas
+
+- Add support for HEVC/H.265 as a separate parser module after H.264 is more mature.
+- Add side-by-side frame comparison.
+- Add search/filter in property tree.
+- Add bitstream hex view synchronized with syntax fields.
+- Add per-field bit offset navigation.
+- Add chart view for QP distribution and frame-type distribution.
+- Add JSON import/replay mode for previously exported analysis.
+- Add command-line analysis mode for CI or batch use.
+
+## Suggested Next Commit Plan
+
+Use focused commits. Good examples:
 
 ```text
-dist/H264Analyzer-windows-ucrt64.zip
+Add indexed frame seek checkpoints
+Parse CAVLC residual coefficients
+Continue macroblock parsing after residual data
+Parse P8x8 sub-macroblock motion vectors
+Add parser fixture bitstreams
+Persist overlay and window settings
+Improve export writers and metadata
+Add release workflow for tagged builds
 ```
 
-## Important Rules For Future Work
+## Quick Orientation For Future Agents
 
-1. Do not commit `build-msys2-ucrt/`, `build*/`, or `dist/`.
-2. Do not use FFmpeg's H.264 parser as the main syntax parser. The project goal is to implement direct H.264 syntax parsing in `H264Parser`.
-3. Do not block the UI thread with decoding, seeking, or heavy syntax parsing.
-4. `H264Parser` must be fault tolerant. Bad or unsupported bitstreams should produce warnings/logs, not crashes.
-5. Reuse existing `VideoCanvas` coordinate mapping helpers:
-   - `videoDisplayRect()`
-   - `mapVideoPointToWidget()`
-   - `macroblockWidgetRect()`
-6. `MotionVectorInfo` is already defined, but real MV parsing is not implemented yet.
-7. After each meaningful stage, run a build and create a Git commit.
-8. If deployment changes, run `scripts/deploy-windows-msys2.ps1`.
-
-## Stage 1: Playback Control And Frame Synchronization
-
-Goal:
-
-Turn the app from continuous playback into a controllable analysis tool.
-
-Tasks:
-
-1. Add playback toolbar controls:
-   - Play/Pause
-   - Previous Frame
-   - Next Frame
-   - Stop
-   - current frame index display
-
-2. Refactor `DecodeWorker`:
-   - support pause
-   - support single-frame stepping
-   - support stop
-
-3. Add frame cache:
-   - cache recent decoded frames
-   - cache matching `FrameSyntaxInfo`
-   - clicking a frame in `FrameListView` should show that frame in `VideoCanvas`
-
-4. Synchronize:
-   - video image
-   - left frame list selection
-   - right property tree
-   - overlay data
-
-Acceptance criteria:
-
-- Opening a stream starts decoding.
-- User can pause playback.
-- User can step to next frame.
-- User can click a frame in `FrameListView` and the canvas/property tree update to that frame.
-- UI remains responsive.
-
-## Stage 2: Better H.264 Syntax Parsing
-
-Goal:
-
-Make the right property panel more useful and closer to a professional bitstream analyzer.
-
-Tasks:
-
-1. Extend SPS parsing:
-   - constraint flags
-   - VUI presence
-   - timing info
-   - aspect ratio
-   - bitstream restriction
-
-2. Extend PPS parsing:
-   - `weighted_pred_flag`
-   - `weighted_bipred_idc`
-   - `transform_8x8_mode_flag`
-   - deblocking-related flags
-
-3. Extend Slice Header parsing:
-   - `field_pic_flag`
-   - `bottom_field_flag`
-   - `num_ref_idx_active_override_flag`
-   - `ref_pic_list_modification`
-   - `pred_weight_table`
-   - `dec_ref_pic_marking`
-
-4. Add bit/byte position metadata where practical:
-   - NALU offset
-   - field bit offset
-   - field length
-
-Acceptance criteria:
-
-- Right property tree shows richer SPS/PPS/Slice fields.
-- Parser does not crash on unsupported streams.
-- Unsupported fields are skipped safely or marked as unsupported.
-
-## Stage 3: Real Macroblock-Level Information
-
-Goal:
-
-Make QP heatmap and macroblock information real instead of slice-level estimates.
-
-Current state:
-
-- `MacroblockInfo` exists.
-- `QP` heatmap currently uses slice-level estimated QP.
-- `mb_type` is currently placeholder/estimated.
-
-Tasks:
-
-1. Implement basic `slice_data` parsing.
-2. Start with common CAVLC baseline/main profile streams.
-3. Parse per macroblock:
-   - `mb_address`
-   - `mb_type`
-   - QP
-   - `coded_block_pattern`
-   - intra/inter/skip/direct mode where possible
-
-4. Update `MacroblockInfo`:
-   - `mbType`
-   - `qp`
-   - coded block information
-   - prediction mode
-
-5. Update `VideoCanvas` QP heatmap to use real macroblock QP.
-
-Acceptance criteria:
-
-- Property tree can expand macroblock information.
-- QP heatmap varies per macroblock on streams where QP changes.
-- Unsupported entropy modes are clearly logged.
-
-## Stage 4: Motion Vector Parsing And Visualization
-
-Goal:
-
-Draw real motion vector arrows.
-
-Current state:
-
-- `MotionVectorInfo` exists.
-- `VideoCanvas::drawMotionVectors()` exists.
-- Real MV values are not yet parsed from the bitstream.
-
-Tasks:
-
-1. Parse P/B Slice motion vector related syntax.
-2. Fill `MacroblockInfo::motionVectors`:
-   - list L0/L1
-   - reference index
-   - `mv_x` in quarter-pel units
-   - `mv_y` in quarter-pel units
-   - reference position if available
-
-3. Update drawing:
-   - L0: cyan
-   - L1: magenta
-   - skip zero-length vectors
-
-4. Add display switch for motion vectors.
-
-Coordinate mapping logic:
+Most important files:
 
 ```text
-mbX = mb.address % picWidthInMbs
-mbY = mb.address / picWidthInMbs
-
-start = current macroblock center:
-  x = mbX * 16 + 8
-  y = mbY * 16 + 8
-
-end = referenceBase + MV:
-  x = referenceX + 8 + mvXQuarterPel / 4.0
-  y = referenceY + 8 + mvYQuarterPel / 4.0
+src/app/MainWindow.*
+src/core/DecodeWorker.*
+src/core/FFmpegDecoder.*
+src/core/H264Parser.*
+src/ui/VideoCanvas.*
+src/ui/FrameListView.*
+src/ui/PropertyTreeView.*
+tests/test_h264_parser.cpp
+scripts/deploy-windows-msys2.ps1
+.github/workflows/windows-msys2.yml
 ```
 
-If explicit reference position is not available, use co-located macroblock center:
+Before changing parser behavior, read:
 
-```text
-referenceBase = currentCenter
-```
+- `H264Parser::parseSliceHeader`
+- `H264Parser::parseSliceData`
+- `MacroblockInfo`
+- `SliceInfo`
+- `VideoCanvas::drawQpHeatmap`
+- `VideoCanvas::drawMotionVectors`
 
-Then map video pixel coordinates to widget coordinates through `mapVideoPointToWidget()`.
+Before changing playback/seek behavior, read:
 
-Acceptance criteria:
+- `MainWindow::handleFrameReady`
+- `MainWindow::showFrameFromCache`
+- `MainWindow::seekToFrame`
+- `DecodeWorker::decodeFileFromFrame`
 
-- P/B frames show real MV arrows.
-- I frames show no MV arrows.
-- Motion vector overlay can be toggled.
-
-## Stage 5: Overlay Control Panel
-
-Goal:
-
-Give users control over analysis overlays.
-
-Tasks:
-
-1. Add toolbar or menu controls:
-   - Show Macroblock Grid
-   - Show QP Heatmap
-   - Show Motion Vectors
-   - Overlay opacity slider
-
-2. Add `VideoCanvas` APIs:
-
-```cpp
-void setShowGrid(bool enabled);
-void setShowQpHeatmap(bool enabled);
-void setShowMotionVectors(bool enabled);
-void setOverlayOpacity(float opacity);
-```
-
-3. Defaults:
-   - grid: on
-   - QP heatmap: off
-   - MV: off
-
-Acceptance criteria:
-
-- Each overlay can be independently toggled.
-- Opacity changes are visible immediately.
-- Settings do not require reloading the file.
-
-## Stage 6: Export Features
-
-Goal:
-
-Allow users to save analysis results.
-
-Tasks:
-
-1. Add `File -> Export Frame Syntax JSON`.
-2. Add `File -> Export Frame List CSV`.
-3. Add `File -> Export Screenshot`.
-   - Screenshot should include current video frame and overlays.
-4. Add log output for export path and success/failure.
-
-Acceptance criteria:
-
-- Selected frame syntax exports to JSON.
-- Frame list exports to CSV.
-- Screenshot matches the visible canvas.
-
-## Stage 7: Engineering Quality And CI
-
-Goal:
-
-Make the project easier to maintain and release.
-
-Tasks:
-
-1. Add GitHub Actions for Windows MSYS2 build.
-2. Generate portable zip artifact in CI.
-3. Add tests:
-   - Exp-Golomb decoding
-   - Annex B NALU splitting
-   - AVCC/length-prefixed NALU splitting
-   - SPS width/height parsing
-
-4. Update README:
-   - build instructions
-   - run instructions
-   - deployment instructions
-   - feature overview
-
-5. Run:
-
-```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
-```
-
-Acceptance criteria:
-
-- CI builds successfully.
-- Windows portable zip is available as an artifact.
-- Tests pass locally and in CI.
-
-## Suggested Commit Plan
-
-Use separate commits per stage, for example:
-
-```text
-Add playback controls and frame synchronization
-Expand H264 SPS PPS slice parsing
-Parse macroblock QP and mb_type
-Visualize real motion vectors
-Add overlay control toolbar
-Add frame export and screenshot features
-Add Windows CI build and deployment artifact
-```
-
-## Final Reminder
-
-Prioritize correctness and stability over completeness. H.264 bitstream parsing is complex; unsupported syntax should be logged and skipped gracefully. The UI should remain responsive at all times.
-
+The project is now beyond the original Stage 1-7 checklist. Future work should focus less on adding menu items and more on correctness, parser depth, seek performance, and regression coverage.
