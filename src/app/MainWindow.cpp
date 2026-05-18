@@ -98,6 +98,10 @@ void MainWindow::createActions()
     m_stopAction = new QAction(style()->standardIcon(QStyle::SP_MediaStop), tr("Stop"), this);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::stopPlayback);
 
+    m_showMotionVectorsAction = new QAction(tr("Show Motion Vectors"), this);
+    m_showMotionVectorsAction->setCheckable(true);
+    m_showMotionVectorsAction->setChecked(true);
+
     setPlaybackControlsEnabled(false);
 }
 
@@ -105,6 +109,9 @@ void MainWindow::createDocks()
 {
     m_videoCanvas = new VideoCanvas(this);
     setCentralWidget(m_videoCanvas);
+    connect(m_showMotionVectorsAction, &QAction::toggled,
+            m_videoCanvas, &VideoCanvas::setShowMotionVectors);
+    m_videoCanvas->setShowMotionVectors(m_showMotionVectorsAction->isChecked());
 
     m_frameListView = new FrameListView;
     m_frameDock = new QDockWidget(tr("FrameListView"), this);
@@ -141,6 +148,8 @@ void MainWindow::createMenus()
     m_docksMenu->addAction(m_frameDock->toggleViewAction());
     m_docksMenu->addAction(m_propertyDock->toggleViewAction());
     m_docksMenu->addAction(m_logDockWidget->toggleViewAction());
+    viewMenu->addSeparator();
+    viewMenu->addAction(m_showMotionVectorsAction);
 }
 
 void MainWindow::createToolBars()

@@ -69,6 +69,7 @@ private:
     QAction *m_previousFrameAction = nullptr;
     QAction *m_nextFrameAction = nullptr;
     QAction *m_stopAction = nullptr;
+    QAction *m_showMotionVectorsAction = nullptr;
     QLabel *m_frameIndexLabel = nullptr;
     QMenu *m_docksMenu = nullptr;
 

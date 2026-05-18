@@ -5,6 +5,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <array>
 
 class H264Parser::BitReader
 {
@@ -872,6 +873,23 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
 
 void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsInfo &pps, const SpsInfo &sps) const
 {
+    struct MacroblockMvState
+    {
+        bool valid = false;
+        int refIndex = 0;
+        int mvX = 0;
+        int mvY = 0;
+    };
+
+    struct PartitionMv
+    {
+        int refIndex = 0;
+        int mvdX = 0;
+        int mvdY = 0;
+        int mvX = 0;
+        int mvY = 0;
+    };
+
     const int totalMacroblocks = std::max(1, slice.picWidthInMbs * slice.picHeightInMbs);
     int currentAddress = std::clamp(slice.firstMbInSlice, 0, totalMacroblocks - 1);
     int currentQp = slice.derivedQp;
@@ -879,6 +897,81 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
     const bool isISlice = normalizedSliceType == 2 || normalizedSliceType == 4;
     const bool isPSlice = normalizedSliceType == 0 || normalizedSliceType == 3;
     const int chromaArrayType = sps.chromaFormatIdc == 0 ? 0 : sps.chromaFormatIdc;
+    QVector<MacroblockMvState> mvStates(totalMacroblocks);
+
+    auto median = [](int a, int b, int c) {
+        return a + b + c - std::min({a, b, c}) - std::max({a, b, c});
+    };
+
+    auto neighborMv = [&](int address) {
+        if (address < 0 || address >= mvStates.size()) {
+            return MacroblockMvState {};
+        }
+        return mvStates[address];
+    };
+
+    auto predictMv = [&](int address, int refIndex) {
+        const int mbX = address % slice.picWidthInMbs;
+        const int leftAddress = mbX > 0 ? address - 1 : -1;
+        const int topAddress = address >= slice.picWidthInMbs ? address - slice.picWidthInMbs : -1;
+        const int topRightAddress = (topAddress >= 0 && mbX + 1 < slice.picWidthInMbs)
+            ? topAddress + 1
+            : -1;
+        const int topLeftAddress = (topAddress >= 0 && mbX > 0)
+            ? topAddress - 1
+            : -1;
+
+        const MacroblockMvState a = neighborMv(leftAddress);
+        const MacroblockMvState b = neighborMv(topAddress);
+        MacroblockMvState c = neighborMv(topRightAddress);
+        if (!c.valid) {
+            c = neighborMv(topLeftAddress);
+        }
+
+        QVector<MacroblockMvState> matching;
+        for (const MacroblockMvState &candidate : {a, b, c}) {
+            if (candidate.valid && candidate.refIndex == refIndex) {
+                matching.append(candidate);
+            }
+        }
+        if (matching.size() == 1) {
+            return matching.first();
+        }
+
+        MacroblockMvState result;
+        result.valid = a.valid || b.valid || c.valid;
+        result.refIndex = refIndex;
+        result.mvX = median(a.valid ? a.mvX : 0, b.valid ? b.mvX : 0, c.valid ? c.mvX : 0);
+        result.mvY = median(a.valid ? a.mvY : 0, b.valid ? b.mvY : 0, c.valid ? c.mvY : 0);
+        return result;
+    };
+
+    auto addMotionVector = [&](MacroblockInfo &mb, int refIndex, int mvX, int mvY) {
+        MotionVectorInfo mv;
+        mv.list = 0;
+        mv.referenceIndex = refIndex;
+        mv.mvXQuarterPel = mvX;
+        mv.mvYQuarterPel = mvY;
+        mb.motionVectors.append(mv);
+    };
+
+    auto setPrimaryMvState = [&](const MacroblockInfo &mb) {
+        if (mb.address < 0 || mb.address >= mvStates.size() || mb.motionVectors.isEmpty()) {
+            return;
+        }
+        const MotionVectorInfo &mv = mb.motionVectors.first();
+        mvStates[mb.address] = {true, mv.referenceIndex, mv.mvXQuarterPel, mv.mvYQuarterPel};
+    };
+
+    auto readTE = [&](int range) {
+        if (range <= 0) {
+            return 0;
+        }
+        if (range == 1) {
+            return reader.readBit() ? 0 : 1;
+        }
+        return static_cast<int>(reader.readUE());
+    };
 
     auto appendEstimatedRemainder = [&](const QString &reason) {
         if (!reason.isEmpty()) {
@@ -924,7 +1017,14 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
                 mb.qp = currentQp;
                 mb.skipped = true;
                 mb.parsed = true;
-                mb.note = QStringLiteral("Parsed from mb_skip_run.");
+                if (isPSlice) {
+                    const MacroblockMvState predicted = predictMv(mb.address, 0);
+                    addMotionVector(mb, 0, predicted.mvX, predicted.mvY);
+                    setPrimaryMvState(mb);
+                    mb.note = QStringLiteral("Parsed from mb_skip_run; P_Skip motion vector uses neighboring median prediction.");
+                } else {
+                    mb.note = QStringLiteral("Parsed from mb_skip_run; B direct motion vector parsing is not implemented.");
+                }
                 slice.macroblocks.append(mb);
             }
             if (mbSkipRun > 0 && !reader.moreRbspData()) {
@@ -992,6 +1092,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             reader.readUE();
         } else if (isPSlice) {
             int partitionCount = 1;
+            std::array<PartitionMv, 2> partitions;
             if (localMbType == 1 || localMbType == 2) {
                 partitionCount = 2;
             } else if (p8x8) {
@@ -1003,13 +1104,18 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
 
             if (slice.numRefIdxL0ActiveMinus1 > 0) {
                 for (int i = 0; i < partitionCount; ++i) {
-                    reader.readUE();
+                    partitions[i].refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
                 }
             }
             for (int i = 0; i < partitionCount; ++i) {
-                reader.readSE();
-                reader.readSE();
+                partitions[i].mvdX = reader.readSE();
+                partitions[i].mvdY = reader.readSE();
+                const MacroblockMvState predicted = predictMv(mb.address, partitions[i].refIndex);
+                partitions[i].mvX = predicted.mvX + partitions[i].mvdX;
+                partitions[i].mvY = predicted.mvY + partitions[i].mvdY;
+                addMotionVector(mb, partitions[i].refIndex, partitions[i].mvX, partitions[i].mvY);
             }
+            setPrimaryMvState(mb);
         }
 
         if (reader.hasError()) {

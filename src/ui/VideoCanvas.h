@@ -28,6 +28,7 @@ public:
 public slots:
     void setFrame(const DecodedVideoFramePtr &frame);
     void setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo);
+    void setShowMotionVectors(bool enabled);
 
 protected:
     void initializeGL() override;
@@ -51,6 +52,7 @@ private:
     QString m_overlayMessage;
     DecodedVideoFramePtr m_currentFrame;
     FrameSyntaxInfo m_currentSyntaxInfo;
+    bool m_showMotionVectors = true;
     SwsContext *m_swsContext = nullptr;
     QByteArray m_rgbaBuffer;
     QSize m_textureSize;

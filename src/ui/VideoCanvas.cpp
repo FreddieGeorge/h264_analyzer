@@ -66,6 +66,12 @@ void VideoCanvas::setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo)
     update();
 }
 
+void VideoCanvas::setShowMotionVectors(bool enabled)
+{
+    m_showMotionVectors = enabled;
+    update();
+}
+
 void VideoCanvas::initializeGL()
 {
     initializeOpenGLFunctions();
@@ -253,7 +259,9 @@ void VideoCanvas::drawAnalysisOverlay()
 
     drawQpHeatmap(painter, videoRect);
     drawMacroblockGrid(painter, videoRect);
-    drawMotionVectors(painter, videoRect);
+    if (m_showMotionVectors) {
+        drawMotionVectors(painter, videoRect);
+    }
 }
 
 void VideoCanvas::drawQpHeatmap(QPainter &painter, const QRectF &videoRect)
@@ -313,8 +321,6 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
 {
     painter.save();
     painter.setClipRect(videoRect);
-    painter.setPen(QPen(QColor(80, 220, 255, 220), 1.4));
-    painter.setBrush(QColor(80, 220, 255, 220));
 
     for (const SliceInfo &slice : m_currentSyntaxInfo.slices) {
         const int picWidthInMbs = slice.picWidthInMbs > 0
@@ -327,6 +333,12 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
             const QPointF currentCenter(mbX * 16.0 + 8.0, mbY * 16.0 + 8.0);
 
             for (const MotionVectorInfo &mv : mb.motionVectors) {
+                const QColor vectorColor = mv.list == 1
+                    ? QColor(255, 80, 220, 220)
+                    : QColor(80, 220, 255, 220);
+                painter.setPen(QPen(vectorColor, 1.4));
+                painter.setBrush(vectorColor);
+
                 const QPointF referenceBase(
                     mv.referenceX >= 0 ? mv.referenceX + 8.0 : currentCenter.x(),
                     mv.referenceY >= 0 ? mv.referenceY + 8.0 : currentCenter.y());
