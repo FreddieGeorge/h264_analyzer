@@ -1,5 +1,7 @@
 # H.264 Analyzer
 
+[![Windows MSYS2](https://github.com/FreddieGeorge/h264_analyzer/actions/workflows/windows-msys2.yml/badge.svg)](https://github.com/FreddieGeorge/h264_analyzer/actions/workflows/windows-msys2.yml)
+
 English | [简体中文](README.zh-CN.md)
 
 H.264 Analyzer is a cross-platform desktop application framework for inspecting H.264 bitstreams. It is built with C++17, Qt 6 Widgets, `QOpenGLWidget`, FFmpeg, and CMake.
@@ -21,7 +23,9 @@ The project currently supports video loading/decoding, controllable playback, H.
   - macroblock QP heatmap
   - parsed P-slice motion vectors
 - Toggle grid/QP/MV overlays and adjust overlay opacity.
+- Persist window layout, dock positions, overlay toggles, opacity, and recent open/export directories.
 - Export selected frame syntax JSON, frame list CSV, and screenshots with overlays.
+- Export all decoded frame syntax JSON with schema/version and stream metadata.
 - Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
 
 Current limitations:
@@ -208,7 +212,7 @@ Recommended next work:
 2. Add P_8x8 / P_8x8ref0 sub-macroblock parsing.
 3. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
 4. Extend B-slice and sub-macroblock motion vector parsing.
-5. Add CABAC support after the CAVLC paths are broader and well tested.
+5. Add Linux CI once Qt/FFmpeg package availability is stable enough.
 
 For a staged AI continuation plan, see [docs/ai-next-steps.md](docs/ai-next-steps.md).
 

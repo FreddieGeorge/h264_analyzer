@@ -32,6 +32,7 @@ public:
     ~MainWindow() override;
 
 protected:
+    void closeEvent(QCloseEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
 
@@ -61,6 +62,7 @@ private:
     void stepToNextFrame();
     void stopPlayback();
     void exportFrameSyntaxJson();
+    void exportAllFrameSyntaxJson();
     void exportFrameListCsv();
     void exportScreenshot();
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
@@ -71,8 +73,12 @@ private:
     const CachedFrame *currentCachedFrame() const;
     void setPlaybackControlsEnabled(bool enabled);
     void updatePlaybackActionState();
+    void updateExportActionState();
     void updateFrameIndexDisplay();
     QString defaultOpenDirectory() const;
+    QString defaultExportDirectory() const;
+    void loadSettings();
+    void saveSettings() const;
 
     QAction *m_openAction = nullptr;
     QAction *m_playPauseAction = nullptr;
@@ -80,6 +86,7 @@ private:
     QAction *m_nextFrameAction = nullptr;
     QAction *m_stopAction = nullptr;
     QAction *m_exportFrameSyntaxJsonAction = nullptr;
+    QAction *m_exportAllFrameSyntaxJsonAction = nullptr;
     QAction *m_exportFrameListCsvAction = nullptr;
     QAction *m_exportScreenshotAction = nullptr;
     QAction *m_showGridAction = nullptr;
@@ -102,7 +109,9 @@ private:
     QPointer<QThread> m_decodeThread;
     QPointer<DecodeWorker> m_decodeWorker;
     QString m_lastOpenDirectory;
+    QString m_lastExportDirectory;
     QVector<CachedFrame> m_frameCache;
+    QVector<FrameSyntaxInfo> m_frameSyntaxByIndex;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;

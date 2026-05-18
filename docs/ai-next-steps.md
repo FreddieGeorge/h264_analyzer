@@ -44,9 +44,16 @@ Implemented capabilities:
   - P-slice L0 motion vectors
   - overlay opacity control
 - Export features:
-  - selected frame syntax JSON
-  - frame list CSV
+  - selected frame syntax JSON with schema/version and stream metadata
+  - batch JSON export for all decoded frame syntax
+  - frame list CSV from an internal syntax model
   - screenshot including visible overlays
+- UI settings persisted with `QSettings`:
+  - window geometry
+  - dock positions
+  - overlay toggles
+  - opacity
+  - last open/export directories
 - Windows portable deployment script:
   - `scripts/deploy-windows-msys2.ps1`
   - output under `dist/H264Analyzer-windows-ucrt64`
@@ -56,6 +63,7 @@ Implemented capabilities:
   CAVLC I/P macroblocks, P-slice motion vectors, and unsupported CABAC
   diagnostics.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
+- Tag-triggered release workflow for versioned Windows portable zips.
 
 ## Build And Verification
 
@@ -214,16 +222,23 @@ Suggested files:
 
 ### 5. Export Quality
 
-Current exports work but are basic.
+Current exports cover selected frame JSON, all decoded frame syntax JSON, frame
+list CSV, and screenshots. JSON exports include a schema version, generator
+version, and stream metadata.
 
-Recommended improvement:
+Implemented:
 
 - Add JSON schema version and stream metadata.
 - Add frame list CSV export from an explicit internal frame model rather than reading UI text.
 - Add batch export for all decoded frame syntax.
-- Add screenshot size options and overlay-only export.
 - Add export failure details to status bar and log.
 - Preserve last export directory separately from last open directory.
+
+Recommended remaining improvement:
+
+- Add screenshot size options and overlay-only export.
+- Consider moving export serialization into `src/core/ExportWriter.*` once more
+  export formats are added.
 
 Suggested files:
 
@@ -236,9 +251,12 @@ Recommended improvement:
 
 - Add a real timeline/seek bar separate from the frame list.
 - Add visible buffering state during rebuffer seek.
-- Add disabled/enabled states for export actions when no frame is available.
 - Add overlay legend for QP heatmap and MV colors.
 - Add option to cap MV drawing density for high-resolution clips.
+
+Implemented:
+
+- Disabled/enabled states for export actions when no frame/syntax is available.
 - Persist UI settings with `QSettings`:
   - window geometry
   - dock positions
@@ -256,13 +274,17 @@ Suggested files:
 Current CI:
 
 - Windows MSYS2 configure/build/test/package workflow exists.
-- Portable zip is uploaded as an artifact.
+- Portable zip is uploaded as a retained, SHA-named artifact.
+- Release workflow creates versioned Windows portable zips for `v*` tags.
 
-Recommended improvement:
+Implemented:
 
 - Add workflow status badge to README.
 - Add release workflow triggered by tags.
 - Add artifact retention and versioned zip names.
+
+Recommended remaining improvement:
+
 - Run tests on Linux too if Qt/FFmpeg packages are stable enough.
 - Cache MSYS2 packages if workflow time becomes painful.
 - Add a small smoke test that runs the parser test binary from the packaged environment.

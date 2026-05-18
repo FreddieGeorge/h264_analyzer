@@ -7,6 +7,8 @@
 #include "ui/VideoCanvas.h"
 
 #include <QAction>
+#include <QCloseEvent>
+#include <QCoreApplication>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -26,6 +28,7 @@
 #include <QMetaType>
 #include <QMimeData>
 #include <QStandardPaths>
+#include <QSettings>
 #include <QStringList>
 #include <QStatusBar>
 #include <QStyle>
@@ -138,6 +141,22 @@ QJsonObject ppsToJson(const PpsInfo &pps)
     };
 }
 
+QJsonObject streamInfoToJson(const StreamInfo &stream)
+{
+    return {
+        {QStringLiteral("file_name"), stream.fileName},
+        {QStringLiteral("absolute_file_path"), QDir::toNativeSeparators(stream.absoluteFilePath)},
+        {QStringLiteral("size_bytes"), static_cast<double>(stream.sizeBytes)},
+        {QStringLiteral("codec_name"), stream.codecName},
+        {QStringLiteral("pixel_format"), stream.pixelFormatName},
+        {QStringLiteral("width"), stream.width},
+        {QStringLiteral("height"), stream.height},
+        {QStringLiteral("frame_rate"), stream.frameRate},
+        {QStringLiteral("duration_us"), static_cast<double>(stream.durationUs)},
+        {QStringLiteral("bit_rate"), static_cast<double>(stream.bitRate)}
+    };
+}
+
 QJsonObject naluToJson(const NaluInfo &nalu)
 {
     QJsonObject result {
@@ -214,6 +233,35 @@ QJsonObject frameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
         {QStringLiteral("slices"), slices}
     };
 }
+
+QJsonObject selectedFrameExportToJson(const StreamInfo &stream, const FrameSyntaxInfo &syntaxInfo)
+{
+    return {
+        {QStringLiteral("schema_version"), 1},
+        {QStringLiteral("generator"), QCoreApplication::applicationName()},
+        {QStringLiteral("generator_version"), QCoreApplication::applicationVersion()},
+        {QStringLiteral("stream"), streamInfoToJson(stream)},
+        {QStringLiteral("frame"), frameSyntaxToJson(syntaxInfo)}
+    };
+}
+
+QJsonObject allFramesExportToJson(const StreamInfo &stream, const QVector<FrameSyntaxInfo> &frames)
+{
+    QJsonArray frameArray;
+    for (const FrameSyntaxInfo &frame : frames) {
+        if (frame.index >= 0) {
+            frameArray.append(frameSyntaxToJson(frame));
+        }
+    }
+
+    return {
+        {QStringLiteral("schema_version"), 1},
+        {QStringLiteral("generator"), QCoreApplication::applicationName()},
+        {QStringLiteral("generator_version"), QCoreApplication::applicationVersion()},
+        {QStringLiteral("stream"), streamInfoToJson(stream)},
+        {QStringLiteral("frames"), frameArray}
+    };
+}
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -232,11 +280,14 @@ MainWindow::MainWindow(QWidget *parent)
                    | QMainWindow::AnimatedDocks);
 
     m_lastOpenDirectory = firstWritableLocation(QStandardPaths::DocumentsLocation);
+    m_lastExportDirectory = m_lastOpenDirectory;
 
     createActions();
     createDocks();
     createMenus();
     createToolBars();
+    loadSettings();
+    updateExportActionState();
 
     statusBar()->showMessage(tr("Ready"));
     m_logDock->appendLine(tr("[Info] Application started."));
@@ -244,6 +295,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    saveSettings();
     stopDecoder();
 }
 
@@ -271,6 +323,9 @@ void MainWindow::createActions()
     m_exportFrameSyntaxJsonAction = new QAction(tr("Export Frame Syntax JSON"), this);
     connect(m_exportFrameSyntaxJsonAction, &QAction::triggered, this, &MainWindow::exportFrameSyntaxJson);
 
+    m_exportAllFrameSyntaxJsonAction = new QAction(tr("Export All Decoded Frame Syntax JSON"), this);
+    connect(m_exportAllFrameSyntaxJsonAction, &QAction::triggered, this, &MainWindow::exportAllFrameSyntaxJson);
+
     m_exportFrameListCsvAction = new QAction(tr("Export Frame List CSV"), this);
     connect(m_exportFrameListCsvAction, &QAction::triggered, this, &MainWindow::exportFrameListCsv);
 
@@ -290,6 +345,7 @@ void MainWindow::createActions()
     m_showMotionVectorsAction->setChecked(false);
 
     setPlaybackControlsEnabled(false);
+    updateExportActionState();
 }
 
 void MainWindow::createDocks()
@@ -335,6 +391,7 @@ void MainWindow::createMenus()
     fileMenu->addAction(m_openAction);
     fileMenu->addSeparator();
     fileMenu->addAction(m_exportFrameSyntaxJsonAction);
+    fileMenu->addAction(m_exportAllFrameSyntaxJsonAction);
     fileMenu->addAction(m_exportFrameListCsvAction);
     fileMenu->addAction(m_exportScreenshotAction);
     fileMenu->addSeparator();
@@ -427,11 +484,13 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameListView->clearFrames();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_frameCache.clear();
+    m_frameSyntaxByIndex.clear();
     m_seekCheckpoints.clear();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
+    updateExportActionState();
 
     startDecoder(stream.absoluteFilePath);
 }
@@ -613,7 +672,7 @@ void MainWindow::exportFrameSyntaxJson()
     const QString filePath = QFileDialog::getSaveFileName(
         this,
         tr("Export Frame Syntax JSON"),
-        QDir(defaultOpenDirectory()).filePath(defaultName),
+        QDir(defaultExportDirectory()).filePath(defaultName),
         tr("JSON Files (*.json);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -621,19 +680,55 @@ void MainWindow::exportFrameSyntaxJson()
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        m_logDock->appendLine(tr("[Error] Failed to export JSON: %1").arg(file.errorString()));
+        const QString message = tr("Failed to export JSON: %1").arg(file.errorString());
+        m_logDock->appendLine(tr("[Error] %1").arg(message));
+        statusBar()->showMessage(message, 5000);
         return;
     }
 
-    const QJsonDocument document(frameSyntaxToJson(cached->syntaxInfo));
+    const QJsonDocument document(selectedFrameExportToJson(m_document.streamInfo(), cached->syntaxInfo));
     file.write(document.toJson(QJsonDocument::Indented));
+    m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
     statusBar()->showMessage(tr("Exported frame syntax JSON"), 3000);
 }
 
+void MainWindow::exportAllFrameSyntaxJson()
+{
+    if (m_frameSyntaxByIndex.isEmpty()) {
+        const QString message = tr("No decoded frame syntax is available to export.");
+        statusBar()->showMessage(message, 5000);
+        m_logDock->appendLine(tr("[Warning] %1").arg(message));
+        return;
+    }
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        this,
+        tr("Export All Decoded Frame Syntax JSON"),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("decoded-frame-syntax.json")),
+        tr("JSON Files (*.json);;All Files (*)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        const QString message = tr("Failed to export JSON: %1").arg(file.errorString());
+        m_logDock->appendLine(tr("[Error] %1").arg(message));
+        statusBar()->showMessage(message, 5000);
+        return;
+    }
+
+    const QJsonDocument document(allFramesExportToJson(m_document.streamInfo(), m_frameSyntaxByIndex));
+    file.write(document.toJson(QJsonDocument::Indented));
+    m_lastExportDirectory = QFileInfo(filePath).absolutePath();
+    m_logDock->appendLine(tr("[Info] Exported all decoded frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported decoded frame syntax JSON"), 3000);
+}
+
 void MainWindow::exportFrameListCsv()
 {
-    if (m_frameListView->topLevelItemCount() == 0) {
+    if (m_frameSyntaxByIndex.isEmpty()) {
         const QString message = tr("No frame list is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
@@ -643,7 +738,7 @@ void MainWindow::exportFrameListCsv()
     const QString filePath = QFileDialog::getSaveFileName(
         this,
         tr("Export Frame List CSV"),
-        QDir(defaultOpenDirectory()).filePath(QStringLiteral("frame-list.csv")),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("frame-list.csv")),
         tr("CSV Files (*.csv);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -651,23 +746,25 @@ void MainWindow::exportFrameListCsv()
 
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        m_logDock->appendLine(tr("[Error] Failed to export CSV: %1").arg(file.errorString()));
+        const QString message = tr("Failed to export CSV: %1").arg(file.errorString());
+        m_logDock->appendLine(tr("[Error] %1").arg(message));
+        statusBar()->showMessage(message, 5000);
         return;
     }
 
     QTextStream out(&file);
     out << "index,type,poc,frame_num\n";
-    for (int row = 0; row < m_frameListView->topLevelItemCount(); ++row) {
-        const QTreeWidgetItem *item = m_frameListView->topLevelItem(row);
-        if (item == nullptr || !item->data(0, Qt::UserRole + 1).isValid()) {
+    for (const FrameSyntaxInfo &syntaxInfo : std::as_const(m_frameSyntaxByIndex)) {
+        if (syntaxInfo.index < 0) {
             continue;
         }
-        out << csvEscape(item->text(0)) << ','
-            << csvEscape(item->text(1)) << ','
-            << csvEscape(item->text(2)) << ','
-            << csvEscape(item->text(3)) << '\n';
+        out << csvEscape(QString::number(syntaxInfo.index)) << ','
+            << csvEscape(syntaxInfo.frameType.isEmpty() ? QStringLiteral("-") : syntaxInfo.frameType) << ','
+            << csvEscape(syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-")) << ','
+            << csvEscape(syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-")) << '\n';
     }
 
+    m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported frame list CSV: %1").arg(QDir::toNativeSeparators(filePath)));
     statusBar()->showMessage(tr("Exported frame list CSV"), 3000);
 }
@@ -681,7 +778,7 @@ void MainWindow::exportScreenshot()
     const QString filePath = QFileDialog::getSaveFileName(
         this,
         tr("Export Screenshot"),
-        QDir(defaultOpenDirectory()).filePath(QStringLiteral("h264-analyzer-screenshot.png")),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("h264-analyzer-screenshot.png")),
         tr("PNG Images (*.png);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -689,10 +786,13 @@ void MainWindow::exportScreenshot()
 
     const QImage image = m_videoCanvas->grabFramebuffer();
     if (image.isNull() || !image.save(filePath)) {
-        m_logDock->appendLine(tr("[Error] Failed to export screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
+        const QString message = tr("Failed to export screenshot: %1").arg(QDir::toNativeSeparators(filePath));
+        m_logDock->appendLine(tr("[Error] %1").arg(message));
+        statusBar()->showMessage(message, 5000);
         return;
     }
 
+    m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
     statusBar()->showMessage(tr("Exported screenshot"), 3000);
 }
@@ -710,9 +810,17 @@ void MainWindow::handleFrameReady(int frameIndex,
         m_frameCache.removeFirst();
     }
 
+    if (frameIndex >= 0) {
+        if (frameIndex >= m_frameSyntaxByIndex.size()) {
+            m_frameSyntaxByIndex.resize(frameIndex + 1);
+        }
+        m_frameSyntaxByIndex[frameIndex] = syntaxInfo;
+    }
+
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
     m_frameListView->addFrameSyntax(syntaxInfo);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
+    updateExportActionState();
 }
 
 void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
@@ -765,6 +873,7 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
             m_frameListView->selectFrameIndex(frameIndex);
         }
         updateFrameIndexDisplay();
+        updateExportActionState();
         return true;
     }
 
@@ -845,6 +954,25 @@ void MainWindow::updatePlaybackActionState()
     }
 }
 
+void MainWindow::updateExportActionState()
+{
+    const bool hasCurrentFrame = currentCachedFrame() != nullptr;
+    const bool hasDecodedSyntax = !m_frameSyntaxByIndex.isEmpty();
+
+    if (m_exportFrameSyntaxJsonAction != nullptr) {
+        m_exportFrameSyntaxJsonAction->setEnabled(hasCurrentFrame);
+    }
+    if (m_exportScreenshotAction != nullptr) {
+        m_exportScreenshotAction->setEnabled(hasCurrentFrame);
+    }
+    if (m_exportFrameListCsvAction != nullptr) {
+        m_exportFrameListCsvAction->setEnabled(hasDecodedSyntax);
+    }
+    if (m_exportAllFrameSyntaxJsonAction != nullptr) {
+        m_exportAllFrameSyntaxJsonAction->setEnabled(hasDecodedSyntax);
+    }
+}
+
 void MainWindow::updateFrameIndexDisplay()
 {
     if (m_frameIndexLabel == nullptr) {
@@ -867,6 +995,72 @@ QString MainWindow::defaultOpenDirectory() const
         return m_lastOpenDirectory;
     }
     return firstWritableLocation(QStandardPaths::DocumentsLocation);
+}
+
+QString MainWindow::defaultExportDirectory() const
+{
+    if (!m_lastExportDirectory.isEmpty()) {
+        return m_lastExportDirectory;
+    }
+    return defaultOpenDirectory();
+}
+
+void MainWindow::loadSettings()
+{
+    QSettings settings;
+
+    const QByteArray geometry = settings.value(QStringLiteral("ui/geometry")).toByteArray();
+    if (!geometry.isEmpty()) {
+        restoreGeometry(geometry);
+    }
+
+    const QByteArray state = settings.value(QStringLiteral("ui/windowState")).toByteArray();
+    if (!state.isEmpty()) {
+        restoreState(state);
+    }
+
+    m_lastOpenDirectory = settings.value(QStringLiteral("paths/lastOpenDirectory"), m_lastOpenDirectory).toString();
+    m_lastExportDirectory = settings.value(QStringLiteral("paths/lastExportDirectory"), m_lastExportDirectory).toString();
+
+    if (m_showGridAction != nullptr) {
+        m_showGridAction->setChecked(settings.value(QStringLiteral("overlays/showGrid"), m_showGridAction->isChecked()).toBool());
+    }
+    if (m_showQpHeatmapAction != nullptr) {
+        m_showQpHeatmapAction->setChecked(settings.value(QStringLiteral("overlays/showQpHeatmap"), m_showQpHeatmapAction->isChecked()).toBool());
+    }
+    if (m_showMotionVectorsAction != nullptr) {
+        m_showMotionVectorsAction->setChecked(settings.value(QStringLiteral("overlays/showMotionVectors"), m_showMotionVectorsAction->isChecked()).toBool());
+    }
+    if (m_overlayOpacitySlider != nullptr) {
+        m_overlayOpacitySlider->setValue(settings.value(QStringLiteral("overlays/opacity"), m_overlayOpacitySlider->value()).toInt());
+    }
+}
+
+void MainWindow::saveSettings() const
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/geometry"), saveGeometry());
+    settings.setValue(QStringLiteral("ui/windowState"), saveState());
+    settings.setValue(QStringLiteral("paths/lastOpenDirectory"), m_lastOpenDirectory);
+    settings.setValue(QStringLiteral("paths/lastExportDirectory"), m_lastExportDirectory);
+    if (m_showGridAction != nullptr) {
+        settings.setValue(QStringLiteral("overlays/showGrid"), m_showGridAction->isChecked());
+    }
+    if (m_showQpHeatmapAction != nullptr) {
+        settings.setValue(QStringLiteral("overlays/showQpHeatmap"), m_showQpHeatmapAction->isChecked());
+    }
+    if (m_showMotionVectorsAction != nullptr) {
+        settings.setValue(QStringLiteral("overlays/showMotionVectors"), m_showMotionVectorsAction->isChecked());
+    }
+    if (m_overlayOpacitySlider != nullptr) {
+        settings.setValue(QStringLiteral("overlays/opacity"), m_overlayOpacitySlider->value());
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveSettings();
+    QMainWindow::closeEvent(event);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event)
