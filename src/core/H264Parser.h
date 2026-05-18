@@ -8,16 +8,32 @@
 
 #include <cstdint>
 
+struct SyntaxFieldInfo
+{
+    QString name;
+    qsizetype bitOffset = 0;
+    qsizetype bitLength = 0;
+    QString value;
+};
+
 struct SpsInfo
 {
     bool valid = false;
     int profileIdc = 0;
+    bool constraintSet0Flag = false;
+    bool constraintSet1Flag = false;
+    bool constraintSet2Flag = false;
+    bool constraintSet3Flag = false;
+    bool constraintSet4Flag = false;
+    bool constraintSet5Flag = false;
+    int reservedZero2Bits = 0;
     int levelIdc = 0;
     int seqParameterSetId = -1;
     int chromaFormatIdc = 1;
     int log2MaxFrameNumMinus4 = 0;
     int picOrderCntType = 0;
     int log2MaxPicOrderCntLsbMinus4 = 0;
+    bool deltaPicOrderAlwaysZeroFlag = false;
     int picWidthInMbsMinus1 = 0;
     int picHeightInMapUnitsMinus1 = 0;
     bool frameMbsOnlyFlag = true;
@@ -27,6 +43,24 @@ struct SpsInfo
     int frameCropBottomOffset = 0;
     int width = 0;
     int height = 0;
+    bool vuiParametersPresentFlag = false;
+    bool aspectRatioInfoPresentFlag = false;
+    int aspectRatioIdc = -1;
+    int sarWidth = 0;
+    int sarHeight = 0;
+    bool timingInfoPresentFlag = false;
+    quint32 numUnitsInTick = 0;
+    quint32 timeScale = 0;
+    bool fixedFrameRateFlag = false;
+    bool bitstreamRestrictionFlag = false;
+    bool motionVectorsOverPicBoundariesFlag = false;
+    int maxBytesPerPicDenom = -1;
+    int maxBitsPerMbDenom = -1;
+    int log2MaxMvLengthHorizontal = -1;
+    int log2MaxMvLengthVertical = -1;
+    int maxNumReorderFrames = -1;
+    int maxDecFrameBuffering = -1;
+    QVector<SyntaxFieldInfo> fields;
 };
 
 struct PpsInfo
@@ -43,7 +77,12 @@ struct PpsInfo
     int weightedBipredIdc = 0;
     int picInitQpMinus26 = 0;
     bool deblockingFilterControlPresentFlag = true;
+    bool constrainedIntraPredFlag = false;
     bool redundantPicCntPresentFlag = false;
+    bool transform8x8ModeFlag = false;
+    bool picScalingMatrixPresentFlag = false;
+    int secondChromaQpIndexOffset = 0;
+    QVector<SyntaxFieldInfo> fields;
 };
 
 struct MotionVectorInfo
@@ -77,10 +116,27 @@ struct SliceInfo
     int frameNum = 0;
     int idrPicId = -1;
     int picOrderCntLsb = -1;
+    bool fieldPicFlag = false;
+    bool bottomFieldFlag = false;
+    bool directSpatialMvPredFlag = false;
+    bool numRefIdxActiveOverrideFlag = false;
+    int numRefIdxL0ActiveMinus1 = 0;
+    int numRefIdxL1ActiveMinus1 = 0;
+    bool refPicListModificationFlagL0 = false;
+    bool refPicListModificationFlagL1 = false;
+    QString refPicListModificationSummary;
+    bool predWeightTablePresent = false;
+    QString predWeightTableSummary;
+    bool decRefPicMarkingPresent = false;
+    bool noOutputOfPriorPicsFlag = false;
+    bool longTermReferenceFlag = false;
+    bool adaptiveRefPicMarkingModeFlag = false;
+    QString decRefPicMarkingSummary;
     int sliceQpDelta = 0;
     int derivedQp = 26;
     int picWidthInMbs = 0;
     int picHeightInMbs = 0;
+    QVector<SyntaxFieldInfo> fields;
     QVector<MacroblockInfo> macroblocks;
 };
 
@@ -149,6 +205,7 @@ private:
 
 Q_DECLARE_METATYPE(SpsInfo)
 Q_DECLARE_METATYPE(PpsInfo)
+Q_DECLARE_METATYPE(SyntaxFieldInfo)
 Q_DECLARE_METATYPE(MotionVectorInfo)
 Q_DECLARE_METATYPE(MacroblockInfo)
 Q_DECLARE_METATYPE(SliceInfo)

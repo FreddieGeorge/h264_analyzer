@@ -2,6 +2,19 @@
 
 #include <QTreeWidgetItem>
 
+namespace
+{
+QString boolValue(bool value)
+{
+    return value ? QStringLiteral("1") : QStringLiteral("0");
+}
+
+QString presentValue(bool value)
+{
+    return value ? QStringLiteral("present") : QStringLiteral("not present");
+}
+}
+
 PropertyTreeView::PropertyTreeView(QWidget *parent)
     : QTreeWidget(parent)
 {
@@ -40,6 +53,8 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
             tr("NALU %1").arg(i),
             tr("%1 (%2 bytes)").arg(nalu.nalUnitTypeName).arg(nalu.size)
         });
+        addPair(naluItem, tr("offset"), QString::number(nalu.offset));
+        addPair(naluItem, tr("size"), QString::number(nalu.size));
         addPair(naluItem, tr("forbidden_zero_bit"), QString::number(nalu.forbiddenZeroBit));
         addPair(naluItem, tr("nal_ref_idc"), QString::number(nalu.nalRefIdc));
         addPair(naluItem, tr("nal_unit_type"), QString::number(nalu.nalUnitType));
@@ -47,17 +62,64 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         if (nalu.sps.valid) {
             auto *spsItem = new QTreeWidgetItem(naluItem, {tr("SPS"), QString::number(nalu.sps.seqParameterSetId)});
             addPair(spsItem, tr("profile_idc"), QString::number(nalu.sps.profileIdc));
+            auto *constraintsItem = new QTreeWidgetItem(spsItem, {tr("constraint flags"), QString()});
+            addPair(constraintsItem, tr("constraint_set0_flag"), boolValue(nalu.sps.constraintSet0Flag));
+            addPair(constraintsItem, tr("constraint_set1_flag"), boolValue(nalu.sps.constraintSet1Flag));
+            addPair(constraintsItem, tr("constraint_set2_flag"), boolValue(nalu.sps.constraintSet2Flag));
+            addPair(constraintsItem, tr("constraint_set3_flag"), boolValue(nalu.sps.constraintSet3Flag));
+            addPair(constraintsItem, tr("constraint_set4_flag"), boolValue(nalu.sps.constraintSet4Flag));
+            addPair(constraintsItem, tr("constraint_set5_flag"), boolValue(nalu.sps.constraintSet5Flag));
+            addPair(constraintsItem, tr("reserved_zero_2bits"), QString::number(nalu.sps.reservedZero2Bits));
             addPair(spsItem, tr("level_idc"), QString::number(nalu.sps.levelIdc));
             addPair(spsItem, tr("width"), QString::number(nalu.sps.width));
             addPair(spsItem, tr("height"), QString::number(nalu.sps.height));
             addPair(spsItem, tr("pic_order_cnt_type"), QString::number(nalu.sps.picOrderCntType));
+            addPair(spsItem, tr("vui_parameters_present_flag"), boolValue(nalu.sps.vuiParametersPresentFlag));
+
+            if (nalu.sps.vuiParametersPresentFlag) {
+                auto *vuiItem = new QTreeWidgetItem(spsItem, {tr("VUI"), QString()});
+                addPair(vuiItem, tr("aspect_ratio_info_present_flag"), boolValue(nalu.sps.aspectRatioInfoPresentFlag));
+                if (nalu.sps.aspectRatioInfoPresentFlag) {
+                    addPair(vuiItem, tr("aspect_ratio_idc"), QString::number(nalu.sps.aspectRatioIdc));
+                    if (nalu.sps.aspectRatioIdc == 255) {
+                        addPair(vuiItem, tr("sar_width"), QString::number(nalu.sps.sarWidth));
+                        addPair(vuiItem, tr("sar_height"), QString::number(nalu.sps.sarHeight));
+                    }
+                }
+                addPair(vuiItem, tr("timing_info_present_flag"), boolValue(nalu.sps.timingInfoPresentFlag));
+                if (nalu.sps.timingInfoPresentFlag) {
+                    addPair(vuiItem, tr("num_units_in_tick"), QString::number(nalu.sps.numUnitsInTick));
+                    addPair(vuiItem, tr("time_scale"), QString::number(nalu.sps.timeScale));
+                    addPair(vuiItem, tr("fixed_frame_rate_flag"), boolValue(nalu.sps.fixedFrameRateFlag));
+                }
+                addPair(vuiItem, tr("bitstream_restriction_flag"), boolValue(nalu.sps.bitstreamRestrictionFlag));
+                if (nalu.sps.bitstreamRestrictionFlag) {
+                    auto *restrictionItem = new QTreeWidgetItem(vuiItem, {tr("bitstream restriction"), QString()});
+                    addPair(restrictionItem, tr("motion_vectors_over_pic_boundaries_flag"), boolValue(nalu.sps.motionVectorsOverPicBoundariesFlag));
+                    addPair(restrictionItem, tr("max_bytes_per_pic_denom"), QString::number(nalu.sps.maxBytesPerPicDenom));
+                    addPair(restrictionItem, tr("max_bits_per_mb_denom"), QString::number(nalu.sps.maxBitsPerMbDenom));
+                    addPair(restrictionItem, tr("log2_max_mv_length_horizontal"), QString::number(nalu.sps.log2MaxMvLengthHorizontal));
+                    addPair(restrictionItem, tr("log2_max_mv_length_vertical"), QString::number(nalu.sps.log2MaxMvLengthVertical));
+                    addPair(restrictionItem, tr("max_num_reorder_frames"), QString::number(nalu.sps.maxNumReorderFrames));
+                    addPair(restrictionItem, tr("max_dec_frame_buffering"), QString::number(nalu.sps.maxDecFrameBuffering));
+                }
+            }
+            addSyntaxFields(spsItem, nalu.sps.fields);
         }
 
         if (nalu.pps.valid) {
             auto *ppsItem = new QTreeWidgetItem(naluItem, {tr("PPS"), QString::number(nalu.pps.picParameterSetId)});
             addPair(ppsItem, tr("seq_parameter_set_id"), QString::number(nalu.pps.seqParameterSetId));
-            addPair(ppsItem, tr("entropy_coding_mode_flag"), nalu.pps.entropyCodingModeFlag ? QStringLiteral("1") : QStringLiteral("0"));
+            addPair(ppsItem, tr("entropy_coding_mode_flag"), boolValue(nalu.pps.entropyCodingModeFlag));
+            addPair(ppsItem, tr("weighted_pred_flag"), boolValue(nalu.pps.weightedPredFlag));
+            addPair(ppsItem, tr("weighted_bipred_idc"), QString::number(nalu.pps.weightedBipredIdc));
+            addPair(ppsItem, tr("transform_8x8_mode_flag"), boolValue(nalu.pps.transform8x8ModeFlag));
             addPair(ppsItem, tr("pic_init_qp_minus26"), QString::number(nalu.pps.picInitQpMinus26));
+            addPair(ppsItem, tr("deblocking_filter_control_present_flag"), boolValue(nalu.pps.deblockingFilterControlPresentFlag));
+            addPair(ppsItem, tr("constrained_intra_pred_flag"), boolValue(nalu.pps.constrainedIntraPredFlag));
+            addPair(ppsItem, tr("redundant_pic_cnt_present_flag"), boolValue(nalu.pps.redundantPicCntPresentFlag));
+            addPair(ppsItem, tr("second_chroma_qp_index_offset"), QString::number(nalu.pps.secondChromaQpIndexOffset));
+            addSyntaxFields(ppsItem, nalu.pps.fields);
         }
     }
 
@@ -72,10 +134,20 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         addPair(sliceItem, tr("slice_type"), QString::number(slice.sliceType));
         addPair(sliceItem, tr("pic_parameter_set_id"), QString::number(slice.picParameterSetId));
         addPair(sliceItem, tr("frame_num"), QString::number(slice.frameNum));
+        addPair(sliceItem, tr("field_pic_flag"), boolValue(slice.fieldPicFlag));
+        addPair(sliceItem, tr("bottom_field_flag"), boolValue(slice.bottomFieldFlag));
         addPair(sliceItem, tr("idr_pic_id"), slice.idrPicId >= 0 ? QString::number(slice.idrPicId) : QStringLiteral("-"));
         addPair(sliceItem, tr("pic_order_cnt_lsb"), slice.picOrderCntLsb >= 0 ? QString::number(slice.picOrderCntLsb) : QStringLiteral("-"));
+        addPair(sliceItem, tr("direct_spatial_mv_pred_flag"), boolValue(slice.directSpatialMvPredFlag));
+        addPair(sliceItem, tr("num_ref_idx_active_override_flag"), boolValue(slice.numRefIdxActiveOverrideFlag));
+        addPair(sliceItem, tr("num_ref_idx_l0_active_minus1"), QString::number(slice.numRefIdxL0ActiveMinus1));
+        addPair(sliceItem, tr("num_ref_idx_l1_active_minus1"), QString::number(slice.numRefIdxL1ActiveMinus1));
+        addPair(sliceItem, tr("ref_pic_list_modification"), slice.refPicListModificationSummary.isEmpty() ? QStringLiteral("-") : slice.refPicListModificationSummary);
+        addPair(sliceItem, tr("pred_weight_table"), slice.predWeightTablePresent ? slice.predWeightTableSummary : presentValue(false));
+        addPair(sliceItem, tr("dec_ref_pic_marking"), slice.decRefPicMarkingPresent ? slice.decRefPicMarkingSummary : presentValue(false));
         addPair(sliceItem, tr("slice_qp_delta"), QString::number(slice.sliceQpDelta));
         addPair(sliceItem, tr("derived QP"), QString::number(slice.derivedQp));
+        addSyntaxFields(sliceItem, slice.fields);
 
         auto *mbRoot = new QTreeWidgetItem(sliceItem, {tr("Macroblocks"), QString::number(slice.macroblocks.size())});
         for (const MacroblockInfo &mb : slice.macroblocks) {
@@ -107,4 +179,20 @@ QTreeWidgetItem *PropertyTreeView::addPair(QTreeWidgetItem *parent, const QStrin
 {
     auto *item = new QTreeWidgetItem(parent, {field, value});
     return item;
+}
+
+void PropertyTreeView::addSyntaxFields(QTreeWidgetItem *parent, const QVector<SyntaxFieldInfo> &fields)
+{
+    if (fields.isEmpty()) {
+        return;
+    }
+
+    auto *fieldsRoot = new QTreeWidgetItem(parent, {tr("Bit positions"), QString::number(fields.size())});
+    for (const SyntaxFieldInfo &field : fields) {
+        const QString value = tr("%1 (bit %2, len %3)")
+            .arg(field.value)
+            .arg(field.bitOffset)
+            .arg(field.bitLength);
+        addPair(fieldsRoot, field.name, value);
+    }
 }

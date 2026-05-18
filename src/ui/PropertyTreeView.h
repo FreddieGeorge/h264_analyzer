@@ -16,4 +16,5 @@ public:
 
 private:
     QTreeWidgetItem *addPair(QTreeWidgetItem *parent, const QString &field, const QString &value);
+    void addSyntaxFields(QTreeWidgetItem *parent, const QVector<SyntaxFieldInfo> &fields);
 };
