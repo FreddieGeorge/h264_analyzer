@@ -1,220 +1,216 @@
 # H.264 Analyzer
 
-基于 C++17、Qt 6 Widgets、QOpenGLWidget、FFmpeg 和 CMake 的跨平台 H.264 码流分析器主框架。
+English | [简体中文](README.zh-CN.md)
 
-当前阶段已集成 FFmpeg 做基础视频文件打开与连续解码预览，但还不包含 H.264 语法树解析逻辑。后续可以在 `src/core` 或新增 `src/bitstream`、`src/parser` 模块中逐步接入 NAL Unit、SPS/PPS、Slice、Frame 等解析能力。
+H.264 Analyzer is a cross-platform desktop application framework for inspecting H.264 bitstreams. It is built with C++17, Qt 6 Widgets, `QOpenGLWidget`, FFmpeg, and CMake.
 
-## 功能概览
+The project currently supports video loading/decoding, basic H.264 syntax parsing, a dockable analyzer UI, and OpenGL-based video rendering with analysis overlays.
 
-- `File -> Open` 打开 `.264`、`.h264`、`.es`、`.bin` 等裸码流文件。
-- 支持把本地文件拖放到主窗口打开。
-- 使用 FFmpeg 在后台线程中打开视频流并解码帧。
-- `VideoCanvas` 使用 `sws_scale` 将 YUV/源像素格式转换为 RGBA，并上传为 OpenGL 纹理渲染。
-- 使用自研 `H264Parser` 旁路解析 H.264 NALU、SPS、PPS 和 Slice Header，右侧属性树可随左侧帧选择动态刷新。
-- `VideoCanvas` 可叠加宏块网格、QP 热力图和运动矢量箭头；当前 MV 数据结构已接入，真实 MV 需要继续解析 slice_data。
-- 使用 `QDockWidget` 搭建可停靠布局：
-  - 左侧：`FrameListView`，基于 `QTreeWidget`。
-  - 中央：`VideoCanvas`，继承 `QOpenGLWidget`，预留视频和矢量叠加渲染接口。
-  - 右侧：`PropertyTreeView`，基于 `QTreeWidget`。
-  - 底部：`LogDock`，基于 `QPlainTextEdit`。
-- `View -> Docks` 可显示/隐藏各停靠面板。
-- 使用 `QStandardPaths` 选择跨平台默认打开目录。
+## Features
 
-## 目录结构
+- Open local H.264/video files through `File -> Open` or drag and drop.
+- Decode video streams in a background thread with FFmpeg.
+- Render decoded frames through `QOpenGLWidget`.
+- Parse H.264 NALU, SPS, PPS, and Slice Header data with the custom `H264Parser`.
+- Show frame syntax information in a dockable property tree.
+- Show frame list information such as frame type, POC, and `frame_num`.
+- Overlay analysis data on the video canvas:
+  - 16x16 macroblock grid
+  - QP heatmap
+  - motion vector drawing pipeline
+- Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
+
+Current limitations:
+
+- Macroblock-level parsing is still incomplete.
+- QP heatmap currently uses slice-level estimated QP until real macroblock QP parsing is implemented.
+- Motion vector rendering is wired, but real MV extraction from `slice_data` still needs to be implemented.
+
+## Project Structure
 
 ```text
 h264_analyzer/
-├── CMakeLists.txt
-├── README.md
-└── src/
-    ├── main.cpp
-    ├── app/
-    │   ├── MainWindow.h
-    │   └── MainWindow.cpp
-    ├── core/
-    │   ├── DecodeWorker.h
-    │   ├── DecodeWorker.cpp
-    │   ├── FFmpegDecoder.h
-    │   ├── FFmpegDecoder.cpp
-    │   ├── H264Parser.h
-    │   ├── H264Parser.cpp
-    │   ├── StreamDocument.h
-    │   └── StreamDocument.cpp
-    └── ui/
-        ├── FrameListView.h
-        ├── FrameListView.cpp
-        ├── LogDock.h
-        ├── LogDock.cpp
-        ├── PropertyTreeView.h
-        ├── PropertyTreeView.cpp
-        ├── VideoCanvas.h
-        └── VideoCanvas.cpp
++-- docs/
++-- scripts/
++-- src/
+|   +-- app/
+|   +-- core/
+|   +-- ui/
++-- CMakeLists.txt
++-- README.md
++-- README.zh-CN.md
++-- vcpkg.json
 ```
 
-模块职责：
+Folder responsibilities:
 
-- `src/app`：应用级窗口、菜单、工具栏、Dock 布局、拖放和文件打开流程。
-- `src/ui`：独立 UI 控件，尽量保持可复用。
-- `src/core`：非 UI 的核心数据模型、FFmpeg 解码封装、后台解码 Worker 与后续解析逻辑入口。
+- `src/app`: application window, menu, toolbar, dock layout, file opening, and workflow wiring.
+- `src/core`: stream document model, FFmpeg decoder wrapper, decode worker, and H.264 syntax parser.
+- `src/ui`: reusable Qt widgets such as frame list, property tree, log dock, and video canvas.
+- `scripts`: build/deployment helper scripts.
+- `docs`: developer notes, deployment notes, and AI continuation roadmap.
 
-## 环境要求
+## Requirements
 
-- CMake 3.21 或更高版本。
-- Qt 6，安装 `Core`、`Widgets`、`OpenGL`、`OpenGLWidgets` 组件。
-- FFmpeg 开发库：`avformat`、`avcodec`、`avutil`、`swscale`。
-- C++17 编译器：
-  - Windows：MSVC 2022 或 MinGW-w64。
-  - macOS：Apple Clang / Xcode Command Line Tools。
-  - Linux：GCC 或 Clang。
+- CMake 3.21 or later.
+- Qt 6 with `Core`, `Widgets`, `OpenGL`, and `OpenGLWidgets`.
+- FFmpeg development libraries:
+  - `avformat`
+  - `avcodec`
+  - `avutil`
+  - `swscale`
+- C++17 compiler:
+  - Windows: MSVC 2022, MinGW-w64, or MSYS2 UCRT64.
+  - macOS: Apple Clang / Xcode Command Line Tools.
+  - Linux: GCC or Clang.
 
-官方参考：
+Official references:
 
-- Qt 安装与 Qt Online Installer：https://doc.qt.io/qt-6/get-and-install-qt.html
-- Qt CMake 使用方式：https://doc.qt.io/qt-6/cmake-get-started.html
-- CMake 下载：https://cmake.org/download/
-- FFmpeg API 文档：https://ffmpeg.org/doxygen/trunk/
-- vcpkg ffmpeg 包：https://vcpkg.io/en/package/ffmpeg.html
+- Qt installation: https://doc.qt.io/qt-6/get-and-install-qt.html
+- Qt with CMake: https://doc.qt.io/qt-6/cmake-get-started.html
+- CMake downloads: https://cmake.org/download/
+- FFmpeg API documentation: https://ffmpeg.org/doxygen/trunk/
+- vcpkg FFmpeg package: https://vcpkg.io/en/package/ffmpeg.html
 
-## 安装编译环境
+## Windows Development Environment
 
-### Windows
+The current verified Windows development setup uses MSYS2 UCRT64:
 
-推荐组合 1：Qt 6 + MSVC 2022。
+- GCC/G++ 16.1.0
+- CMake 4.3.2
+- Ninja 1.13.2
+- Qt 6.11.0
+- FFmpeg 8.1.1
 
-1. 安装 Visual Studio 2022，并勾选 `Desktop development with C++`。
-2. 安装 CMake。可以用 Visual Studio Installer 自带的 CMake，也可以从 CMake 官网安装独立版本。
-3. 安装 vcpkg，并安装 FFmpeg：
+See [installEnv.md](installEnv.md) for the installation log and verification results.
+
+Configure and build:
 
 ```powershell
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-C:\vcpkg\bootstrap-vcpkg.bat
-C:\vcpkg\vcpkg.exe install "ffmpeg[avcodec,avformat,swscale]:x64-windows"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
 ```
 
-4. 使用 Qt Online Installer 安装 Qt 6，组件选择类似：
-   - `Qt 6.x.x -> MSVC 2022 64-bit`
-   - `Qt 6.x.x -> Qt 5 Compatibility Module` 不需要
-   - `Qt 6.x.x -> Additional Libraries` 通常不需要
-5. 确认 Qt CMake 包路径，例如：
+Run from the development environment:
 
 ```powershell
-$env:CMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ./build-msys2-ucrt/H264Analyzer.exe"
 ```
 
-推荐组合 2：Qt 6 + MinGW。
+Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. It depends on DLLs from the MSYS2 UCRT64 environment.
 
-1. 使用 Qt Online Installer 安装 Qt 6 的 MinGW 套件，例如 `mingw_64`。
-2. 确保 CMake、Ninja 或 MinGW Makefiles 可用。
-3. 使用 vcpkg 安装 MinGW 对应 triplet 的 FFmpeg，或安装 MSYS2 的 FFmpeg 开发包。
-4. 设置 Qt 路径，例如：
+## Windows Portable Package
+
+Create a portable package:
 
 ```powershell
-$env:CMAKE_PREFIX_PATH="C:\Qt\6.x.x\mingw_64"
+.\scripts\deploy-windows-msys2.ps1
 ```
 
-### macOS
+Output:
 
-1. 安装 Xcode Command Line Tools：
+```text
+dist/H264Analyzer-windows-ucrt64/
+dist/H264Analyzer-windows-ucrt64.zip
+```
+
+The portable package includes:
+
+- `H264Analyzer.exe`
+- Qt runtime DLLs
+- Qt plugins, such as `platforms/qwindows.dll`
+- FFmpeg DLLs, such as `avcodec-62.dll`
+- MSYS2 UCRT64/GCC runtime DLLs
+
+End users only need to unzip the package and run `H264Analyzer.exe`.
+
+For more details, see [docs/windows-deployment.md](docs/windows-deployment.md).
+
+## macOS
+
+Install dependencies:
 
 ```bash
 xcode-select --install
-```
-
-2. 安装 CMake 和 Qt：
-
-```bash
 brew install cmake qt ffmpeg pkg-config
 ```
 
-3. 如果 CMake 找不到 Qt，设置：
+If CMake cannot find Qt:
 
 ```bash
 export CMAKE_PREFIX_PATH="$(brew --prefix qt)"
 ```
 
-### Linux
-
-Ubuntu / Debian 示例：
-
-```bash
-sudo apt update
-sudo apt install build-essential cmake ninja-build pkg-config qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
-```
-
-Fedora 示例：
-
-```bash
-sudo dnf install gcc-c++ cmake ninja-build pkgconf-pkg-config qt6-qtbase-devel mesa-libGL-devel ffmpeg-devel
-```
-
-如果发行版仓库中的 Qt 版本偏旧，可以改用 Qt Online Installer 安装 Qt 6，并设置 `CMAKE_PREFIX_PATH`。
-
-## 构建与运行
-
-推荐使用 Ninja：
+Build:
 
 ```bash
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-运行：
+Run:
 
 ```bash
-# Windows
-.\build\H264Analyzer.exe
-
-# macOS
 open build/H264Analyzer.app
+```
 
-# Linux
+## Linux
+
+Ubuntu / Debian:
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake ninja-build pkg-config qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
+```
+
+Fedora:
+
+```bash
+sudo dnf install gcc-c++ cmake ninja-build pkgconf-pkg-config qt6-qtbase-devel mesa-libGL-devel ffmpeg-devel
+```
+
+Build:
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
+
+Run:
+
+```bash
 ./build/H264Analyzer
 ```
 
-如果 CMake 找不到 Qt，请显式传入 Qt 安装前缀：
+## Development Notes
 
-```bash
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=/path/to/Qt/6.x.x/<kit>
+Key modules:
+
+- `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`.
+- `DecodeWorker`: runs decoding on a background `QThread`.
+- `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
+- `VideoCanvas`: renders video frames and analysis overlays.
+- `FrameListView` and `PropertyTreeView`: display parsed frame and syntax information.
+
+Recommended next work:
+
+1. Add playback controls and frame stepping.
+2. Complete SPS/PPS/Slice Header parsing.
+3. Implement real macroblock-level `mb_type` and QP parsing.
+4. Extract real motion vectors from `slice_data`.
+5. Add overlay controls for grid, QP heatmap, MV, and opacity.
+6. Add JSON/CSV/screenshot export.
+7. Add CI to build and publish Windows portable packages.
+
+For a staged AI continuation plan, see [docs/ai-next-steps.md](docs/ai-next-steps.md).
+
+## Repository Hygiene
+
+Do not commit generated build or release outputs:
+
+```text
+build*/
+dist/
 ```
 
-Windows MSVC 示例：
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" `
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
-cmake --build build --config Debug
-.\build\Debug\H264Analyzer.exe
-```
-
-Windows MinGW 示例：
-
-```powershell
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="C:\Qt\6.x.x\mingw_64"
-cmake --build build
-.\build\H264Analyzer.exe
-```
-
-## FFmpeg 集成说明
-
-`FFmpegDecoder` 使用以下 FFmpeg API：
-
-- `avformat_open_input` / `avformat_find_stream_info` 打开文件并读取封装信息。
-- `av_find_best_stream` 查找视频流。
-- `avcodec_alloc_context3` / `avcodec_parameters_to_context` / `avcodec_open2` 初始化解码器。
-- `av_read_frame`、`avcodec_send_packet`、`avcodec_receive_frame` 解码视频帧。
-- `sws_getCachedContext` / `sws_scale` 在 `VideoCanvas` 中把源帧转换为 RGBA。
-
-跨线程传输时不会直接发送 FFmpeg 内部的 `AVFrame*`。`DecodeWorker` 会立即把解码帧深拷贝到 `DecodedVideoFrame`，再通过 Qt queued signal 发送给 UI 线程。
-
-## 二次开发建议
-
-后续解析功能建议按以下方向扩展：
-
-1. 继续完善 `src/core/H264Parser.*`，补齐 slice_data、CABAC/CAVLC、宏块级 `mb_type`、运动矢量和残差解析。
-2. 如果解析器继续变大，可拆出 `src/bitstream`、`src/parser`，分别承载 bit reader、Annex B/AVCC 分割、NAL Unit、SPS、PPS、Slice Header 等逻辑。
-3. 在 `src/core` 中维护当前码流文档、帧列表、属性树模型、解码状态和解析日志。
-4. 在 `src/ui` 中只展示模型数据，不直接解析码流。
-5. `VideoCanvas` 后续可把当前 QPainter 覆盖层迁移到 OpenGL VBO，以支撑大量宏块和运动矢量的高性能绘制。
-
-新增源码后记得同步更新 `CMakeLists.txt` 的 `add_executable` 源文件列表。
+These paths are ignored by `.gitignore`.
