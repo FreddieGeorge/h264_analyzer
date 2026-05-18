@@ -46,6 +46,27 @@ void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
     const QString poc = syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-");
     const QString frameNum = syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-");
     const QString type = !syntaxInfo.frameType.isEmpty() ? syntaxInfo.frameType : QStringLiteral("-");
+
+    if (syntaxInfo.index >= 0 && syntaxInfo.index < topLevelItemCount()) {
+        QTreeWidgetItem *existing = topLevelItem(syntaxInfo.index);
+        if (existing->data(0, FrameIndexRole).toInt() == syntaxInfo.index) {
+            existing->setText(1, type);
+            existing->setText(2, poc);
+            existing->setText(3, frameNum);
+            return;
+        }
+    }
+
+    for (int row = 0; row < topLevelItemCount(); ++row) {
+        QTreeWidgetItem *existing = topLevelItem(row);
+        if (existing->data(0, FrameIndexRole).toInt() == syntaxInfo.index) {
+            existing->setText(1, type);
+            existing->setText(2, poc);
+            existing->setText(3, frameNum);
+            return;
+        }
+    }
+
     auto *item = new QTreeWidgetItem({
         QString::number(syntaxInfo.index),
         type,

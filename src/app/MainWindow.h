@@ -49,7 +49,7 @@ private:
     void createDocks();
     void openStream();
     void openStreamFile(const QString &filePath);
-    void startDecoder(const QString &filePath);
+    void startDecoder(const QString &filePath, int startFrameIndex = 0, bool pauseAfterFirstFrame = false);
     void stopDecoder();
     void togglePlayback();
     void pausePlayback();
@@ -63,6 +63,7 @@ private:
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
+    void seekToFrame(int frameIndex);
     const CachedFrame *currentCachedFrame() const;
     void setPlaybackControlsEnabled(bool enabled);
     void updatePlaybackActionState();

@@ -417,7 +417,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     startDecoder(stream.absoluteFilePath);
 }
 
-void MainWindow::startDecoder(const QString &filePath)
+void MainWindow::startDecoder(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame)
 {
     stopDecoder();
 
@@ -425,8 +425,8 @@ void MainWindow::startDecoder(const QString &filePath)
     m_decodeWorker = new DecodeWorker;
     m_decodeWorker->moveToThread(m_decodeThread);
 
-    connect(m_decodeThread, &QThread::started, m_decodeWorker, [worker = m_decodeWorker.data(), filePath]() {
-        worker->decodeFile(filePath);
+    connect(m_decodeThread, &QThread::started, m_decodeWorker, [worker = m_decodeWorker.data(), filePath, startFrameIndex, pauseAfterFirstFrame]() {
+        worker->decodeFileFromFrame(filePath, startFrameIndex, pauseAfterFirstFrame);
     });
 
     connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this](const StreamInfo &streamInfo) {
@@ -468,7 +468,7 @@ void MainWindow::startDecoder(const QString &filePath)
         m_logDock->appendLine(tr("[Info] Decode thread stopped."));
     });
 
-    m_playbackPaused = false;
+    m_playbackPaused = pauseAfterFirstFrame;
     setPlaybackControlsEnabled(true);
     updatePlaybackActionState();
     m_decodeThread->start();
@@ -535,7 +535,10 @@ void MainWindow::stepToPreviousFrame()
     if (!m_decodeWorker.isNull()) {
         pausePlayback();
     }
-    showFrameFromCache(m_currentFrameIndex - 1, true, true);
+    const int targetFrame = m_currentFrameIndex - 1;
+    if (!showFrameFromCache(targetFrame, true, true)) {
+        seekToFrame(targetFrame);
+    }
 }
 
 void MainWindow::stepToNextFrame()
@@ -549,7 +552,9 @@ void MainWindow::stepToNextFrame()
         return;
     }
 
-    if (!m_decodeWorker.isNull()) {
+    if (nextIndex <= m_latestFrameIndex) {
+        seekToFrame(nextIndex);
+    } else if (!m_decodeWorker.isNull()) {
         m_decodeWorker->stepForward();
         m_playbackPaused = true;
         updatePlaybackActionState();
@@ -686,7 +691,9 @@ void MainWindow::handleFrameListSelection(int frameIndex)
     if (!m_decodeWorker.isNull()) {
         pausePlayback();
     }
-    showFrameFromCache(frameIndex, false, true);
+    if (!showFrameFromCache(frameIndex, false, true)) {
+        seekToFrame(frameIndex);
+    }
 }
 
 bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool updatePropertyTree)
@@ -713,8 +720,24 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
         return true;
     }
 
-    m_logDock->appendLine(tr("[Warning] Frame %1 is no longer in the recent frame cache.").arg(frameIndex));
     return false;
+}
+
+void MainWindow::seekToFrame(int frameIndex)
+{
+    if (frameIndex < 0 || !m_document.streamInfo().isValid) {
+        return;
+    }
+
+    m_playbackPaused = true;
+    updatePlaybackActionState();
+    setPlaybackControlsEnabled(false);
+    m_videoCanvas->setOverlayMessage(tr("Buffering to frame %1...").arg(frameIndex + 1));
+    statusBar()->showMessage(tr("Buffering to frame %1").arg(frameIndex + 1), 3000);
+    m_logDock->appendLine(tr("[Info] Frame %1 is outside the recent cache; decoding from the beginning to rebuild it.")
+                              .arg(frameIndex));
+
+    startDecoder(m_document.streamInfo().absoluteFilePath, frameIndex, true);
 }
 
 const MainWindow::CachedFrame *MainWindow::currentCachedFrame() const

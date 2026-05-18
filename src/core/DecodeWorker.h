@@ -18,6 +18,7 @@ public:
 
 public slots:
     void decodeFile(const QString &filePath);
+    void decodeFileFromFrame(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame);
     void play();
     void pause();
     void setPaused(bool paused);

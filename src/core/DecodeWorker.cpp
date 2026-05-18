@@ -9,6 +9,11 @@ DecodeWorker::DecodeWorker(QObject *parent)
 
 void DecodeWorker::decodeFile(const QString &filePath)
 {
+    decodeFileFromFrame(filePath, 0, false);
+}
+
+void DecodeWorker::decodeFileFromFrame(const QString &filePath, int startFrameIndex, bool pauseAfterFirstFrame)
+{
     m_stopRequested.store(false);
     {
         std::lock_guard<std::mutex> lock(m_controlMutex);
@@ -36,8 +41,10 @@ void DecodeWorker::decodeFile(const QString &filePath)
         : 0UL;
 
     int frameIndex = 0;
+    bool firstEmittedFrame = true;
     while (!m_stopRequested.load()) {
-        if (!waitForPlaybackPermission()) {
+        const bool emitThisFrame = frameIndex >= startFrameIndex;
+        if (emitThisFrame && !waitForPlaybackPermission()) {
             break;
         }
 
@@ -53,16 +60,23 @@ void DecodeWorker::decodeFile(const QString &filePath)
         FrameSyntaxInfo syntaxInfo = decoder.lastFrameSyntaxInfo();
         syntaxInfo.index = frameIndex;
         syntaxInfo.pts = copy ? copy->pts : syntaxInfo.pts;
-        if (copy) {
+        if (copy && emitThisFrame) {
             emit frameDecoded(copy);
             emit frameReady(frameIndex, copy, syntaxInfo);
         }
-        if (!syntaxInfo.slices.isEmpty()) {
+        if (emitThisFrame && !syntaxInfo.slices.isEmpty()) {
             emit frameSyntaxDecoded(syntaxInfo);
+        }
+
+        if (emitThisFrame && firstEmittedFrame) {
+            firstEmittedFrame = false;
+            if (pauseAfterFirstFrame) {
+                setPaused(true);
+            }
         }
         ++frameIndex;
 
-        if (frameDelayMs > 0) {
+        if (emitThisFrame && frameDelayMs > 0) {
             QThread::msleep(frameDelayMs);
         }
     }
