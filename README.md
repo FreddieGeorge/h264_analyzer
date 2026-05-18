@@ -4,27 +4,30 @@ English | [简体中文](README.zh-CN.md)
 
 H.264 Analyzer is a cross-platform desktop application framework for inspecting H.264 bitstreams. It is built with C++17, Qt 6 Widgets, `QOpenGLWidget`, FFmpeg, and CMake.
 
-The project currently supports video loading/decoding, basic H.264 syntax parsing, a dockable analyzer UI, and OpenGL-based video rendering with analysis overlays.
+The project currently supports video loading/decoding, controllable playback, H.264 syntax parsing, macroblock-level overlays, export tools, a dockable analyzer UI, and OpenGL-based video rendering.
 
 ## Features
 
 - Open local H.264/video files through `File -> Open` or drag and drop.
 - Decode video streams in a background thread with FFmpeg.
+- Play, pause, stop, and step frame-by-frame.
 - Render decoded frames through `QOpenGLWidget`.
-- Parse H.264 NALU, SPS, PPS, and Slice Header data with the custom `H264Parser`.
+- Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show frame list information such as frame type, POC, and `frame_num`.
 - Overlay analysis data on the video canvas:
   - 16x16 macroblock grid
-  - QP heatmap
-  - motion vector drawing pipeline
+  - macroblock QP heatmap
+  - parsed P-slice motion vectors
+- Toggle grid/QP/MV overlays and adjust overlay opacity.
+- Export selected frame syntax JSON, frame list CSV, and screenshots with overlays.
 - Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
 
 Current limitations:
 
-- Macroblock-level parsing is still incomplete.
-- QP heatmap currently uses slice-level estimated QP until real macroblock QP parsing is implemented.
-- Motion vector rendering is wired, but real MV extraction from `slice_data` still needs to be implemented.
+- Macroblock residual coefficient parsing is still incomplete.
+- CABAC, B-slice motion vectors, MBAFF/FMO, and sub-macroblock motion vectors are reported as unsupported or partially parsed.
+- The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 
 ## Project Structure
 
@@ -148,6 +151,12 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
+Run tests:
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
 Run:
 
 ```bash
@@ -194,13 +203,11 @@ Key modules:
 
 Recommended next work:
 
-1. Add playback controls and frame stepping.
-2. Complete SPS/PPS/Slice Header parsing.
-3. Implement real macroblock-level `mb_type` and QP parsing.
-4. Extract real motion vectors from `slice_data`.
-5. Add overlay controls for grid, QP heatmap, MV, and opacity.
-6. Add JSON/CSV/screenshot export.
-7. Add CI to build and publish Windows portable packages.
+1. Complete residual CAVLC parsing and broaden macroblock support.
+2. Add CABAC support or mark unsupported syntax with richer diagnostics.
+3. Extend B-slice and sub-macroblock motion vector parsing.
+4. Add more sample bitstream tests and regression fixtures.
+5. Improve release notes and versioned packaging.
 
 For a staged AI continuation plan, see [docs/ai-next-steps.md](docs/ai-next-steps.md).
 

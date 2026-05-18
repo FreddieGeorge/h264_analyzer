@@ -12,6 +12,7 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL OpenGLWidgets)
 find_package(PkgConfig QUIET)
+include(CTest)
 
 if(PkgConfig_FOUND)
     pkg_check_modules(FFMPEG QUIET IMPORTED_TARGET
@@ -105,3 +106,16 @@ set_target_properties(H264Analyzer PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
+
+if(BUILD_TESTING)
+    add_executable(H264AnalyzerParserTests
+        tests/test_h264_parser.cpp
+        src/core/H264Parser.h
+        src/core/H264Parser.cpp
+    )
+    target_include_directories(H264AnalyzerParserTests PRIVATE src)
+    target_link_libraries(H264AnalyzerParserTests PRIVATE Qt6::Core)
+    target_compile_definitions(H264AnalyzerParserTests PRIVATE H264_ANALYZER_ENABLE_TESTS)
+    target_compile_features(H264AnalyzerParserTests PRIVATE cxx_std_17)
+    add_test(NAME H264AnalyzerParserTests COMMAND H264AnalyzerParserTests)
+endif()

@@ -227,6 +227,28 @@ QString H264Parser::sliceTypeName(int sliceType)
     }
 }
 
+#ifdef H264_ANALYZER_ENABLE_TESTS
+quint32 H264Parser::decodeUnsignedExpGolombForTest(const QByteArray &data, bool *ok)
+{
+    BitReader reader(data);
+    const quint32 value = reader.readUE();
+    if (ok != nullptr) {
+        *ok = !reader.hasError();
+    }
+    return value;
+}
+
+qint32 H264Parser::decodeSignedExpGolombForTest(const QByteArray &data, bool *ok)
+{
+    BitReader reader(data);
+    const qint32 value = reader.readSE();
+    if (ok != nullptr) {
+        *ok = !reader.hasError();
+    }
+    return value;
+}
+#endif
+
 QVector<NaluInfo> H264Parser::splitNalus(const QByteArray &packetData)
 {
     return hasAnnexBStartCode(packetData)

@@ -14,6 +14,8 @@ $ucrtBin = Join-Path $msysRoot "ucrt64\bin"
 $bash = Join-Path $msysRoot "usr\bin\bash.exe"
 $windeployqt = Join-Path $ucrtBin "windeployqt6.exe"
 $objdump = Join-Path $ucrtBin "objdump.exe"
+$repoRootMsys = (& $bash -lc "cygpath -u '$repoRoot'").Trim()
+$buildPathMsys = (& $bash -lc "cygpath -u '$buildPath'").Trim()
 
 function Assert-ToolExists {
     param([string]$Path)
@@ -74,7 +76,7 @@ Assert-PathUnderRepo $distPath
 $env:PATH = "$ucrtBin;$env:PATH"
 
 Write-Host "Building project..."
-& $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
+& $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd '$repoRootMsys' && cmake --build '$buildPathMsys'"
 
 $sourceExe = Join-Path $buildPath "H264Analyzer.exe"
 if (-not (Test-Path $sourceExe)) {
