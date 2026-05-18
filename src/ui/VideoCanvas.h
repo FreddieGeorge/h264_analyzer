@@ -28,7 +28,10 @@ public:
 public slots:
     void setFrame(const DecodedVideoFramePtr &frame);
     void setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo);
+    void setShowGrid(bool enabled);
+    void setShowQpHeatmap(bool enabled);
     void setShowMotionVectors(bool enabled);
+    void setOverlayOpacity(float opacity);
 
 protected:
     void initializeGL() override;
@@ -52,7 +55,10 @@ private:
     QString m_overlayMessage;
     DecodedVideoFramePtr m_currentFrame;
     FrameSyntaxInfo m_currentSyntaxInfo;
-    bool m_showMotionVectors = true;
+    bool m_showGrid = true;
+    bool m_showQpHeatmap = false;
+    bool m_showMotionVectors = false;
+    float m_overlayOpacity = 1.0f;
     SwsContext *m_swsContext = nullptr;
     QByteArray m_rgbaBuffer;
     QSize m_textureSize;

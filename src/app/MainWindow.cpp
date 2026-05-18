@@ -11,7 +11,13 @@
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QImage>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeySequence>
 #include <QLabel>
 #include <QList>
@@ -25,6 +31,9 @@
 #include <QStyle>
 #include <QThread>
 #include <QToolBar>
+#include <QSlider>
+#include <QTextStream>
+#include <QTreeWidgetItem>
 #include <QUrl>
 #include <QWidget>
 
@@ -44,6 +53,149 @@ QString firstWritableLocation(QStandardPaths::StandardLocation location)
         }
     }
     return QDir::homePath();
+}
+
+QString csvEscape(const QString &value)
+{
+    QString escaped = value;
+    escaped.replace('"', QStringLiteral("\"\""));
+    return QStringLiteral("\"%1\"").arg(escaped);
+}
+
+QJsonObject motionVectorToJson(const MotionVectorInfo &mv)
+{
+    return {
+        {QStringLiteral("list"), mv.list},
+        {QStringLiteral("reference_index"), mv.referenceIndex},
+        {QStringLiteral("mv_x_quarter_pel"), mv.mvXQuarterPel},
+        {QStringLiteral("mv_y_quarter_pel"), mv.mvYQuarterPel},
+        {QStringLiteral("reference_x"), mv.referenceX},
+        {QStringLiteral("reference_y"), mv.referenceY}
+    };
+}
+
+QJsonObject macroblockToJson(const MacroblockInfo &mb)
+{
+    QJsonArray motionVectors;
+    for (const MotionVectorInfo &mv : mb.motionVectors) {
+        motionVectors.append(motionVectorToJson(mv));
+    }
+
+    return {
+        {QStringLiteral("address"), mb.address},
+        {QStringLiteral("mb_type"), mb.mbType},
+        {QStringLiteral("prediction_mode"), mb.predictionMode},
+        {QStringLiteral("coded_block_pattern"), mb.codedBlockPattern},
+        {QStringLiteral("coded_block_pattern_luma"), mb.codedBlockPatternLuma},
+        {QStringLiteral("coded_block_pattern_chroma"), mb.codedBlockPatternChroma},
+        {QStringLiteral("qp"), mb.qp},
+        {QStringLiteral("mb_qp_delta"), mb.mbQpDelta},
+        {QStringLiteral("skipped"), mb.skipped},
+        {QStringLiteral("parsed"), mb.parsed},
+        {QStringLiteral("note"), mb.note},
+        {QStringLiteral("motion_vectors"), motionVectors}
+    };
+}
+
+QJsonObject spsToJson(const SpsInfo &sps)
+{
+    return {
+        {QStringLiteral("valid"), sps.valid},
+        {QStringLiteral("profile_idc"), sps.profileIdc},
+        {QStringLiteral("level_idc"), sps.levelIdc},
+        {QStringLiteral("seq_parameter_set_id"), sps.seqParameterSetId},
+        {QStringLiteral("width"), sps.width},
+        {QStringLiteral("height"), sps.height},
+        {QStringLiteral("vui_parameters_present_flag"), sps.vuiParametersPresentFlag},
+        {QStringLiteral("aspect_ratio_idc"), sps.aspectRatioIdc},
+        {QStringLiteral("timing_info_present_flag"), sps.timingInfoPresentFlag},
+        {QStringLiteral("bitstream_restriction_flag"), sps.bitstreamRestrictionFlag}
+    };
+}
+
+QJsonObject ppsToJson(const PpsInfo &pps)
+{
+    return {
+        {QStringLiteral("valid"), pps.valid},
+        {QStringLiteral("pic_parameter_set_id"), pps.picParameterSetId},
+        {QStringLiteral("seq_parameter_set_id"), pps.seqParameterSetId},
+        {QStringLiteral("entropy_coding_mode_flag"), pps.entropyCodingModeFlag},
+        {QStringLiteral("weighted_pred_flag"), pps.weightedPredFlag},
+        {QStringLiteral("weighted_bipred_idc"), pps.weightedBipredIdc},
+        {QStringLiteral("transform_8x8_mode_flag"), pps.transform8x8ModeFlag},
+        {QStringLiteral("pic_init_qp_minus26"), pps.picInitQpMinus26}
+    };
+}
+
+QJsonObject naluToJson(const NaluInfo &nalu)
+{
+    QJsonObject result {
+        {QStringLiteral("offset"), static_cast<double>(nalu.offset)},
+        {QStringLiteral("size"), static_cast<double>(nalu.size)},
+        {QStringLiteral("nal_ref_idc"), nalu.nalRefIdc},
+        {QStringLiteral("nal_unit_type"), nalu.nalUnitType},
+        {QStringLiteral("nal_unit_type_name"), nalu.nalUnitTypeName}
+    };
+    if (nalu.sps.valid) {
+        result.insert(QStringLiteral("sps"), spsToJson(nalu.sps));
+    }
+    if (nalu.pps.valid) {
+        result.insert(QStringLiteral("pps"), ppsToJson(nalu.pps));
+    }
+    return result;
+}
+
+QJsonObject sliceToJson(const SliceInfo &slice)
+{
+    QJsonArray macroblocks;
+    for (const MacroblockInfo &mb : slice.macroblocks) {
+        macroblocks.append(macroblockToJson(mb));
+    }
+
+    QJsonArray warnings;
+    for (const QString &warning : slice.macroblockParseWarnings) {
+        warnings.append(warning);
+    }
+
+    return {
+        {QStringLiteral("slice_type"), slice.sliceType},
+        {QStringLiteral("slice_type_name"), slice.sliceTypeName},
+        {QStringLiteral("first_mb_in_slice"), slice.firstMbInSlice},
+        {QStringLiteral("pic_parameter_set_id"), slice.picParameterSetId},
+        {QStringLiteral("frame_num"), slice.frameNum},
+        {QStringLiteral("pic_order_cnt_lsb"), slice.picOrderCntLsb},
+        {QStringLiteral("slice_qp_delta"), slice.sliceQpDelta},
+        {QStringLiteral("derived_qp"), slice.derivedQp},
+        {QStringLiteral("pic_width_in_mbs"), slice.picWidthInMbs},
+        {QStringLiteral("pic_height_in_mbs"), slice.picHeightInMbs},
+        {QStringLiteral("macroblocks_parsed"), slice.macroblocksParsed},
+        {QStringLiteral("macroblock_parse_warnings"), warnings},
+        {QStringLiteral("macroblocks"), macroblocks}
+    };
+}
+
+QJsonObject frameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
+{
+    QJsonArray nalus;
+    for (const NaluInfo &nalu : syntaxInfo.nalus) {
+        nalus.append(naluToJson(nalu));
+    }
+
+    QJsonArray slices;
+    for (const SliceInfo &slice : syntaxInfo.slices) {
+        slices.append(sliceToJson(slice));
+    }
+
+    return {
+        {QStringLiteral("index"), syntaxInfo.index},
+        {QStringLiteral("pts"), static_cast<double>(syntaxInfo.pts)},
+        {QStringLiteral("dts"), static_cast<double>(syntaxInfo.dts)},
+        {QStringLiteral("poc"), syntaxInfo.poc},
+        {QStringLiteral("frame_num"), syntaxInfo.frameNum},
+        {QStringLiteral("frame_type"), syntaxInfo.frameType},
+        {QStringLiteral("nalus"), nalus},
+        {QStringLiteral("slices"), slices}
+    };
 }
 }
 
@@ -98,9 +250,26 @@ void MainWindow::createActions()
     m_stopAction = new QAction(style()->standardIcon(QStyle::SP_MediaStop), tr("Stop"), this);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::stopPlayback);
 
+    m_exportFrameSyntaxJsonAction = new QAction(tr("Export Frame Syntax JSON"), this);
+    connect(m_exportFrameSyntaxJsonAction, &QAction::triggered, this, &MainWindow::exportFrameSyntaxJson);
+
+    m_exportFrameListCsvAction = new QAction(tr("Export Frame List CSV"), this);
+    connect(m_exportFrameListCsvAction, &QAction::triggered, this, &MainWindow::exportFrameListCsv);
+
+    m_exportScreenshotAction = new QAction(tr("Export Screenshot"), this);
+    connect(m_exportScreenshotAction, &QAction::triggered, this, &MainWindow::exportScreenshot);
+
+    m_showGridAction = new QAction(tr("Show Macroblock Grid"), this);
+    m_showGridAction->setCheckable(true);
+    m_showGridAction->setChecked(true);
+
+    m_showQpHeatmapAction = new QAction(tr("Show QP Heatmap"), this);
+    m_showQpHeatmapAction->setCheckable(true);
+    m_showQpHeatmapAction->setChecked(false);
+
     m_showMotionVectorsAction = new QAction(tr("Show Motion Vectors"), this);
     m_showMotionVectorsAction->setCheckable(true);
-    m_showMotionVectorsAction->setChecked(true);
+    m_showMotionVectorsAction->setChecked(false);
 
     setPlaybackControlsEnabled(false);
 }
@@ -109,8 +278,14 @@ void MainWindow::createDocks()
 {
     m_videoCanvas = new VideoCanvas(this);
     setCentralWidget(m_videoCanvas);
+    connect(m_showGridAction, &QAction::toggled,
+            m_videoCanvas, &VideoCanvas::setShowGrid);
+    connect(m_showQpHeatmapAction, &QAction::toggled,
+            m_videoCanvas, &VideoCanvas::setShowQpHeatmap);
     connect(m_showMotionVectorsAction, &QAction::toggled,
             m_videoCanvas, &VideoCanvas::setShowMotionVectors);
+    m_videoCanvas->setShowGrid(m_showGridAction->isChecked());
+    m_videoCanvas->setShowQpHeatmap(m_showQpHeatmapAction->isChecked());
     m_videoCanvas->setShowMotionVectors(m_showMotionVectorsAction->isChecked());
 
     m_frameListView = new FrameListView;
@@ -141,6 +316,10 @@ void MainWindow::createMenus()
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(m_openAction);
     fileMenu->addSeparator();
+    fileMenu->addAction(m_exportFrameSyntaxJsonAction);
+    fileMenu->addAction(m_exportFrameListCsvAction);
+    fileMenu->addAction(m_exportScreenshotAction);
+    fileMenu->addSeparator();
     fileMenu->addAction(tr("E&xit"), QKeySequence::Quit, this, &QWidget::close);
 
     QMenu *viewMenu = menuBar()->addMenu(tr("&View"));
@@ -149,6 +328,8 @@ void MainWindow::createMenus()
     m_docksMenu->addAction(m_propertyDock->toggleViewAction());
     m_docksMenu->addAction(m_logDockWidget->toggleViewAction());
     viewMenu->addSeparator();
+    viewMenu->addAction(m_showGridAction);
+    viewMenu->addAction(m_showQpHeatmapAction);
     viewMenu->addAction(m_showMotionVectorsAction);
 }
 
@@ -169,6 +350,25 @@ void MainWindow::createToolBars()
     m_frameIndexLabel = new QLabel(tr("Frame - / -"), playbackToolBar);
     m_frameIndexLabel->setMinimumWidth(110);
     playbackToolBar->addWidget(m_frameIndexLabel);
+
+    auto *overlayToolBar = addToolBar(tr("Overlays"));
+    overlayToolBar->setObjectName(QStringLiteral("OverlayToolBar"));
+    overlayToolBar->addAction(m_showGridAction);
+    overlayToolBar->addAction(m_showQpHeatmapAction);
+    overlayToolBar->addAction(m_showMotionVectorsAction);
+    overlayToolBar->addSeparator();
+    overlayToolBar->addWidget(new QLabel(tr("Opacity"), overlayToolBar));
+
+    m_overlayOpacitySlider = new QSlider(Qt::Horizontal, overlayToolBar);
+    m_overlayOpacitySlider->setRange(0, 100);
+    m_overlayOpacitySlider->setValue(100);
+    m_overlayOpacitySlider->setFixedWidth(120);
+    overlayToolBar->addWidget(m_overlayOpacitySlider);
+    connect(m_overlayOpacitySlider, &QSlider::valueChanged, this, [this](int value) {
+        if (m_videoCanvas != nullptr) {
+            m_videoCanvas->setOverlayOpacity(value / 100.0f);
+        }
+    });
 }
 
 void MainWindow::openStream()
@@ -365,6 +565,104 @@ void MainWindow::stopPlayback()
     statusBar()->showMessage(tr("Stopped"), 2000);
 }
 
+void MainWindow::exportFrameSyntaxJson()
+{
+    const CachedFrame *cached = currentCachedFrame();
+    if (cached == nullptr) {
+        const QString message = tr("No cached selected frame is available to export.");
+        statusBar()->showMessage(message, 5000);
+        m_logDock->appendLine(tr("[Warning] %1").arg(message));
+        return;
+    }
+
+    const QString defaultName = QStringLiteral("frame-%1-syntax.json").arg(cached->index, 5, 10, QLatin1Char('0'));
+    const QString filePath = QFileDialog::getSaveFileName(
+        this,
+        tr("Export Frame Syntax JSON"),
+        QDir(defaultOpenDirectory()).filePath(defaultName),
+        tr("JSON Files (*.json);;All Files (*)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        m_logDock->appendLine(tr("[Error] Failed to export JSON: %1").arg(file.errorString()));
+        return;
+    }
+
+    const QJsonDocument document(frameSyntaxToJson(cached->syntaxInfo));
+    file.write(document.toJson(QJsonDocument::Indented));
+    m_logDock->appendLine(tr("[Info] Exported frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported frame syntax JSON"), 3000);
+}
+
+void MainWindow::exportFrameListCsv()
+{
+    if (m_frameListView->topLevelItemCount() == 0) {
+        const QString message = tr("No frame list is available to export.");
+        statusBar()->showMessage(message, 5000);
+        m_logDock->appendLine(tr("[Warning] %1").arg(message));
+        return;
+    }
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        this,
+        tr("Export Frame List CSV"),
+        QDir(defaultOpenDirectory()).filePath(QStringLiteral("frame-list.csv")),
+        tr("CSV Files (*.csv);;All Files (*)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        m_logDock->appendLine(tr("[Error] Failed to export CSV: %1").arg(file.errorString()));
+        return;
+    }
+
+    QTextStream out(&file);
+    out << "index,type,poc,frame_num\n";
+    for (int row = 0; row < m_frameListView->topLevelItemCount(); ++row) {
+        const QTreeWidgetItem *item = m_frameListView->topLevelItem(row);
+        if (item == nullptr || !item->data(0, Qt::UserRole + 1).isValid()) {
+            continue;
+        }
+        out << csvEscape(item->text(0)) << ','
+            << csvEscape(item->text(1)) << ','
+            << csvEscape(item->text(2)) << ','
+            << csvEscape(item->text(3)) << '\n';
+    }
+
+    m_logDock->appendLine(tr("[Info] Exported frame list CSV: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported frame list CSV"), 3000);
+}
+
+void MainWindow::exportScreenshot()
+{
+    if (m_videoCanvas == nullptr) {
+        return;
+    }
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        this,
+        tr("Export Screenshot"),
+        QDir(defaultOpenDirectory()).filePath(QStringLiteral("h264-analyzer-screenshot.png")),
+        tr("PNG Images (*.png);;All Files (*)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    const QImage image = m_videoCanvas->grabFramebuffer();
+    if (image.isNull() || !image.save(filePath)) {
+        m_logDock->appendLine(tr("[Error] Failed to export screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
+        return;
+    }
+
+    m_logDock->appendLine(tr("[Info] Exported screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported screenshot"), 3000);
+}
+
 void MainWindow::handleFrameReady(int frameIndex,
                                   const DecodedVideoFramePtr &frame,
                                   const FrameSyntaxInfo &syntaxInfo)
@@ -417,6 +715,16 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
 
     m_logDock->appendLine(tr("[Warning] Frame %1 is no longer in the recent frame cache.").arg(frameIndex));
     return false;
+}
+
+const MainWindow::CachedFrame *MainWindow::currentCachedFrame() const
+{
+    for (const CachedFrame &cached : m_frameCache) {
+        if (cached.index == m_currentFrameIndex) {
+            return &cached;
+        }
+    }
+    return nullptr;
 }
 
 void MainWindow::setPlaybackControlsEnabled(bool enabled)

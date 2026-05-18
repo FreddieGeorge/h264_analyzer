@@ -66,9 +66,27 @@ void VideoCanvas::setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo)
     update();
 }
 
+void VideoCanvas::setShowGrid(bool enabled)
+{
+    m_showGrid = enabled;
+    update();
+}
+
+void VideoCanvas::setShowQpHeatmap(bool enabled)
+{
+    m_showQpHeatmap = enabled;
+    update();
+}
+
 void VideoCanvas::setShowMotionVectors(bool enabled)
 {
     m_showMotionVectors = enabled;
+    update();
+}
+
+void VideoCanvas::setOverlayOpacity(float opacity)
+{
+    m_overlayOpacity = std::clamp(opacity, 0.0f, 1.0f);
     update();
 }
 
@@ -255,10 +273,15 @@ void VideoCanvas::drawAnalysisOverlay()
 
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setOpacity(m_overlayOpacity);
     const QRectF videoRect = videoDisplayRect();
 
-    drawQpHeatmap(painter, videoRect);
-    drawMacroblockGrid(painter, videoRect);
+    if (m_showQpHeatmap) {
+        drawQpHeatmap(painter, videoRect);
+    }
+    if (m_showGrid) {
+        drawMacroblockGrid(painter, videoRect);
+    }
     if (m_showMotionVectors) {
         drawMotionVectors(painter, videoRect);
     }

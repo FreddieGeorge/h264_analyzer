@@ -14,6 +14,7 @@ class QDragEnterEvent;
 class QDropEvent;
 class QLabel;
 class QMenu;
+class QSlider;
 class QThread;
 
 class DecodeWorker;
@@ -35,6 +36,13 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private:
+    struct CachedFrame
+    {
+        int index = -1;
+        DecodedVideoFramePtr frame;
+        FrameSyntaxInfo syntaxInfo;
+    };
+
     void createActions();
     void createMenus();
     void createToolBars();
@@ -49,27 +57,30 @@ private:
     void stepToPreviousFrame();
     void stepToNextFrame();
     void stopPlayback();
+    void exportFrameSyntaxJson();
+    void exportFrameListCsv();
+    void exportScreenshot();
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
+    const CachedFrame *currentCachedFrame() const;
     void setPlaybackControlsEnabled(bool enabled);
     void updatePlaybackActionState();
     void updateFrameIndexDisplay();
     QString defaultOpenDirectory() const;
-
-    struct CachedFrame
-    {
-        int index = -1;
-        DecodedVideoFramePtr frame;
-        FrameSyntaxInfo syntaxInfo;
-    };
 
     QAction *m_openAction = nullptr;
     QAction *m_playPauseAction = nullptr;
     QAction *m_previousFrameAction = nullptr;
     QAction *m_nextFrameAction = nullptr;
     QAction *m_stopAction = nullptr;
+    QAction *m_exportFrameSyntaxJsonAction = nullptr;
+    QAction *m_exportFrameListCsvAction = nullptr;
+    QAction *m_exportScreenshotAction = nullptr;
+    QAction *m_showGridAction = nullptr;
+    QAction *m_showQpHeatmapAction = nullptr;
     QAction *m_showMotionVectorsAction = nullptr;
+    QSlider *m_overlayOpacitySlider = nullptr;
     QLabel *m_frameIndexLabel = nullptr;
     QMenu *m_docksMenu = nullptr;
 
