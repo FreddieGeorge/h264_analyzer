@@ -1,0 +1,442 @@
+#include "ui/VideoCanvas.h"
+
+#include <QColor>
+#include <QFont>
+#include <QLineF>
+#include <QOpenGLShader>
+#include <QPainter>
+#include <QPainterPath>
+
+#include <algorithm>
+#include <cmath>
+
+namespace
+{
+constexpr double Pi = 3.14159265358979323846;
+}
+
+extern "C" {
+#include <libswscale/swscale.h>
+}
+
+VideoCanvas::VideoCanvas(QWidget *parent)
+    : QOpenGLWidget(parent)
+{
+    setObjectName(QStringLiteral("VideoCanvas"));
+    setMinimumSize(320, 240);
+    setAutoFillBackground(false);
+    m_overlayMessage = tr("Open an H.264 stream to begin.");
+}
+
+VideoCanvas::~VideoCanvas()
+{
+    if (context() != nullptr) {
+        makeCurrent();
+        if (m_textureId != 0) {
+            glDeleteTextures(1, &m_textureId);
+        }
+        delete m_program;
+        m_program = nullptr;
+        doneCurrent();
+    }
+
+    if (m_swsContext != nullptr) {
+        sws_freeContext(m_swsContext);
+    }
+}
+
+void VideoCanvas::setOverlayMessage(const QString &message)
+{
+    m_overlayMessage = message;
+    update();
+}
+
+void VideoCanvas::setFrame(const DecodedVideoFramePtr &frame)
+{
+    m_currentFrame = frame;
+    if (m_currentFrame) {
+        m_overlayMessage.clear();
+    }
+    update();
+}
+
+void VideoCanvas::setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo)
+{
+    m_currentSyntaxInfo = syntaxInfo;
+    update();
+}
+
+void VideoCanvas::initializeGL()
+{
+    initializeOpenGLFunctions();
+    glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
+
+    m_program = new QOpenGLShaderProgram(this);
+    m_program->addShaderFromSourceCode(QOpenGLShader::Vertex,
+        "attribute vec2 position;\n"
+        "attribute vec2 texCoord;\n"
+        "varying vec2 vTexCoord;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(position, 0.0, 1.0);\n"
+        "    vTexCoord = texCoord;\n"
+        "}\n");
+    m_program->addShaderFromSourceCode(QOpenGLShader::Fragment,
+        "uniform sampler2D frameTexture;\n"
+        "varying vec2 vTexCoord;\n"
+        "void main() {\n"
+        "    gl_FragColor = texture2D(frameTexture, vTexCoord);\n"
+        "}\n");
+    m_program->link();
+}
+
+void VideoCanvas::resizeGL(int width, int height)
+{
+    Q_UNUSED(width);
+    Q_UNUSED(height);
+}
+
+void VideoCanvas::paintGL()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if (uploadCurrentFrame()) {
+        paintTexture();
+        drawAnalysisOverlay();
+    }
+
+    paintOverlayText();
+}
+
+void VideoCanvas::ensureTexture()
+{
+    if (m_textureId != 0) {
+        return;
+    }
+
+    glGenTextures(1, &m_textureId);
+    glBindTexture(GL_TEXTURE_2D, m_textureId);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+bool VideoCanvas::uploadCurrentFrame()
+{
+    if (!m_currentFrame || m_currentFrame->width <= 0 || m_currentFrame->height <= 0) {
+        return false;
+    }
+
+    ensureTexture();
+
+    m_swsContext = sws_getCachedContext(
+        m_swsContext,
+        m_currentFrame->width,
+        m_currentFrame->height,
+        m_currentFrame->pixelFormat,
+        m_currentFrame->width,
+        m_currentFrame->height,
+        AV_PIX_FMT_RGBA,
+        SWS_BILINEAR,
+        nullptr,
+        nullptr,
+        nullptr);
+
+    if (m_swsContext == nullptr) {
+        m_overlayMessage = tr("Unable to create sws_scale conversion context.");
+        return false;
+    }
+
+    const int rgbaStride = m_currentFrame->width * 4;
+    m_rgbaBuffer.resize(rgbaStride * m_currentFrame->height);
+
+    const uint8_t *srcData[4] = {
+        reinterpret_cast<const uint8_t *>(m_currentFrame->planes[0].constData()),
+        reinterpret_cast<const uint8_t *>(m_currentFrame->planes[1].constData()),
+        reinterpret_cast<const uint8_t *>(m_currentFrame->planes[2].constData()),
+        reinterpret_cast<const uint8_t *>(m_currentFrame->planes[3].constData())
+    };
+    const int srcLineSize[4] = {
+        m_currentFrame->lineSize[0],
+        m_currentFrame->lineSize[1],
+        m_currentFrame->lineSize[2],
+        m_currentFrame->lineSize[3]
+    };
+
+    uint8_t *dstData[4] = {reinterpret_cast<uint8_t *>(m_rgbaBuffer.data()), nullptr, nullptr, nullptr};
+    int dstLineSize[4] = {rgbaStride, 0, 0, 0};
+
+    sws_scale(m_swsContext,
+              srcData,
+              srcLineSize,
+              0,
+              m_currentFrame->height,
+              dstData,
+              dstLineSize);
+
+    glBindTexture(GL_TEXTURE_2D, m_textureId);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,
+                 GL_RGBA,
+                 m_currentFrame->width,
+                 m_currentFrame->height,
+                 0,
+                 GL_RGBA,
+                 GL_UNSIGNED_BYTE,
+                 m_rgbaBuffer.constData());
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    m_textureSize = QSize(m_currentFrame->width, m_currentFrame->height);
+    return true;
+}
+
+void VideoCanvas::paintTexture()
+{
+    if (m_program == nullptr || !m_program->isLinked() || m_textureId == 0 || m_textureSize.isEmpty()) {
+        return;
+    }
+
+    const QSizeF widgetSize = size();
+    const QSizeF frameSize = m_textureSize;
+    const qreal widgetAspect = widgetSize.width() / widgetSize.height();
+    const qreal frameAspect = frameSize.width() / frameSize.height();
+
+    qreal xScale = 1.0;
+    qreal yScale = 1.0;
+    if (frameAspect > widgetAspect) {
+        yScale = widgetAspect / frameAspect;
+    } else {
+        xScale = frameAspect / widgetAspect;
+    }
+
+    const GLfloat vertices[] = {
+        -static_cast<GLfloat>(xScale), -static_cast<GLfloat>(yScale), 0.0f, 1.0f,
+         static_cast<GLfloat>(xScale), -static_cast<GLfloat>(yScale), 1.0f, 1.0f,
+        -static_cast<GLfloat>(xScale),  static_cast<GLfloat>(yScale), 0.0f, 0.0f,
+         static_cast<GLfloat>(xScale),  static_cast<GLfloat>(yScale), 1.0f, 0.0f,
+    };
+
+    glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_textureId);
+
+    m_program->bind();
+    m_program->setUniformValue("frameTexture", 0);
+
+    const int positionLocation = m_program->attributeLocation("position");
+    const int texCoordLocation = m_program->attributeLocation("texCoord");
+    m_program->enableAttributeArray(positionLocation);
+    m_program->enableAttributeArray(texCoordLocation);
+    m_program->setAttributeArray(positionLocation, GL_FLOAT, vertices, 2, 4 * sizeof(GLfloat));
+    m_program->setAttributeArray(texCoordLocation, GL_FLOAT, vertices + 2, 2, 4 * sizeof(GLfloat));
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    m_program->disableAttributeArray(positionLocation);
+    m_program->disableAttributeArray(texCoordLocation);
+    m_program->release();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void VideoCanvas::drawAnalysisOverlay()
+{
+    if (m_textureSize.isEmpty() || m_currentSyntaxInfo.slices.isEmpty()) {
+        return;
+    }
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QRectF videoRect = videoDisplayRect();
+
+    drawQpHeatmap(painter, videoRect);
+    drawMacroblockGrid(painter, videoRect);
+    drawMotionVectors(painter, videoRect);
+}
+
+void VideoCanvas::drawQpHeatmap(QPainter &painter, const QRectF &videoRect)
+{
+    painter.save();
+    painter.setPen(Qt::NoPen);
+    painter.setClipRect(videoRect);
+
+    for (const SliceInfo &slice : m_currentSyntaxInfo.slices) {
+        const int picWidthInMbs = slice.picWidthInMbs > 0
+            ? slice.picWidthInMbs
+            : std::max(1, (m_textureSize.width() + 15) / 16);
+
+        for (const MacroblockInfo &mb : slice.macroblocks) {
+            const QRectF mbRect = macroblockWidgetRect(mb.address, picWidthInMbs, videoRect);
+            if (!mbRect.isValid()) {
+                continue;
+            }
+            painter.fillRect(mbRect, qpHeatColor(mb.qp));
+        }
+    }
+
+    painter.restore();
+}
+
+void VideoCanvas::drawMacroblockGrid(QPainter &painter, const QRectF &videoRect)
+{
+    if (m_textureSize.isEmpty()) {
+        return;
+    }
+
+    const int mbCols = std::max(1, (m_textureSize.width() + 15) / 16);
+    const int mbRows = std::max(1, (m_textureSize.height() + 15) / 16);
+
+    painter.save();
+    painter.setClipRect(videoRect);
+    painter.setPen(QPen(QColor(255, 255, 255, 70), 1.0));
+
+    for (int col = 0; col <= mbCols; ++col) {
+        const qreal videoX = std::min(col * 16, m_textureSize.width());
+        const QPointF top = mapVideoPointToWidget(QPointF(videoX, 0), videoRect);
+        const QPointF bottom = mapVideoPointToWidget(QPointF(videoX, m_textureSize.height()), videoRect);
+        painter.drawLine(top, bottom);
+    }
+
+    for (int row = 0; row <= mbRows; ++row) {
+        const qreal videoY = std::min(row * 16, m_textureSize.height());
+        const QPointF left = mapVideoPointToWidget(QPointF(0, videoY), videoRect);
+        const QPointF right = mapVideoPointToWidget(QPointF(m_textureSize.width(), videoY), videoRect);
+        painter.drawLine(left, right);
+    }
+
+    painter.restore();
+}
+
+void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
+{
+    painter.save();
+    painter.setClipRect(videoRect);
+    painter.setPen(QPen(QColor(80, 220, 255, 220), 1.4));
+    painter.setBrush(QColor(80, 220, 255, 220));
+
+    for (const SliceInfo &slice : m_currentSyntaxInfo.slices) {
+        const int picWidthInMbs = slice.picWidthInMbs > 0
+            ? slice.picWidthInMbs
+            : std::max(1, (m_textureSize.width() + 15) / 16);
+
+        for (const MacroblockInfo &mb : slice.macroblocks) {
+            const int mbX = mb.address % picWidthInMbs;
+            const int mbY = mb.address / picWidthInMbs;
+            const QPointF currentCenter(mbX * 16.0 + 8.0, mbY * 16.0 + 8.0);
+
+            for (const MotionVectorInfo &mv : mb.motionVectors) {
+                const QPointF referenceBase(
+                    mv.referenceX >= 0 ? mv.referenceX + 8.0 : currentCenter.x(),
+                    mv.referenceY >= 0 ? mv.referenceY + 8.0 : currentCenter.y());
+
+                const QPointF predictedPoint(
+                    referenceBase.x() + mv.mvXQuarterPel / 4.0,
+                    referenceBase.y() + mv.mvYQuarterPel / 4.0);
+
+                const QPointF start = mapVideoPointToWidget(currentCenter, videoRect);
+                const QPointF end = mapVideoPointToWidget(predictedPoint, videoRect);
+                const QLineF line(start, end);
+                if (line.length() < 1.0) {
+                    continue;
+                }
+
+                painter.drawLine(line);
+
+                const double angle = std::atan2(-(end.y() - start.y()), end.x() - start.x());
+                const qreal arrowSize = 7.0;
+                const QPointF arrowP1 = end - QPointF(std::cos(angle + Pi / 6.0) * arrowSize,
+                                                       -std::sin(angle + Pi / 6.0) * arrowSize);
+                const QPointF arrowP2 = end - QPointF(std::cos(angle - Pi / 6.0) * arrowSize,
+                                                       -std::sin(angle - Pi / 6.0) * arrowSize);
+                QPainterPath arrowHead;
+                arrowHead.moveTo(end);
+                arrowHead.lineTo(arrowP1);
+                arrowHead.lineTo(arrowP2);
+                arrowHead.closeSubpath();
+                painter.drawPath(arrowHead);
+            }
+        }
+    }
+
+    painter.restore();
+}
+
+void VideoCanvas::paintOverlayText()
+{
+    if (m_overlayMessage.isEmpty() && m_currentFrame) {
+        return;
+    }
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(Qt::white);
+
+    QFont font = painter.font();
+    font.setPointSizeF(font.pointSizeF() + 1.5);
+    font.setBold(true);
+    painter.setFont(font);
+
+    painter.drawText(rect().adjusted(16, 16, -16, -16),
+                     Qt::AlignCenter | Qt::TextWordWrap,
+                     m_overlayMessage);
+}
+
+QRectF VideoCanvas::videoDisplayRect() const
+{
+    if (m_textureSize.isEmpty() || width() <= 0 || height() <= 0) {
+        return rect();
+    }
+
+    const QSizeF widgetSize = size();
+    const QSizeF frameSize = m_textureSize;
+    const qreal widgetAspect = widgetSize.width() / widgetSize.height();
+    const qreal frameAspect = frameSize.width() / frameSize.height();
+
+    QSizeF drawSize = widgetSize;
+    if (frameAspect > widgetAspect) {
+        drawSize.setHeight(widgetSize.width() / frameAspect);
+    } else {
+        drawSize.setWidth(widgetSize.height() * frameAspect);
+    }
+
+    const QPointF topLeft((widgetSize.width() - drawSize.width()) * 0.5,
+                          (widgetSize.height() - drawSize.height()) * 0.5);
+    return QRectF(topLeft, drawSize);
+}
+
+QPointF VideoCanvas::mapVideoPointToWidget(const QPointF &videoPoint, const QRectF &videoRect) const
+{
+    if (m_textureSize.isEmpty()) {
+        return videoPoint;
+    }
+
+    return QPointF(
+        videoRect.left() + videoPoint.x() / m_textureSize.width() * videoRect.width(),
+        videoRect.top() + videoPoint.y() / m_textureSize.height() * videoRect.height());
+}
+
+QRectF VideoCanvas::macroblockWidgetRect(int macroblockAddress, int picWidthInMbs, const QRectF &videoRect) const
+{
+    if (macroblockAddress < 0 || picWidthInMbs <= 0 || m_textureSize.isEmpty()) {
+        return {};
+    }
+
+    const int mbX = macroblockAddress % picWidthInMbs;
+    const int mbY = macroblockAddress / picWidthInMbs;
+    const QPointF topLeft = mapVideoPointToWidget(QPointF(mbX * 16.0, mbY * 16.0), videoRect);
+    const QPointF bottomRight = mapVideoPointToWidget(
+        QPointF(std::min((mbX + 1) * 16, m_textureSize.width()),
+                std::min((mbY + 1) * 16, m_textureSize.height())),
+        videoRect);
+    return QRectF(topLeft, bottomRight).normalized();
+}
+
+QColor VideoCanvas::qpHeatColor(int qp) const
+{
+    const qreal t = std::clamp(qp / 51.0, 0.0, 1.0);
+    const int red = static_cast<int>(80 + t * 175);
+    const int green = static_cast<int>(220 - t * 180);
+    return QColor(red, green, 40, 80);
+}

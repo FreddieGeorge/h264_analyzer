@@ -1,0 +1,107 @@
+cmake_minimum_required(VERSION 3.21)
+
+project(H264Analyzer VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL OpenGLWidgets)
+find_package(PkgConfig QUIET)
+
+if(PkgConfig_FOUND)
+    pkg_check_modules(FFMPEG QUIET IMPORTED_TARGET
+        libavformat
+        libavcodec
+        libavutil
+        libswscale
+    )
+endif()
+
+if(NOT FFMPEG_FOUND)
+    find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h)
+    find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)
+    find_path(AVUTIL_INCLUDE_DIR libavutil/frame.h)
+    find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h)
+
+    find_library(AVFORMAT_LIBRARY avformat)
+    find_library(AVCODEC_LIBRARY avcodec)
+    find_library(AVUTIL_LIBRARY avutil)
+    find_library(SWSCALE_LIBRARY swscale)
+
+    if(AVFORMAT_INCLUDE_DIR AND AVCODEC_INCLUDE_DIR AND AVUTIL_INCLUDE_DIR AND SWSCALE_INCLUDE_DIR
+            AND AVFORMAT_LIBRARY AND AVCODEC_LIBRARY AND AVUTIL_LIBRARY AND SWSCALE_LIBRARY)
+        add_library(FFmpeg::FFmpeg INTERFACE IMPORTED)
+        target_include_directories(FFmpeg::FFmpeg INTERFACE
+            ${AVFORMAT_INCLUDE_DIR}
+            ${AVCODEC_INCLUDE_DIR}
+            ${AVUTIL_INCLUDE_DIR}
+            ${SWSCALE_INCLUDE_DIR}
+        )
+        target_link_libraries(FFmpeg::FFmpeg INTERFACE
+            ${AVFORMAT_LIBRARY}
+            ${AVCODEC_LIBRARY}
+            ${AVUTIL_LIBRARY}
+            ${SWSCALE_LIBRARY}
+        )
+        set(FFMPEG_FOUND TRUE)
+    endif()
+endif()
+
+if(NOT FFMPEG_FOUND)
+    message(FATAL_ERROR
+        "FFmpeg development libraries were not found. Install ffmpeg[avcodec,avformat,swscale] via vcpkg "
+        "or install system packages such as libavformat-dev libavcodec-dev libavutil-dev libswscale-dev.")
+endif()
+
+add_executable(H264Analyzer
+    src/main.cpp
+    src/app/MainWindow.h
+    src/app/MainWindow.cpp
+    src/core/DecodeWorker.h
+    src/core/DecodeWorker.cpp
+    src/core/FFmpegDecoder.h
+    src/core/FFmpegDecoder.cpp
+    src/core/H264Parser.h
+    src/core/H264Parser.cpp
+    src/core/StreamDocument.h
+    src/core/StreamDocument.cpp
+    src/ui/FrameListView.h
+    src/ui/FrameListView.cpp
+    src/ui/LogDock.h
+    src/ui/LogDock.cpp
+    src/ui/PropertyTreeView.h
+    src/ui/PropertyTreeView.cpp
+    src/ui/VideoCanvas.h
+    src/ui/VideoCanvas.cpp
+)
+
+target_include_directories(H264Analyzer PRIVATE src)
+
+target_link_libraries(H264Analyzer PRIVATE
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+)
+
+if(TARGET PkgConfig::FFMPEG)
+    target_link_libraries(H264Analyzer PRIVATE PkgConfig::FFMPEG)
+else()
+    target_link_libraries(H264Analyzer PRIVATE FFmpeg::FFmpeg)
+endif()
+
+target_compile_features(H264Analyzer PRIVATE cxx_std_17)
+
+if(MSVC)
+    target_compile_options(H264Analyzer PRIVATE /utf-8)
+endif()
+
+set_target_properties(H264Analyzer PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
+)

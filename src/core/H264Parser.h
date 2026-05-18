@@ -1,0 +1,156 @@
+#pragma once
+
+#include <QByteArray>
+#include <QHash>
+#include <QMetaType>
+#include <QString>
+#include <QVector>
+
+#include <cstdint>
+
+struct SpsInfo
+{
+    bool valid = false;
+    int profileIdc = 0;
+    int levelIdc = 0;
+    int seqParameterSetId = -1;
+    int chromaFormatIdc = 1;
+    int log2MaxFrameNumMinus4 = 0;
+    int picOrderCntType = 0;
+    int log2MaxPicOrderCntLsbMinus4 = 0;
+    int picWidthInMbsMinus1 = 0;
+    int picHeightInMapUnitsMinus1 = 0;
+    bool frameMbsOnlyFlag = true;
+    int frameCropLeftOffset = 0;
+    int frameCropRightOffset = 0;
+    int frameCropTopOffset = 0;
+    int frameCropBottomOffset = 0;
+    int width = 0;
+    int height = 0;
+};
+
+struct PpsInfo
+{
+    bool valid = false;
+    int picParameterSetId = -1;
+    int seqParameterSetId = -1;
+    bool entropyCodingModeFlag = false;
+    bool bottomFieldPicOrderInFramePresentFlag = false;
+    int numSliceGroupsMinus1 = 0;
+    int numRefIdxL0DefaultActiveMinus1 = 0;
+    int numRefIdxL1DefaultActiveMinus1 = 0;
+    bool weightedPredFlag = false;
+    int weightedBipredIdc = 0;
+    int picInitQpMinus26 = 0;
+    bool deblockingFilterControlPresentFlag = true;
+    bool redundantPicCntPresentFlag = false;
+};
+
+struct MotionVectorInfo
+{
+    int list = 0;
+    int referenceIndex = 0;
+    int mvXQuarterPel = 0;
+    int mvYQuarterPel = 0;
+    int referenceX = -1;
+    int referenceY = -1;
+};
+
+struct MacroblockInfo
+{
+    int address = 0;
+    QString mbType;
+    int qp = 26;
+    QString note;
+    QVector<MotionVectorInfo> motionVectors;
+};
+
+struct SliceInfo
+{
+    bool valid = false;
+    int nalUnitType = 0;
+    int nalRefIdc = 0;
+    int firstMbInSlice = 0;
+    int sliceType = 0;
+    QString sliceTypeName;
+    int picParameterSetId = -1;
+    int frameNum = 0;
+    int idrPicId = -1;
+    int picOrderCntLsb = -1;
+    int sliceQpDelta = 0;
+    int derivedQp = 26;
+    int picWidthInMbs = 0;
+    int picHeightInMbs = 0;
+    QVector<MacroblockInfo> macroblocks;
+};
+
+struct NaluInfo
+{
+    qsizetype offset = 0;
+    qsizetype size = 0;
+    int forbiddenZeroBit = 0;
+    int nalRefIdc = 0;
+    int nalUnitType = 0;
+    QString nalUnitTypeName;
+    SpsInfo sps;
+    PpsInfo pps;
+    SliceInfo slice;
+};
+
+struct FrameSyntaxInfo
+{
+    int index = -1;
+    qint64 pts = 0;
+    qint64 dts = 0;
+    int poc = -1;
+    int frameNum = -1;
+    QString frameType;
+    QVector<NaluInfo> nalus;
+    QVector<SliceInfo> slices;
+};
+
+class H264Parser
+{
+public:
+    H264Parser();
+
+    void reset();
+    void parseDecoderConfigurationRecord(const QByteArray &extraData);
+    FrameSyntaxInfo parsePacket(const QByteArray &packetData, qint64 pts, qint64 dts, int packetIndex);
+
+    const QHash<int, SpsInfo> &spsMap() const;
+    const QHash<int, PpsInfo> &ppsMap() const;
+    int nalLengthSize() const;
+
+    static QString naluTypeName(int nalUnitType);
+    static QString sliceTypeName(int sliceType);
+
+private:
+    class BitReader;
+
+    QVector<NaluInfo> splitNalus(const QByteArray &packetData);
+    QVector<NaluInfo> splitAnnexBNalus(const QByteArray &packetData);
+    QVector<NaluInfo> splitLengthPrefixedNalus(const QByteArray &packetData);
+    NaluInfo parseNaluPayload(const NaluInfo &base, const QByteArray &nalu);
+    SpsInfo parseSps(const QByteArray &rbsp) const;
+    PpsInfo parsePps(const QByteArray &rbsp) const;
+    SliceInfo parseSliceHeader(const QByteArray &rbsp, int nalUnitType, int nalRefIdc) const;
+
+    static QByteArray rbspFromEbsp(const uint8_t *data, qsizetype size);
+    static bool hasAnnexBStartCode(const QByteArray &data);
+    static qsizetype startCodeSizeAt(const QByteArray &data, qsizetype offset);
+    static int readBigEndianLength(const uint8_t *data, int size);
+    static void skipScalingList(BitReader &reader, int sizeOfScalingList);
+
+    QHash<int, SpsInfo> m_spsById;
+    QHash<int, PpsInfo> m_ppsById;
+    int m_nalLengthSize = 4;
+};
+
+Q_DECLARE_METATYPE(SpsInfo)
+Q_DECLARE_METATYPE(PpsInfo)
+Q_DECLARE_METATYPE(MotionVectorInfo)
+Q_DECLARE_METATYPE(MacroblockInfo)
+Q_DECLARE_METATYPE(SliceInfo)
+Q_DECLARE_METATYPE(NaluInfo)
+Q_DECLARE_METATYPE(FrameSyntaxInfo)
