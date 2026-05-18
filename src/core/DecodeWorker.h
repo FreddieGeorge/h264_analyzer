@@ -6,6 +6,8 @@
 #include <QString>
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 class DecodeWorker : public QObject
 {
@@ -16,16 +18,27 @@ public:
 
 public slots:
     void decodeFile(const QString &filePath);
+    void play();
+    void pause();
+    void setPaused(bool paused);
+    void stepForward();
     void stop();
 
 signals:
     void streamOpened(const StreamInfo &streamInfo);
     void frameDecoded(const DecodedVideoFramePtr &frame);
     void frameSyntaxDecoded(const FrameSyntaxInfo &syntaxInfo);
+    void frameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
     void logMessage(const QString &message);
     void errorOccurred(const QString &message);
     void finished();
 
 private:
+    bool waitForPlaybackPermission();
+
     std::atomic_bool m_stopRequested = false;
+    std::mutex m_controlMutex;
+    std::condition_variable m_controlChanged;
+    bool m_paused = false;
+    int m_stepRequests = 0;
 };

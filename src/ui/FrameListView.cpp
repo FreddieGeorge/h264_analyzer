@@ -1,5 +1,6 @@
 #include "ui/FrameListView.h"
 
+#include <QSignalBlocker>
 #include <QTreeWidgetItem>
 #include <QVariant>
 
@@ -44,14 +45,35 @@ void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
 
     const QString poc = syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-");
     const QString frameNum = syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-");
+    const QString type = !syntaxInfo.frameType.isEmpty() ? syntaxInfo.frameType : QStringLiteral("-");
     auto *item = new QTreeWidgetItem({
         QString::number(syntaxInfo.index),
-        syntaxInfo.frameType,
+        type,
         poc,
         frameNum
     });
     item->setData(0, FrameSyntaxRole, QVariant::fromValue(syntaxInfo));
     addTopLevelItem(item);
+}
+
+bool FrameListView::selectFrameIndex(int frameIndex)
+{
+    for (int row = 0; row < topLevelItemCount(); ++row) {
+        QTreeWidgetItem *item = topLevelItem(row);
+        const QVariant value = item->data(0, FrameSyntaxRole);
+        if (!value.isValid() || !value.canConvert<FrameSyntaxInfo>()) {
+            continue;
+        }
+
+        if (value.value<FrameSyntaxInfo>().index == frameIndex) {
+            const QSignalBlocker blocker(this);
+            setCurrentItem(item);
+            scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void FrameListView::handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)
@@ -63,6 +85,8 @@ void FrameListView::handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidg
 
     const QVariant value = current->data(0, FrameSyntaxRole);
     if (value.isValid() && value.canConvert<FrameSyntaxInfo>()) {
-        emit frameSyntaxSelected(value.value<FrameSyntaxInfo>());
+        const FrameSyntaxInfo syntaxInfo = value.value<FrameSyntaxInfo>();
+        emit frameSyntaxSelected(syntaxInfo);
+        emit frameSelected(syntaxInfo.index, syntaxInfo);
     }
 }

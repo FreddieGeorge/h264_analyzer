@@ -14,9 +14,11 @@ public:
     void showPlaceholder(const QString &message);
     void clearFrames();
     void addFrameSyntax(const FrameSyntaxInfo &syntaxInfo);
+    bool selectFrameIndex(int frameIndex);
 
 signals:
     void frameSyntaxSelected(const FrameSyntaxInfo &syntaxInfo);
+    void frameSelected(int frameIndex, const FrameSyntaxInfo &syntaxInfo);
 
 private:
     void handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);

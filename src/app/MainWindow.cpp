@@ -13,6 +13,7 @@
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QKeySequence>
+#include <QLabel>
 #include <QList>
 #include <QMenu>
 #include <QMenuBar>
@@ -27,8 +28,13 @@
 #include <QUrl>
 #include <QWidget>
 
+#include <algorithm>
+#include <utility>
+
 namespace
 {
+constexpr int MaxCachedFrames = 240;
+
 QString firstWritableLocation(QStandardPaths::StandardLocation location)
 {
     const QStringList locations = QStandardPaths::standardLocations(location);
@@ -76,6 +82,23 @@ void MainWindow::createActions()
     m_openAction = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("&Open"), this);
     m_openAction->setShortcut(QKeySequence::Open);
     connect(m_openAction, &QAction::triggered, this, &MainWindow::openStream);
+
+    m_playPauseAction = new QAction(style()->standardIcon(QStyle::SP_MediaPause), tr("Pause"), this);
+    m_playPauseAction->setShortcut(Qt::Key_Space);
+    connect(m_playPauseAction, &QAction::triggered, this, &MainWindow::togglePlayback);
+
+    m_previousFrameAction = new QAction(style()->standardIcon(QStyle::SP_MediaSkipBackward), tr("Previous Frame"), this);
+    m_previousFrameAction->setShortcut(QKeySequence(Qt::Key_Left));
+    connect(m_previousFrameAction, &QAction::triggered, this, &MainWindow::stepToPreviousFrame);
+
+    m_nextFrameAction = new QAction(style()->standardIcon(QStyle::SP_MediaSkipForward), tr("Next Frame"), this);
+    m_nextFrameAction->setShortcut(QKeySequence(Qt::Key_Right));
+    connect(m_nextFrameAction, &QAction::triggered, this, &MainWindow::stepToNextFrame);
+
+    m_stopAction = new QAction(style()->standardIcon(QStyle::SP_MediaStop), tr("Stop"), this);
+    connect(m_stopAction, &QAction::triggered, this, &MainWindow::stopPlayback);
+
+    setPlaybackControlsEnabled(false);
 }
 
 void MainWindow::createDocks()
@@ -90,10 +113,8 @@ void MainWindow::createDocks()
     addDockWidget(Qt::LeftDockWidgetArea, m_frameDock);
 
     m_propertyTreeView = new PropertyTreeView;
-    connect(m_frameListView, &FrameListView::frameSyntaxSelected,
-            m_propertyTreeView, &PropertyTreeView::showFrameSyntax);
-    connect(m_frameListView, &FrameListView::frameSyntaxSelected,
-            m_videoCanvas, &VideoCanvas::setAnalysisOverlay);
+    connect(m_frameListView, &FrameListView::frameSelected,
+            this, &MainWindow::handleFrameListSelection);
     m_propertyDock = new QDockWidget(tr("PropertyTreeView"), this);
     m_propertyDock->setObjectName(QStringLiteral("PropertyDock"));
     m_propertyDock->setWidget(m_propertyTreeView);
@@ -127,6 +148,18 @@ void MainWindow::createToolBars()
     auto *fileToolBar = addToolBar(tr("File"));
     fileToolBar->setObjectName(QStringLiteral("FileToolBar"));
     fileToolBar->addAction(m_openAction);
+
+    auto *playbackToolBar = addToolBar(tr("Playback"));
+    playbackToolBar->setObjectName(QStringLiteral("PlaybackToolBar"));
+    playbackToolBar->addAction(m_previousFrameAction);
+    playbackToolBar->addAction(m_playPauseAction);
+    playbackToolBar->addAction(m_nextFrameAction);
+    playbackToolBar->addAction(m_stopAction);
+    playbackToolBar->addSeparator();
+
+    m_frameIndexLabel = new QLabel(tr("Frame - / -"), playbackToolBar);
+    m_frameIndexLabel->setMinimumWidth(110);
+    playbackToolBar->addWidget(m_frameIndexLabel);
 }
 
 void MainWindow::openStream()
@@ -166,6 +199,11 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_videoCanvas->setAnalysisOverlay(FrameSyntaxInfo {});
     m_frameListView->clearFrames();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
+    m_frameCache.clear();
+    m_currentFrameIndex = -1;
+    m_latestFrameIndex = -1;
+    m_playbackPaused = false;
+    updateFrameIndexDisplay();
 
     startDecoder(stream.absoluteFilePath);
 }
@@ -199,14 +237,8 @@ void MainWindow::startDecoder(const QString &filePath)
                 .arg(streamInfo.pixelFormatName));
     });
 
-    connect(m_decodeWorker, &DecodeWorker::frameDecoded,
-            m_videoCanvas, &VideoCanvas::setFrame,
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::frameSyntaxDecoded,
-            m_frameListView, &FrameListView::addFrameSyntax,
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::frameSyntaxDecoded,
-            m_videoCanvas, &VideoCanvas::setAnalysisOverlay,
+    connect(m_decodeWorker, &DecodeWorker::frameReady,
+            this, &MainWindow::handleFrameReady,
             Qt::QueuedConnection);
     connect(m_decodeWorker, &DecodeWorker::logMessage,
             m_logDock, &LogDock::appendLine,
@@ -221,9 +253,15 @@ void MainWindow::startDecoder(const QString &filePath)
     connect(m_decodeThread, &QThread::finished, this, [this]() {
         m_decodeThread = nullptr;
         m_decodeWorker = nullptr;
+        m_playbackPaused = false;
+        updatePlaybackActionState();
+        setPlaybackControlsEnabled(false);
         m_logDock->appendLine(tr("[Info] Decode thread stopped."));
     });
 
+    m_playbackPaused = false;
+    setPlaybackControlsEnabled(true);
+    updatePlaybackActionState();
     m_decodeThread->start();
 }
 
@@ -239,6 +277,186 @@ void MainWindow::stopDecoder()
         m_decodeThread = nullptr;
         m_decodeWorker = nullptr;
     }
+}
+
+void MainWindow::togglePlayback()
+{
+    if (m_decodeWorker.isNull()) {
+        return;
+    }
+
+    if (m_playbackPaused) {
+        resumePlayback();
+    } else {
+        pausePlayback();
+    }
+}
+
+void MainWindow::pausePlayback()
+{
+    if (m_decodeWorker.isNull()) {
+        return;
+    }
+
+    m_decodeWorker->pause();
+    m_playbackPaused = true;
+    updatePlaybackActionState();
+    statusBar()->showMessage(tr("Paused"), 2000);
+}
+
+void MainWindow::resumePlayback()
+{
+    if (m_decodeWorker.isNull()) {
+        return;
+    }
+
+    m_decodeWorker->play();
+    m_playbackPaused = false;
+    updatePlaybackActionState();
+    statusBar()->showMessage(tr("Playing"), 2000);
+}
+
+void MainWindow::stepToPreviousFrame()
+{
+    if (m_currentFrameIndex <= 0) {
+        return;
+    }
+
+    if (!m_decodeWorker.isNull()) {
+        pausePlayback();
+    }
+    showFrameFromCache(m_currentFrameIndex - 1);
+}
+
+void MainWindow::stepToNextFrame()
+{
+    if (!m_decodeWorker.isNull()) {
+        pausePlayback();
+    }
+
+    const int nextIndex = m_currentFrameIndex + 1;
+    if (nextIndex <= m_latestFrameIndex && showFrameFromCache(nextIndex)) {
+        return;
+    }
+
+    if (!m_decodeWorker.isNull()) {
+        m_decodeWorker->stepForward();
+        m_playbackPaused = true;
+        updatePlaybackActionState();
+    }
+}
+
+void MainWindow::stopPlayback()
+{
+    stopDecoder();
+    m_playbackPaused = false;
+    updatePlaybackActionState();
+    setPlaybackControlsEnabled(false);
+    statusBar()->showMessage(tr("Stopped"), 2000);
+}
+
+void MainWindow::handleFrameReady(int frameIndex,
+                                  const DecodedVideoFramePtr &frame,
+                                  const FrameSyntaxInfo &syntaxInfo)
+{
+    CachedFrame cached;
+    cached.index = frameIndex;
+    cached.frame = frame;
+    cached.syntaxInfo = syntaxInfo;
+    m_frameCache.append(cached);
+    while (m_frameCache.size() > MaxCachedFrames) {
+        m_frameCache.removeFirst();
+    }
+
+    m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
+    m_frameListView->addFrameSyntax(syntaxInfo);
+    showFrameFromCache(frameIndex);
+}
+
+void MainWindow::handleFrameListSelection(int frameIndex, const FrameSyntaxInfo &syntaxInfo)
+{
+    if (!m_decodeWorker.isNull()) {
+        pausePlayback();
+    }
+    showFrameFromCache(frameIndex, syntaxInfo, false);
+}
+
+bool MainWindow::showFrameFromCache(int frameIndex,
+                                    const FrameSyntaxInfo &fallbackSyntaxInfo,
+                                    bool selectInList)
+{
+    for (const CachedFrame &cached : std::as_const(m_frameCache)) {
+        if (cached.index != frameIndex) {
+            continue;
+        }
+
+        m_currentFrameIndex = frameIndex;
+        m_videoCanvas->setFrame(cached.frame);
+        m_videoCanvas->setAnalysisOverlay(cached.syntaxInfo);
+        m_propertyTreeView->showFrameSyntax(cached.syntaxInfo);
+        if (selectInList) {
+            m_frameListView->selectFrameIndex(frameIndex);
+        }
+        updateFrameIndexDisplay();
+        return true;
+    }
+
+    if (fallbackSyntaxInfo.index == frameIndex) {
+        m_currentFrameIndex = frameIndex;
+        m_videoCanvas->setAnalysisOverlay(fallbackSyntaxInfo);
+        m_propertyTreeView->showFrameSyntax(fallbackSyntaxInfo);
+        updateFrameIndexDisplay();
+        m_logDock->appendLine(tr("[Warning] Frame %1 is no longer in the recent frame cache.").arg(frameIndex));
+    }
+
+    return false;
+}
+
+void MainWindow::setPlaybackControlsEnabled(bool enabled)
+{
+    if (m_playPauseAction != nullptr) {
+        m_playPauseAction->setEnabled(enabled);
+    }
+    if (m_previousFrameAction != nullptr) {
+        m_previousFrameAction->setEnabled(enabled);
+    }
+    if (m_nextFrameAction != nullptr) {
+        m_nextFrameAction->setEnabled(enabled);
+    }
+    if (m_stopAction != nullptr) {
+        m_stopAction->setEnabled(enabled);
+    }
+}
+
+void MainWindow::updatePlaybackActionState()
+{
+    if (m_playPauseAction == nullptr) {
+        return;
+    }
+
+    if (m_playbackPaused) {
+        m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+        m_playPauseAction->setText(tr("Play"));
+    } else {
+        m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+        m_playPauseAction->setText(tr("Pause"));
+    }
+}
+
+void MainWindow::updateFrameIndexDisplay()
+{
+    if (m_frameIndexLabel == nullptr) {
+        return;
+    }
+
+    if (m_currentFrameIndex < 0) {
+        m_frameIndexLabel->setText(tr("Frame - / -"));
+        return;
+    }
+
+    m_frameIndexLabel->setText(tr("Frame %1 / %2")
+                                   .arg(m_currentFrameIndex + 1)
+                                   .arg(m_latestFrameIndex + 1));
 }
 
 QString MainWindow::defaultOpenDirectory() const

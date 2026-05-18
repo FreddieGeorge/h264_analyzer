@@ -10,6 +10,11 @@ DecodeWorker::DecodeWorker(QObject *parent)
 void DecodeWorker::decodeFile(const QString &filePath)
 {
     m_stopRequested.store(false);
+    {
+        std::lock_guard<std::mutex> lock(m_controlMutex);
+        m_paused = false;
+        m_stepRequests = 0;
+    }
 
     FFmpegDecoder decoder;
     if (!decoder.openFile(filePath)) {
@@ -30,7 +35,12 @@ void DecodeWorker::decodeFile(const QString &filePath)
         ? static_cast<unsigned long>(1000.0 / streamInfo.frameRate)
         : 0UL;
 
+    int frameIndex = 0;
     while (!m_stopRequested.load()) {
+        if (!waitForPlaybackPermission()) {
+            break;
+        }
+
         AVFrame *frame = decoder.decodeNextFrame();
         if (frame == nullptr) {
             if (!decoder.lastError().isEmpty()) {
@@ -40,13 +50,17 @@ void DecodeWorker::decodeFile(const QString &filePath)
         }
 
         DecodedVideoFramePtr copy = FFmpegDecoder::copyFrame(frame);
+        FrameSyntaxInfo syntaxInfo = decoder.lastFrameSyntaxInfo();
+        syntaxInfo.index = frameIndex;
+        syntaxInfo.pts = copy ? copy->pts : syntaxInfo.pts;
         if (copy) {
             emit frameDecoded(copy);
+            emit frameReady(frameIndex, copy, syntaxInfo);
         }
-        const FrameSyntaxInfo syntaxInfo = decoder.lastFrameSyntaxInfo();
         if (!syntaxInfo.slices.isEmpty()) {
             emit frameSyntaxDecoded(syntaxInfo);
         }
+        ++frameIndex;
 
         if (frameDelayMs > 0) {
             QThread::msleep(frameDelayMs);
@@ -56,7 +70,55 @@ void DecodeWorker::decodeFile(const QString &filePath)
     emit finished();
 }
 
+void DecodeWorker::play()
+{
+    setPaused(false);
+}
+
+void DecodeWorker::pause()
+{
+    setPaused(true);
+}
+
+void DecodeWorker::setPaused(bool paused)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_controlMutex);
+        m_paused = paused;
+    }
+    m_controlChanged.notify_all();
+}
+
+void DecodeWorker::stepForward()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_controlMutex);
+        m_paused = true;
+        ++m_stepRequests;
+    }
+    m_controlChanged.notify_all();
+}
+
 void DecodeWorker::stop()
 {
     m_stopRequested.store(true);
+    m_controlChanged.notify_all();
+}
+
+bool DecodeWorker::waitForPlaybackPermission()
+{
+    std::unique_lock<std::mutex> lock(m_controlMutex);
+    m_controlChanged.wait(lock, [this]() {
+        return m_stopRequested.load() || !m_paused || m_stepRequests > 0;
+    });
+
+    if (m_stopRequested.load()) {
+        return false;
+    }
+
+    if (m_paused && m_stepRequests > 0) {
+        --m_stepRequests;
+    }
+
+    return true;
 }

@@ -1,15 +1,18 @@
 #pragma once
 
+#include "core/FFmpegDecoder.h"
 #include "core/StreamDocument.h"
 
 #include <QMainWindow>
 #include <QPointer>
 #include <QString>
+#include <QVector>
 
 class QAction;
 class QDockWidget;
 class QDragEnterEvent;
 class QDropEvent;
+class QLabel;
 class QMenu;
 class QThread;
 
@@ -40,9 +43,33 @@ private:
     void openStreamFile(const QString &filePath);
     void startDecoder(const QString &filePath);
     void stopDecoder();
+    void togglePlayback();
+    void pausePlayback();
+    void resumePlayback();
+    void stepToPreviousFrame();
+    void stepToNextFrame();
+    void stopPlayback();
+    void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
+    void handleFrameListSelection(int frameIndex, const FrameSyntaxInfo &syntaxInfo);
+    bool showFrameFromCache(int frameIndex, const FrameSyntaxInfo &fallbackSyntaxInfo = FrameSyntaxInfo {}, bool selectInList = true);
+    void setPlaybackControlsEnabled(bool enabled);
+    void updatePlaybackActionState();
+    void updateFrameIndexDisplay();
     QString defaultOpenDirectory() const;
 
+    struct CachedFrame
+    {
+        int index = -1;
+        DecodedVideoFramePtr frame;
+        FrameSyntaxInfo syntaxInfo;
+    };
+
     QAction *m_openAction = nullptr;
+    QAction *m_playPauseAction = nullptr;
+    QAction *m_previousFrameAction = nullptr;
+    QAction *m_nextFrameAction = nullptr;
+    QAction *m_stopAction = nullptr;
+    QLabel *m_frameIndexLabel = nullptr;
     QMenu *m_docksMenu = nullptr;
 
     QDockWidget *m_frameDock = nullptr;
@@ -58,4 +85,8 @@ private:
     QPointer<QThread> m_decodeThread;
     QPointer<DecodeWorker> m_decodeWorker;
     QString m_lastOpenDirectory;
+    QVector<CachedFrame> m_frameCache;
+    int m_currentFrameIndex = -1;
+    int m_latestFrameIndex = -1;
+    bool m_playbackPaused = false;
 };
