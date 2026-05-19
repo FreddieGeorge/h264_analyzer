@@ -1228,7 +1228,7 @@ void MainWindow::seekToFrame(int frameIndex)
     m_playbackPaused = true;
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
-    m_videoCanvas->setOverlayMessage(tr("Buffering to frame %1...").arg(frameIndex + 1));
+    m_videoCanvas->setOverlayMessage(QStringLiteral("Buffering frame %1...").arg(frameIndex + 1));
     statusBar()->showMessage(tr("Buffering to frame %1").arg(frameIndex + 1), 3000);
 
     FrameSeekCheckpoint checkpoint;

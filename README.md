@@ -126,13 +126,14 @@ dist/ZStreamEye-windows-ucrt64.zip
 
 The portable package includes:
 
-- `bin/ZStreamEye.exe`
+- `ZStreamEye.exe`
 - Qt runtime DLLs
 - Qt plugins, such as `platforms/qwindows.dll`
 - FFmpeg DLLs, such as `avcodec-62.dll`
 - MSYS2 UCRT64/GCC runtime DLLs
 
-End users only need to unzip the package and run `bin/ZStreamEye.exe`.
+End users only need to unzip the package and run `ZStreamEye.exe`. Runtime DLLs
+and Qt plugins are grouped under `runtime/`.
 
 ## Windows Installer
 
@@ -140,13 +141,13 @@ Create a Windows installer after the portable package has been generated:
 
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
-.\scripts\package-windows-installer.ps1 -Version "0.1.6"
+.\scripts\package-windows-installer.ps1 -Version "0.1.7"
 ```
 
 Output:
 
 ```text
-dist/ZStreamEye-0.1.6-windows-ucrt64-setup.exe
+dist/ZStreamEye-0.1.7-windows-ucrt64-setup.exe
 ```
 
 The installer is built with Inno Setup 6 and installs the same self-contained

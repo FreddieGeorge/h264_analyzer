@@ -1,6 +1,6 @@
 #define AppName "ZStreamEye"
 #ifndef AppVersion
-#define AppVersion "0.1.6"
+#define AppVersion "0.1.7"
 #endif
 #ifndef SourceDir
 #define SourceDir "..\dist\ZStreamEye-windows-ucrt64"
@@ -27,7 +27,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\bin\ZStreamEye.exe
+UninstallDisplayIcon={app}\ZStreamEye.exe
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -36,8 +36,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [InstallDelete]
-Type: files; Name: "{app}\ZStreamEye.exe"
 Type: files; Name: "{app}\*.dll"
+Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\generic"
 Type: filesandordirs; Name: "{app}\imageformats"
 Type: filesandordirs; Name: "{app}\networkinformation"
@@ -49,9 +49,9 @@ Type: filesandordirs; Name: "{app}\tls"
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\ZStreamEye"; Filename: "{app}\bin\ZStreamEye.exe"; WorkingDir: "{app}\bin"
+Name: "{group}\ZStreamEye"; Filename: "{app}\ZStreamEye.exe"; WorkingDir: "{app}"
 Name: "{group}\Uninstall ZStreamEye"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\ZStreamEye"; Filename: "{app}\bin\ZStreamEye.exe"; WorkingDir: "{app}\bin"; Tasks: desktopicon
+Name: "{autodesktop}\ZStreamEye"; Filename: "{app}\ZStreamEye.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\bin\ZStreamEye.exe"; Description: "{cm:LaunchProgram,ZStreamEye}"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\ZStreamEye.exe"; Description: "{cm:LaunchProgram,ZStreamEye}"; Flags: nowait postinstall skipifsilent unchecked

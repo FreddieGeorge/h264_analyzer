@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ZStreamEye VERSION 0.1.6 LANGUAGES CXX)
+project(ZStreamEye VERSION 0.1.7 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -95,11 +95,11 @@ if(WIN32)
     list(APPEND ZSTREAMEYE_SOURCES resources/windows/ZStreamEye.rc)
 endif()
 
-add_executable(ZStreamEye ${ZSTREAMEYE_SOURCES})
+add_executable(ZStreamEyeApp ${ZSTREAMEYE_SOURCES})
 
-target_include_directories(ZStreamEye PRIVATE src)
+target_include_directories(ZStreamEyeApp PRIVATE src)
 
-target_link_libraries(ZStreamEye PRIVATE
+target_link_libraries(ZStreamEyeApp PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
@@ -108,24 +108,36 @@ target_link_libraries(ZStreamEye PRIVATE
 )
 
 if(TARGET PkgConfig::FFMPEG)
-    target_link_libraries(ZStreamEye PRIVATE PkgConfig::FFMPEG)
+    target_link_libraries(ZStreamEyeApp PRIVATE PkgConfig::FFMPEG)
 else()
-    target_link_libraries(ZStreamEye PRIVATE FFmpeg::FFmpeg)
+    target_link_libraries(ZStreamEyeApp PRIVATE FFmpeg::FFmpeg)
 endif()
 
-target_compile_features(ZStreamEye PRIVATE cxx_std_17)
-target_compile_definitions(ZStreamEye PRIVATE
+target_compile_features(ZStreamEyeApp PRIVATE cxx_std_17)
+target_compile_definitions(ZStreamEyeApp PRIVATE
     ZSTREAMEYE_VERSION="${PROJECT_VERSION}"
 )
 
 if(MSVC)
-    target_compile_options(ZStreamEye PRIVATE /utf-8)
+    target_compile_options(ZStreamEyeApp PRIVATE /utf-8)
 endif()
 
-set_target_properties(ZStreamEye PROPERTIES
+set_target_properties(ZStreamEyeApp PROPERTIES
+    OUTPUT_NAME ZStreamEyeApp
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
+
+if(WIN32)
+    add_executable(ZStreamEye WIN32
+        src/launcher/windows_launcher.cpp
+        resources/windows/ZStreamEye.rc
+    )
+    target_compile_features(ZStreamEye PRIVATE cxx_std_17)
+    if(MINGW)
+        target_link_options(ZStreamEye PRIVATE -municode -static -static-libgcc -static-libstdc++)
+    endif()
+endif()
 
 if(BUILD_TESTING)
     add_executable(ZStreamEyeParserTests

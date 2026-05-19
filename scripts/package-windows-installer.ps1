@@ -1,7 +1,7 @@
 param(
     [string]$DistDir = "dist/ZStreamEye-windows-ucrt64",
     [string]$OutputDir = "dist",
-    [string]$Version = "0.1.6",
+    [string]$Version = "0.1.7",
     [string]$InstallerScript = "installer/ZStreamEye.iss",
     [string]$ISCCPath = ""
 )
@@ -54,8 +54,11 @@ Assert-PathUnderRepo $distPath
 Assert-PathUnderRepo $outputPath
 Assert-PathUnderRepo $scriptPath
 
-if (-not (Test-Path (Join-Path $distPath "bin\ZStreamEye.exe"))) {
-    throw "Portable package is missing bin\ZStreamEye.exe: $distPath"
+if (-not (Test-Path (Join-Path $distPath "ZStreamEye.exe"))) {
+    throw "Portable package is missing ZStreamEye.exe: $distPath"
+}
+if (-not (Test-Path (Join-Path $distPath "runtime\ZStreamEyeApp.exe"))) {
+    throw "Portable package is missing runtime\ZStreamEyeApp.exe: $distPath"
 }
 if (-not (Test-Path $scriptPath)) {
     throw "Installer script not found: $scriptPath"
