@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QStyleFactory>
 
 #ifndef ZSTREAMEYE_VERSION
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/zstreameye.png")));
 
     MainWindow window;
     window.show();

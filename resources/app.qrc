@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="icons/zstreameye.png">../assets/icons/zstreameye.png</file>
+    </qresource>
+</RCC>

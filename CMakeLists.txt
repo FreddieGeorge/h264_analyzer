@@ -59,7 +59,7 @@ if(NOT FFMPEG_FOUND)
         "or install system packages such as libavformat-dev libavcodec-dev libavutil-dev libswscale-dev.")
 endif()
 
-add_executable(ZStreamEye
+set(ZSTREAMEYE_SOURCES
     src/main.cpp
     src/app/MainWindow.h
     src/app/MainWindow.cpp
@@ -88,7 +88,14 @@ add_executable(ZStreamEye
     src/ui/PropertyTreeView.cpp
     src/ui/VideoCanvas.h
     src/ui/VideoCanvas.cpp
+    resources/app.qrc
 )
+
+if(WIN32)
+    list(APPEND ZSTREAMEYE_SOURCES resources/windows/ZStreamEye.rc)
+endif()
+
+add_executable(ZStreamEye ${ZSTREAMEYE_SOURCES})
 
 target_include_directories(ZStreamEye PRIVATE src)
 
