@@ -28,12 +28,12 @@ locally, then run:
 
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
-.\scripts\package-windows-installer.ps1 -Version "0.1.5"
+.\scripts\package-windows-installer.ps1 -Version "0.1.6"
 ```
 
 Output:
 
-- `dist/ZStreamEye-0.1.5-windows-ucrt64-setup.exe`
+- `dist/ZStreamEye-0.1.6-windows-ucrt64-setup.exe`
 
 The GitHub release workflow installs Inno Setup and uploads both:
 

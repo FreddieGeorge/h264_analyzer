@@ -140,13 +140,13 @@ Create a Windows installer after the portable package has been generated:
 
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
-.\scripts\package-windows-installer.ps1 -Version "0.1.5"
+.\scripts\package-windows-installer.ps1 -Version "0.1.6"
 ```
 
 Output:
 
 ```text
-dist/ZStreamEye-0.1.5-windows-ucrt64-setup.exe
+dist/ZStreamEye-0.1.6-windows-ucrt64-setup.exe
 ```
 
 The installer is built with Inno Setup 6 and installs the same self-contained

@@ -1,6 +1,6 @@
 #define AppName "ZStreamEye"
 #ifndef AppVersion
-#define AppVersion "0.1.5"
+#define AppVersion "0.1.6"
 #endif
 #ifndef SourceDir
 #define SourceDir "..\dist\ZStreamEye-windows-ucrt64"
@@ -34,6 +34,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[InstallDelete]
+Type: files; Name: "{app}\ZStreamEye.exe"
+Type: files; Name: "{app}\*.dll"
+Type: filesandordirs; Name: "{app}\generic"
+Type: filesandordirs; Name: "{app}\imageformats"
+Type: filesandordirs; Name: "{app}\networkinformation"
+Type: filesandordirs; Name: "{app}\platforms"
+Type: filesandordirs; Name: "{app}\styles"
+Type: filesandordirs; Name: "{app}\tls"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

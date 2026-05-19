@@ -282,6 +282,7 @@ void MainWindow::createActions()
     m_showMotionVectorsAction->setChecked(false);
 
     setPlaybackControlsEnabled(false);
+    updatePlaybackActionState();
     updateExportActionState();
 }
 
@@ -436,6 +437,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_playbackPaused = false;
     updateFrameIndexDisplay();
     updateExportActionState();
+    updatePlaybackActionState();
 
     startDecoder(stream.absoluteFilePath);
 }
@@ -497,7 +499,7 @@ void MainWindow::startDecoder(const QString &filePath,
         m_decodeWorker = nullptr;
         m_playbackPaused = false;
         updatePlaybackActionState();
-        setPlaybackControlsEnabled(false);
+        setPlaybackControlsEnabled(hasOpenStream());
         m_logDock->appendLine(tr("[Info] Decode thread stopped."));
     });
 
@@ -524,6 +526,9 @@ void MainWindow::stopDecoder()
 void MainWindow::togglePlayback()
 {
     if (m_decodeWorker.isNull()) {
+        if (hasOpenStream()) {
+            replayFromBeginning();
+        }
         return;
     }
 
@@ -601,6 +606,29 @@ void MainWindow::stopPlayback()
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
     statusBar()->showMessage(tr("Stopped"), 2000);
+}
+
+void MainWindow::replayFromBeginning()
+{
+    if (!hasOpenStream()) {
+        return;
+    }
+
+    m_frameListView->clearFrames();
+    m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
+    m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
+    m_frameCache.clear();
+    m_frameAnalysisByIndex.clear();
+    m_currentFrameIndex = -1;
+    m_latestFrameIndex = -1;
+    m_playbackPaused = false;
+    updateFrameIndexDisplay();
+    updateExportActionState();
+
+    const StreamInfo &stream = m_document.streamInfo();
+    statusBar()->showMessage(tr("Replaying %1").arg(stream.fileName), 3000);
+    m_logDock->appendLine(tr("[Info] Replaying from the beginning."));
+    startDecoder(stream.absoluteFilePath);
 }
 
 void MainWindow::exportFrameSyntaxJson()
@@ -1239,14 +1267,19 @@ void MainWindow::setPlaybackControlsEnabled(bool enabled)
     if (m_playPauseAction != nullptr) {
         m_playPauseAction->setEnabled(enabled);
     }
+    setNavigationControlsEnabled(enabled);
+    if (m_stopAction != nullptr) {
+        m_stopAction->setEnabled(enabled && !m_decodeWorker.isNull());
+    }
+}
+
+void MainWindow::setNavigationControlsEnabled(bool enabled)
+{
     if (m_previousFrameAction != nullptr) {
         m_previousFrameAction->setEnabled(enabled);
     }
     if (m_nextFrameAction != nullptr) {
         m_nextFrameAction->setEnabled(enabled);
-    }
-    if (m_stopAction != nullptr) {
-        m_stopAction->setEnabled(enabled);
     }
 }
 
@@ -1256,12 +1289,24 @@ void MainWindow::updatePlaybackActionState()
         return;
     }
 
+    if (m_decodeWorker.isNull()) {
+        m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+        m_playPauseAction->setText(hasOpenStream() ? tr("Replay") : tr("Play"));
+        if (m_stopAction != nullptr) {
+            m_stopAction->setEnabled(false);
+        }
+        return;
+    }
+
     if (m_playbackPaused) {
         m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
         m_playPauseAction->setText(tr("Play"));
     } else {
         m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
         m_playPauseAction->setText(tr("Pause"));
+    }
+    if (m_stopAction != nullptr) {
+        m_stopAction->setEnabled(true);
     }
 }
 
@@ -1314,6 +1359,12 @@ QString MainWindow::defaultExportDirectory() const
         return m_lastExportDirectory;
     }
     return defaultOpenDirectory();
+}
+
+bool MainWindow::hasOpenStream() const
+{
+    const StreamInfo &stream = m_document.streamInfo();
+    return stream.isValid && !stream.absoluteFilePath.isEmpty();
 }
 
 void MainWindow::loadSettings()

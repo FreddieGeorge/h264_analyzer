@@ -62,6 +62,7 @@ private:
     void stepToPreviousFrame();
     void stepToNextFrame();
     void stopPlayback();
+    void replayFromBeginning();
     void exportFrameSyntaxJson();
     void exportAllFrameSyntaxJson();
     void exportFrameListCsv();
@@ -79,9 +80,11 @@ private:
     void seekToFrame(int frameIndex);
     const CachedFrame *currentCachedFrame() const;
     void setPlaybackControlsEnabled(bool enabled);
+    void setNavigationControlsEnabled(bool enabled);
     void updatePlaybackActionState();
     void updateExportActionState();
     void updateFrameIndexDisplay();
+    bool hasOpenStream() const;
     QString defaultOpenDirectory() const;
     QString defaultExportDirectory() const;
     void loadSettings();
