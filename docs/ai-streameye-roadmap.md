@@ -57,6 +57,8 @@ Current status:
   `slice_data_truncated` while preserving estimated macroblock data.
 - Malformed AVCC length-prefixed packets have regression coverage and report
   `avcc_nalu_length_exceeds_packet` at frame level.
+- Truncated SPS/PPS NALUs have regression coverage and report
+  `sps_truncated` / `pps_truncated` without caching invalid parameter sets.
 
 Acceptance criteria:
 

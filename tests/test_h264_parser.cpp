@@ -122,6 +122,16 @@ bool hasFrameDiagnosticCode(const FrameSyntaxInfo &frame, const QString &code)
     return false;
 }
 
+bool hasNaluDiagnosticCode(const NaluInfo &nalu, const QString &code)
+{
+    for (const ParserDiagnosticInfo &diagnostic : nalu.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool hasAnalysisDiagnosticCode(const FrameAnalysis &analysis, const QString &code)
 {
     for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
@@ -247,6 +257,38 @@ void testAvccLengthExceedsPacketReportsDiagnostic()
     const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("avcc_length_exceeds_packet.hex")), 0, 0, 0);
     require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("avcc_nalu_length_exceeds_packet")),
             "AVCC overrun diagnostic is exposed in FrameAnalysis");
+}
+
+void testTruncatedSpsReportsDiagnostic()
+{
+    H264Parser parser;
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("truncated_sps.hex")), 0, 0, 0);
+    require(frame.nalus.size() == 1, "truncated SPS fixture NALU count");
+    require(frame.nalus.first().nalUnitType == 7, "truncated SPS fixture NALU type");
+    require(!frame.nalus.first().sps.valid, "truncated SPS fixture is invalid");
+    require(hasNaluDiagnosticCode(frame.nalus.first(), QStringLiteral("sps_truncated")),
+            "truncated SPS fixture reports structured diagnostic");
+    require(parser.spsMap().isEmpty(), "truncated SPS fixture is not cached");
+
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("truncated_sps.hex")), 0, 0, 0);
+    require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("sps_truncated")),
+            "truncated SPS diagnostic is exposed in FrameAnalysis");
+}
+
+void testTruncatedPpsReportsDiagnostic()
+{
+    H264Parser parser;
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("truncated_pps.hex")), 0, 0, 0);
+    require(frame.nalus.size() == 1, "truncated PPS fixture NALU count");
+    require(frame.nalus.first().nalUnitType == 8, "truncated PPS fixture NALU type");
+    require(!frame.nalus.first().pps.valid, "truncated PPS fixture is invalid");
+    require(hasNaluDiagnosticCode(frame.nalus.first(), QStringLiteral("pps_truncated")),
+            "truncated PPS fixture reports structured diagnostic");
+    require(parser.ppsMap().isEmpty(), "truncated PPS fixture is not cached");
+
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("truncated_pps.hex")), 0, 0, 0);
+    require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("pps_truncated")),
+            "truncated PPS diagnostic is exposed in FrameAnalysis");
 }
 
 void testCavlcIFrameQpDeltaFixture()
@@ -424,6 +466,8 @@ int main()
     testAnnexBFixtureWithIdr();
     testAvccFixtureWithSpsPps();
     testAvccLengthExceedsPacketReportsDiagnostic();
+    testTruncatedSpsReportsDiagnostic();
+    testTruncatedPpsReportsDiagnostic();
     testCavlcIFrameQpDeltaFixture();
     testCavlcPSkipFixture();
     testCavlcPMotionVectorFixture();

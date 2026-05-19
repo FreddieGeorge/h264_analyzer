@@ -173,6 +173,7 @@ struct NaluInfo
     SpsInfo sps;
     PpsInfo pps;
     SliceInfo slice;
+    QVector<ParserDiagnosticInfo> diagnostics;
 };
 
 struct FrameSyntaxInfo

@@ -86,12 +86,18 @@ QJsonObject ppsToJson(const PpsInfo &pps)
 
 QJsonObject naluToJson(const NaluInfo &nalu)
 {
+    QJsonArray diagnostics;
+    for (const ParserDiagnosticInfo &diagnostic : nalu.diagnostics) {
+        diagnostics.append(diagnosticToJson(diagnostic));
+    }
+
     QJsonObject result {
         {QStringLiteral("offset"), static_cast<double>(nalu.offset)},
         {QStringLiteral("size"), static_cast<double>(nalu.size)},
         {QStringLiteral("nal_ref_idc"), nalu.nalRefIdc},
         {QStringLiteral("nal_unit_type"), nalu.nalUnitType},
-        {QStringLiteral("nal_unit_type_name"), nalu.nalUnitTypeName}
+        {QStringLiteral("nal_unit_type_name"), nalu.nalUnitTypeName},
+        {QStringLiteral("diagnostics"), diagnostics}
     };
     if (nalu.sps.valid) {
         result.insert(QStringLiteral("sps"), spsToJson(nalu.sps));

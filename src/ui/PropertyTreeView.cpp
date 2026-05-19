@@ -243,6 +243,12 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
         addPair(naluItem, tr("forbidden_zero_bit"), QString::number(nalu.forbiddenZeroBit));
         addPair(naluItem, tr("nal_ref_idc"), QString::number(nalu.nalRefIdc));
         addPair(naluItem, tr("nal_unit_type"), QString::number(nalu.nalUnitType));
+        if (!nalu.diagnostics.isEmpty()) {
+            auto *diagnosticsRoot = new QTreeWidgetItem(naluItem, {tr("Parser diagnostics"), QString::number(nalu.diagnostics.size())});
+            for (const ParserDiagnosticInfo &diagnostic : nalu.diagnostics) {
+                addPair(diagnosticsRoot, diagnostic.code, diagnostic.message);
+            }
+        }
 
         if (nalu.sps.valid) {
             auto *spsItem = new QTreeWidgetItem(naluItem, {tr("SPS"), QString::number(nalu.sps.seqParameterSetId)});

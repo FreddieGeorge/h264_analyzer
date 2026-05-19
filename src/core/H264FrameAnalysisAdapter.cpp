@@ -45,6 +45,12 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
         analysis.units.append(unit);
 
         const QString naluPath = QStringLiteral("units/%1").arg(naluIndex);
+        for (const ParserDiagnosticInfo &diagnostic : nalu.diagnostics) {
+            analysis.diagnostics.append({naluPath,
+                                         diagnostic.code,
+                                         diagnostic.message,
+                                         QStringLiteral("warning")});
+        }
         if (nalu.sps.valid) {
             AnalysisParameterSet parameterSet;
             parameterSet.kind = QStringLiteral("SPS");

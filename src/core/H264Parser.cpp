@@ -403,11 +403,21 @@ NaluInfo H264Parser::parseNaluPayload(const NaluInfo &base, const QByteArray &na
         info.sps = parseSps(rbsp);
         if (info.sps.valid) {
             m_spsById.insert(info.sps.seqParameterSetId, info.sps);
+        } else {
+            info.diagnostics.append({
+                QStringLiteral("sps_truncated"),
+                QStringLiteral("SPS NALU ended unexpectedly or could not be fully parsed; parameter set was not cached.")
+            });
         }
     } else if (info.nalUnitType == 8) {
         info.pps = parsePps(rbsp);
         if (info.pps.valid) {
             m_ppsById.insert(info.pps.picParameterSetId, info.pps);
+        } else {
+            info.diagnostics.append({
+                QStringLiteral("pps_truncated"),
+                QStringLiteral("PPS NALU ended unexpectedly or could not be fully parsed; parameter set was not cached.")
+            });
         }
     } else if (info.nalUnitType == 1 || info.nalUnitType == 5) {
         info.slice = parseSliceHeader(rbsp, info.nalUnitType, info.nalRefIdc);

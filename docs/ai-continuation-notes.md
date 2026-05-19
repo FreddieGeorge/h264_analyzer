@@ -80,6 +80,8 @@ Implemented capabilities:
 - Malformed AVCC length-prefix fixture coverage verifies
   `avcc_nalu_length_exceeds_packet` frame-level diagnostics, exposed through
   both H.264 syntax export and codec-neutral `FrameAnalysis`.
+- Truncated SPS/PPS fixtures verify `sps_truncated` and `pps_truncated`
+  diagnostics, and invalid parameter sets are not cached.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 - Tag-triggered release workflow for versioned Windows portable zips.
 
