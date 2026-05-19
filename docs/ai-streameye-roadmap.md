@@ -46,6 +46,14 @@ Main tasks:
 - Expose residual coefficient details, not only residual block/coeff counts.
 - Add more malformed/truncated stream diagnostics.
 
+Current status:
+
+- Common CAVLC I/P macroblocks, QP, residual block/coefficient counts, and
+  P-slice L0 motion vectors are partially parsed.
+- Unsupported CABAC has regression coverage and reports structured diagnostics.
+- Truncated P-slice `slice_data` has regression coverage and reports
+  `slice_data_truncated` while preserving estimated macroblock data.
+
 Acceptance criteria:
 
 - QP heatmap uses parsed macroblock data for supported streams.

@@ -1595,7 +1595,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         }
 
         MacroblockInfo mb;
-        mb.address = currentAddress++;
+        mb.address = currentAddress;
         mb.qp = currentQp;
         mb.parsed = true;
 
@@ -1622,6 +1622,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             mb.mbType = QStringLiteral("B/unsupported");
             mb.predictionMode = QStringLiteral("unsupported");
             mb.note = QStringLiteral("B slice macroblock parsing is not implemented.");
+            currentAddress = mb.address + 1;
             slice.macroblocks.append(mb);
             appendEstimatedRemainder(QStringLiteral("b_slice_macroblock_unsupported"), mb.note);
             return;
@@ -1629,6 +1630,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
 
         if (iPcm) {
             mb.note = QStringLiteral("I_PCM macroblock payload is byte aligned raw samples; skipping exact payload is not implemented.");
+            currentAddress = mb.address + 1;
             slice.macroblocks.append(mb);
             appendEstimatedRemainder(QStringLiteral("i_pcm_unsupported"), mb.note);
             return;
@@ -1652,6 +1654,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
                 partitionCount = 2;
             } else if (p8x8) {
                 mb.note = QStringLiteral("P_8x8 sub-macroblock prediction parsing is not implemented.");
+                currentAddress = mb.address + 1;
                 slice.macroblocks.append(mb);
                 appendEstimatedRemainder(QStringLiteral("p8x8_sub_macroblock_unsupported"), mb.note);
                 return;
@@ -1699,6 +1702,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             mb.qp = currentQp;
             if (!parseResidual(mb, intra16x16, transform8x8, coeffState) || reader.hasError()) {
                 mb.note = QStringLiteral("Parsed macroblock header and mb_qp_delta, but residual CAVLC parsing stopped on malformed or unsupported residual data.");
+                currentAddress = mb.address + 1;
                 slice.macroblocks.append(mb);
                 appendEstimatedRemainder(
                     QStringLiteral("cavlc_residual_parse_failed"),
@@ -1709,6 +1713,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             mb.residualParsed = true;
             coeffStates[mb.address] = coeffState;
             mb.note = QStringLiteral("Parsed macroblock header, mb_qp_delta, and CAVLC residual data.");
+            currentAddress = mb.address + 1;
             slice.macroblocks.append(mb);
             continue;
         }
@@ -1716,6 +1721,7 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         mb.qp = currentQp;
         coeffStates[mb.address] = coeffState;
         mb.note = QStringLiteral("Parsed macroblock header; no residual data present.");
+        currentAddress = mb.address + 1;
         slice.macroblocks.append(mb);
     }
 

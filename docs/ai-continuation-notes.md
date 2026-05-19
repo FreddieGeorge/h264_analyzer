@@ -72,6 +72,9 @@ Implemented capabilities:
 - Tiny checked-in parser fixtures under `tests/fixtures/` for Annex B, AVCC,
   CAVLC I/P macroblocks, P-slice motion vectors, and unsupported CABAC
   diagnostics.
+- Truncated P-slice fixture coverage verifies structured `slice_data_truncated`
+  diagnostics and keeps estimated macroblock data instead of dropping the
+  interrupted macroblock.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 - Tag-triggered release workflow for versioned Windows portable zips.
 

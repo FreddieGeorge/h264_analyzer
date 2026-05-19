@@ -12,3 +12,4 @@ They are intentionally minimal parser fixtures, not visual-quality video clips:
 - `cavlc_p_motion_vector.hex`: CAVLC P-slice with a non-zero L0 motion vector delta.
 - `cavlc_p_residual_then_motion_vector.hex`: CAVLC P-slice that verifies residual parsing can continue into a later motion-vector macroblock.
 - `unsupported_cabac_p.hex`: CABAC P-slice used to assert graceful unsupported diagnostics.
+- `truncated_p_slice_data.hex`: P-slice cut off during `slice_data`, used to assert structured truncation diagnostics.
