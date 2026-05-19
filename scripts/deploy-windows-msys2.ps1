@@ -12,7 +12,6 @@ $distPath = Join-Path $repoRoot $DistDir
 $msysRoot = "C:\msys64"
 $ucrtBin = Join-Path $msysRoot "ucrt64\bin"
 $bash = Join-Path $msysRoot "usr\bin\bash.exe"
-$windeployqt = Join-Path $ucrtBin "windeployqt6.exe"
 $objdump = Join-Path $ucrtBin "objdump.exe"
 $repoRootMsys = (& $bash -lc "cygpath -u '$repoRoot'").Trim()
 $buildPathMsys = (& $bash -lc "cygpath -u '$buildPath'").Trim()
@@ -22,6 +21,16 @@ function Assert-ToolExists {
     if (-not (Test-Path $Path)) {
         throw "Required tool not found: $Path"
     }
+}
+
+function Resolve-FirstExistingTool {
+    param([string[]]$Paths)
+    foreach ($path in $Paths) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+    throw "Required tool not found. Tried: $($Paths -join ', ')"
 }
 
 function Assert-PathUnderRepo {
@@ -69,11 +78,15 @@ function Copy-MsysRuntimeClosure {
 }
 
 Assert-ToolExists $bash
-Assert-ToolExists $windeployqt
+$windeployqt = Resolve-FirstExistingTool @(
+    (Join-Path $ucrtBin "windeployqt6.exe"),
+    (Join-Path $ucrtBin "windeployqt.exe")
+)
 Assert-ToolExists $objdump
 Assert-PathUnderRepo $distPath
 
 $env:PATH = "$ucrtBin;$env:PATH"
+Write-Host "Using windeployqt: $windeployqt"
 
 Write-Host "Building project..."
 & $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd '$repoRootMsys' && cmake --build '$buildPathMsys'"
