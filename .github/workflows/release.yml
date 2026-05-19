@@ -23,7 +23,7 @@ jobs:
         run: |
           $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
           $cmake = Get-Content CMakeLists.txt -Raw
-          $match = [regex]::Match($cmake, 'project\(H264Analyzer\s+VERSION\s+([0-9]+(?:\.[0-9]+){1,3})')
+          $match = [regex]::Match($cmake, 'project\(ZStreamEye\s+VERSION\s+([0-9]+(?:\.[0-9]+){1,3})')
           if (-not $match.Success) {
             throw "Could not read project version from CMakeLists.txt"
           }
@@ -79,17 +79,17 @@ jobs:
           }
           ./scripts/package-windows-installer.ps1 -Version $version
           Move-Item `
-            -LiteralPath dist/H264Analyzer-windows-ucrt64.zip `
-            -Destination "dist/H264Analyzer-$version-windows-ucrt64.zip" `
+            -LiteralPath dist/ZStreamEye-windows-ucrt64.zip `
+            -Destination "dist/ZStreamEye-$version-windows-ucrt64.zip" `
             -Force
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: H264Analyzer-${{ github.ref_name }}-windows-ucrt64
+          name: ZStreamEye-${{ github.ref_name }}-windows-ucrt64
           path: |
-            dist/H264Analyzer-*-windows-ucrt64.zip
-            dist/H264Analyzer-*-windows-ucrt64-setup.exe
+            dist/ZStreamEye-*-windows-ucrt64.zip
+            dist/ZStreamEye-*-windows-ucrt64-setup.exe
           retention-days: 30
 
       - name: Publish GitHub Release
@@ -100,5 +100,5 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: true
           files: |
-            dist/H264Analyzer-*-windows-ucrt64.zip
-            dist/H264Analyzer-*-windows-ucrt64-setup.exe
+            dist/ZStreamEye-*-windows-ucrt64.zip
+            dist/ZStreamEye-*-windows-ucrt64-setup.exe

@@ -1,6 +1,6 @@
 param(
     [string]$BuildDir = "build-msys2-ucrt",
-    [string]$DistDir = "dist/H264Analyzer-windows-ucrt64",
+    [string]$DistDir = "dist/ZStreamEye-windows-ucrt64",
     [string]$MsysRoot = "",
     [switch]$NoZip
 )
@@ -139,7 +139,7 @@ Write-Host "Using windeployqt: $windeployqt"
 Write-Host "Building project..."
 & $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd '$repoRootMsys' && cmake --build '$buildPathMsys'"
 
-$sourceExe = Join-Path $buildPath "H264Analyzer.exe"
+$sourceExe = Join-Path $buildPath "ZStreamEye.exe"
 if (-not (Test-Path $sourceExe)) {
     throw "Executable not found: $sourceExe"
 }
@@ -154,7 +154,7 @@ if (Test-Path $distPath) {
 }
 
 New-Item -ItemType Directory -Force -Path $distPath | Out-Null
-Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $distPath "H264Analyzer.exe")
+Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $distPath "ZStreamEye.exe")
 
 Write-Host "Deploying Qt runtime and plugins..."
 & $windeployqt `
@@ -163,24 +163,24 @@ Write-Host "Deploying Qt runtime and plugins..."
     --no-translations `
     --no-system-d3d-compiler `
     --no-opengl-sw `
-    (Join-Path $distPath "H264Analyzer.exe")
+    (Join-Path $distPath "ZStreamEye.exe")
 
 Write-Host "Collecting FFmpeg/MSYS2 runtime DLL closure..."
 Copy-MsysRuntimeClosure -TargetDir $distPath
 
 $readmePath = Join-Path $distPath "README-RUN.txt"
 @"
-H264Analyzer Windows portable package
+ZStreamEye Windows portable package
 
 Run:
-  H264Analyzer.exe
+  ZStreamEye.exe
 
 This folder contains the Qt, FFmpeg and MSYS2 UCRT64 runtime DLLs required by the application.
 No MSYS2, Qt or FFmpeg installation is required on the target machine.
 "@ | Set-Content -Path $readmePath -Encoding ASCII
 
 if (-not $NoZip) {
-    $zipPath = Join-Path $repoRoot "dist/H264Analyzer-windows-ucrt64.zip"
+    $zipPath = Join-Path $repoRoot "dist/ZStreamEye-windows-ucrt64.zip"
     Assert-PathUnderRepo $zipPath
     if (Test-Path $zipPath) {
         Remove-Item -LiteralPath $zipPath -Force

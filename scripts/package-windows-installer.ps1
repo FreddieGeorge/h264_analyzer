@@ -1,8 +1,8 @@
 param(
-    [string]$DistDir = "dist/H264Analyzer-windows-ucrt64",
+    [string]$DistDir = "dist/ZStreamEye-windows-ucrt64",
     [string]$OutputDir = "dist",
-    [string]$Version = "0.1.0",
-    [string]$InstallerScript = "installer/H264Analyzer.iss",
+    [string]$Version = "0.1.1",
+    [string]$InstallerScript = "installer/ZStreamEye.iss",
     [string]$ISCCPath = ""
 )
 
@@ -54,8 +54,8 @@ Assert-PathUnderRepo $distPath
 Assert-PathUnderRepo $outputPath
 Assert-PathUnderRepo $scriptPath
 
-if (-not (Test-Path (Join-Path $distPath "H264Analyzer.exe"))) {
-    throw "Portable package is missing H264Analyzer.exe: $distPath"
+if (-not (Test-Path (Join-Path $distPath "ZStreamEye.exe"))) {
+    throw "Portable package is missing ZStreamEye.exe: $distPath"
 }
 if (-not (Test-Path $scriptPath)) {
     throw "Installer script not found: $scriptPath"
@@ -65,7 +65,7 @@ New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
 
 $iscc = Resolve-ISCC $ISCCPath
 $safeVersion = $Version -replace '[^A-Za-z0-9_.-]', '-'
-$outputBaseFilename = "H264Analyzer-$safeVersion-windows-ucrt64-setup"
+$outputBaseFilename = "ZStreamEye-$safeVersion-windows-ucrt64-setup"
 $installerPath = Join-Path $outputPath "$outputBaseFilename.exe"
 
 if (Test-Path $installerPath) {

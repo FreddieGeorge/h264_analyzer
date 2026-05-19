@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(H264Analyzer VERSION 0.1.0 LANGUAGES CXX)
+project(ZStreamEye VERSION 0.1.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -59,7 +59,7 @@ if(NOT FFMPEG_FOUND)
         "or install system packages such as libavformat-dev libavcodec-dev libavutil-dev libswscale-dev.")
 endif()
 
-add_executable(H264Analyzer
+add_executable(ZStreamEye
     src/main.cpp
     src/app/MainWindow.h
     src/app/MainWindow.cpp
@@ -90,9 +90,9 @@ add_executable(H264Analyzer
     src/ui/VideoCanvas.cpp
 )
 
-target_include_directories(H264Analyzer PRIVATE src)
+target_include_directories(ZStreamEye PRIVATE src)
 
-target_link_libraries(H264Analyzer PRIVATE
+target_link_libraries(ZStreamEye PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Network
@@ -101,27 +101,27 @@ target_link_libraries(H264Analyzer PRIVATE
 )
 
 if(TARGET PkgConfig::FFMPEG)
-    target_link_libraries(H264Analyzer PRIVATE PkgConfig::FFMPEG)
+    target_link_libraries(ZStreamEye PRIVATE PkgConfig::FFMPEG)
 else()
-    target_link_libraries(H264Analyzer PRIVATE FFmpeg::FFmpeg)
+    target_link_libraries(ZStreamEye PRIVATE FFmpeg::FFmpeg)
 endif()
 
-target_compile_features(H264Analyzer PRIVATE cxx_std_17)
-target_compile_definitions(H264Analyzer PRIVATE
-    H264_ANALYZER_VERSION="${PROJECT_VERSION}"
+target_compile_features(ZStreamEye PRIVATE cxx_std_17)
+target_compile_definitions(ZStreamEye PRIVATE
+    ZSTREAMEYE_VERSION="${PROJECT_VERSION}"
 )
 
 if(MSVC)
-    target_compile_options(H264Analyzer PRIVATE /utf-8)
+    target_compile_options(ZStreamEye PRIVATE /utf-8)
 endif()
 
-set_target_properties(H264Analyzer PROPERTIES
+set_target_properties(ZStreamEye PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE TRUE
 )
 
 if(BUILD_TESTING)
-    add_executable(H264AnalyzerParserTests
+    add_executable(ZStreamEyeParserTests
         tests/test_h264_parser.cpp
         src/core/AnalysisExportWriter.h
         src/core/AnalysisExportWriter.cpp
@@ -135,12 +135,12 @@ if(BUILD_TESTING)
         src/core/H264Parser.h
         src/core/H264Parser.cpp
     )
-    target_include_directories(H264AnalyzerParserTests PRIVATE src)
-    target_link_libraries(H264AnalyzerParserTests PRIVATE Qt6::Core)
-    target_compile_definitions(H264AnalyzerParserTests PRIVATE
+    target_include_directories(ZStreamEyeParserTests PRIVATE src)
+    target_link_libraries(ZStreamEyeParserTests PRIVATE Qt6::Core)
+    target_compile_definitions(ZStreamEyeParserTests PRIVATE
         H264_ANALYZER_ENABLE_TESTS
         H264_ANALYZER_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
     )
-    target_compile_features(H264AnalyzerParserTests PRIVATE cxx_std_17)
-    add_test(NAME H264AnalyzerParserTests COMMAND H264AnalyzerParserTests)
+    target_compile_features(ZStreamEyeParserTests PRIVATE cxx_std_17)
+    add_test(NAME ZStreamEyeParserTests COMMAND ZStreamEyeParserTests)
 endif()

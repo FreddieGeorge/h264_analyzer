@@ -61,13 +61,13 @@ jobs:
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: H264Analyzer-windows-ucrt64-${{ github.sha }}
-          path: dist/H264Analyzer-windows-ucrt64.zip
+          name: ZStreamEye-windows-ucrt64-${{ github.sha }}
+          path: dist/ZStreamEye-windows-ucrt64.zip
           retention-days: 14
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: H264Analyzer-windows-ucrt64-setup-${{ github.sha }}
-          path: dist/H264Analyzer-*-windows-ucrt64-setup.exe
+          name: ZStreamEye-windows-ucrt64-setup-${{ github.sha }}
+          path: dist/ZStreamEye-*-windows-ucrt64-setup.exe
           retention-days: 14

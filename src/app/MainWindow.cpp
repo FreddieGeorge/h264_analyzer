@@ -128,7 +128,7 @@ MainWindow::MainWindow(QWidget *parent)
     qRegisterMetaType<FrameAnalysis>("FrameAnalysis");
     qRegisterMetaType<FrameSeekCheckpoint>("FrameSeekCheckpoint");
 
-    setWindowTitle(tr("H.264 Analyzer"));
+    setWindowTitle(tr("ZStreamEye"));
     resize(1440, 900);
     setAcceptDrops(true);
     setDockOptions(QMainWindow::AllowTabbedDocks
@@ -675,10 +675,10 @@ void MainWindow::checkForUpdates()
         m_checkForUpdatesAction->setEnabled(false);
     }
 
-    const QUrl latestReleaseUrl(QStringLiteral("https://api.github.com/repos/FreddieGeorge/h264_analyzer/releases/latest"));
+    const QUrl latestReleaseUrl(QStringLiteral("https://api.github.com/repos/FreddieGeorge/ZStreamEye/releases/latest"));
     QNetworkRequest request(latestReleaseUrl);
     request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QStringLiteral("H264Analyzer/%1").arg(QCoreApplication::applicationVersion()));
+                      QStringLiteral("ZStreamEye/%1").arg(QCoreApplication::applicationVersion()));
     request.setRawHeader("Accept", "application/vnd.github+json");
 
     statusBar()->showMessage(tr("Checking for updates..."), 3000);
@@ -724,7 +724,7 @@ void MainWindow::checkForUpdates()
         }
 
         if (compareVersions(tagName, currentVersion) <= 0) {
-            statusBar()->showMessage(tr("H264 Analyzer is up to date."), 4000);
+            statusBar()->showMessage(tr("ZStreamEye is up to date."), 4000);
             m_logDock->appendLine(tr("[Info] No update available. Current version: %1, latest release: %2.")
                                       .arg(currentVersion, tagName));
             QMessageBox::information(
@@ -738,7 +738,7 @@ void MainWindow::checkForUpdates()
         QMessageBox messageBox(this);
         messageBox.setWindowTitle(tr("Update Available"));
         messageBox.setIcon(QMessageBox::Information);
-        messageBox.setText(tr("A new H264 Analyzer release is available."));
+        messageBox.setText(tr("A new ZStreamEye release is available."));
         messageBox.setInformativeText(
             tr("Current version: %1\nLatest release: %2").arg(currentVersion, tagName));
         if (!releaseNotes.isEmpty()) {

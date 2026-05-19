@@ -1,8 +1,8 @@
-# H264 Analyzer 开发环境安装记录
+# ZStreamEye 开发环境安装记录
 
 ## 当前机器
 
-- 工作目录：`D:\Desktop\h264_analyzer`
+- 工作目录：`D:\Desktop\ZStreamEye`
 - 系统：Windows 10 x64
 - Shell：PowerShell
 
@@ -131,7 +131,7 @@ mingw-w64-ucrt-x86_64-pkgconf 1~2.5.1-1
 执行命令：
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
 ```
 
 结果：
@@ -143,7 +143,7 @@ C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/De
 -- Found WrapVulkanHeaders: C:/msys64/ucrt64/include
 -- Configuring done
 -- Generating done
--- Build files have been written to: D:/Desktop/h264_analyzer/build-msys2-ucrt
+-- Build files have been written to: D:/Desktop/ZStreamEye/build-msys2-ucrt
 ```
 
 结论：CMake 能找到 Qt6、FFmpeg、GCC、Ninja。
@@ -153,15 +153,15 @@ C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/De
 执行命令：
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake --build build-msys2-ucrt"
 ```
 
 结果：
 
 ```text
-[1/4] Automatic MOC and UIC for target H264Analyzer
-[2/3] Building CXX object CMakeFiles/H264Analyzer.dir/src/app/MainWindow.cpp.obj
-[3/3] Linking CXX executable H264Analyzer.exe
+[1/4] Automatic MOC and UIC for target ZStreamEye
+[2/3] Building CXX object CMakeFiles/ZStreamEye.dir/src/app/MainWindow.cpp.obj
+[3/3] Linking CXX executable ZStreamEye.exe
 ```
 
 结论：项目编译成功。
@@ -171,14 +171,14 @@ C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/De
 执行命令：
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ls -lh build-msys2-ucrt/H264Analyzer.exe"
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ldd build-msys2-ucrt/H264Analyzer.exe | grep 'not found' || true"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ls -lh build-msys2-ucrt/ZStreamEye.exe"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ldd build-msys2-ucrt/ZStreamEye.exe | grep 'not found' || true"
 ```
 
 结果：
 
 ```text
--rwxr-xr-x 1 Administrator None 9.7M 5月 18 21:52 build-msys2-ucrt/H264Analyzer.exe
+-rwxr-xr-x 1 Administrator None 9.7M 5月 18 21:52 build-msys2-ucrt/ZStreamEye.exe
 未发现 not found 依赖项。
 ```
 
@@ -187,23 +187,23 @@ C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/De
 在 PowerShell 中配置和编译：
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake --build build-msys2-ucrt"
 ```
 
 运行程序：
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ./build-msys2-ucrt/H264Analyzer.exe"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ./build-msys2-ucrt/ZStreamEye.exe"
 ```
 
 也可以打开“MSYS2 UCRT64”终端后执行：
 
 ```bash
-cd /d/Desktop/h264_analyzer
+cd /d/Desktop/ZStreamEye
 cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64
 cmake --build build-msys2-ucrt
-./build-msys2-ucrt/H264Analyzer.exe
+./build-msys2-ucrt/ZStreamEye.exe
 ```
 
 ## 最终状态
@@ -216,10 +216,10 @@ cmake --build build-msys2-ucrt
 - FFmpeg：已安装，版本 8.1.1
 - 项目 CMake 配置：通过
 - 项目编译：通过
-- 生成文件：`D:\Desktop\h264_analyzer\build-msys2-ucrt\H264Analyzer.exe`
+- 生成文件：`D:\Desktop\ZStreamEye\build-msys2-ucrt\ZStreamEye.exe`
 ## Windows Portable Package
 
-Do not distribute `build-msys2-ucrt\H264Analyzer.exe` alone. That executable depends on DLLs from `C:\msys64\ucrt64\bin`, such as `avcodec-62.dll`.
+Do not distribute `build-msys2-ucrt\ZStreamEye.exe` alone. That executable depends on DLLs from `C:\msys64\ucrt64\bin`, such as `avcodec-62.dll`.
 
 For end users, create a portable package:
 
@@ -230,19 +230,19 @@ For end users, create a portable package:
 The script performs these steps:
 
 1. Builds the project.
-2. Creates `dist\H264Analyzer-windows-ucrt64\`.
-3. Copies `H264Analyzer.exe`.
+2. Creates `dist\ZStreamEye-windows-ucrt64\`.
+3. Copies `ZStreamEye.exe`.
 4. Runs `windeployqt6` to collect Qt DLLs and plugins.
 5. Recursively scans EXE/DLL imports and copies FFmpeg/MSYS2 UCRT64 runtime DLLs from `C:\msys64\ucrt64\bin`.
-6. Creates `dist\H264Analyzer-windows-ucrt64.zip`.
+6. Creates `dist\ZStreamEye-windows-ucrt64.zip`.
 
 Result on this machine:
 
 ```text
-Portable package ready: D:\Desktop\h264_analyzer\dist\H264Analyzer-windows-ucrt64
-Created ZIP: D:\Desktop\h264_analyzer\dist\H264Analyzer-windows-ucrt64.zip
-dist\H264Analyzer-windows-ucrt64\avcodec-62.dll exists
-dist\H264Analyzer-windows-ucrt64.zip size: 88,234,032 bytes
+Portable package ready: D:\Desktop\ZStreamEye\dist\ZStreamEye-windows-ucrt64
+Created ZIP: D:\Desktop\ZStreamEye\dist\ZStreamEye-windows-ucrt64.zip
+dist\ZStreamEye-windows-ucrt64\avcodec-62.dll exists
+dist\ZStreamEye-windows-ucrt64.zip size: 88,234,032 bytes
 Portable folder total size: 233,224,438 bytes, 123 files
 Dependency check with clean PATH: no "not found" entries
 Launch smoke test: Started successfully; stopping test process
@@ -251,11 +251,11 @@ Launch smoke test: Started successfully; stopping test process
 Distribute this file:
 
 ```text
-dist\H264Analyzer-windows-ucrt64.zip
+dist\ZStreamEye-windows-ucrt64.zip
 ```
 
 The user only needs to unzip it and run:
 
 ```text
-H264Analyzer.exe
+ZStreamEye.exe
 ```

@@ -305,8 +305,8 @@ Main tasks:
 Example future commands:
 
 ```bash
-H264AnalyzerCLI analyze input.264 --json report.json
-H264AnalyzerCLI compare encoded.mp4 reference.yuv --metrics psnr,ssim
+ZStreamEyeCLI analyze input.264 --json report.json
+ZStreamEyeCLI compare encoded.mp4 reference.yuv --metrics psnr,ssim
 ```
 
 Acceptance criteria:

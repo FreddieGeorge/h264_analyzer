@@ -5,15 +5,15 @@
 #include <QGuiApplication>
 #include <QStyleFactory>
 
-#ifndef H264_ANALYZER_VERSION
-#define H264_ANALYZER_VERSION "0.1.0"
+#ifndef ZSTREAMEYE_VERSION
+#define ZSTREAMEYE_VERSION "0.1.1"
 #endif
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication::setOrganizationName(QStringLiteral("H264Analyzer"));
-    QCoreApplication::setApplicationName(QStringLiteral("H264 Analyzer"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(H264_ANALYZER_VERSION));
+    QCoreApplication::setOrganizationName(QStringLiteral("ZStreamEye"));
+    QCoreApplication::setApplicationName(QStringLiteral("ZStreamEye"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(ZSTREAMEYE_VERSION));
 
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);

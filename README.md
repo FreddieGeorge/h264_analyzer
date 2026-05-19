@@ -1,10 +1,10 @@
-# H.264 Analyzer
+# ZStreamEye
 
-[![Windows MSYS2](https://github.com/FreddieGeorge/h264_analyzer/actions/workflows/windows-msys2.yml/badge.svg)](https://github.com/FreddieGeorge/h264_analyzer/actions/workflows/windows-msys2.yml)
+[![Windows MSYS2](https://github.com/FreddieGeorge/ZStreamEye/actions/workflows/windows-msys2.yml/badge.svg)](https://github.com/FreddieGeorge/ZStreamEye/actions/workflows/windows-msys2.yml)
 
 English | [简体中文](README.zh-CN.md)
 
-H.264 Analyzer is a cross-platform desktop application framework for inspecting H.264 bitstreams. It is built with C++17, Qt 6 Widgets, `QOpenGLWidget`, FFmpeg, and CMake.
+ZStreamEye is a cross-platform desktop application framework for inspecting H.264 bitstreams. It is built with C++17, Qt 6 Widgets, `QOpenGLWidget`, FFmpeg, and CMake.
 
 The project currently supports video loading/decoding, controllable playback, H.264 syntax parsing, macroblock-level overlays, export tools, a dockable analyzer UI, and OpenGL-based video rendering.
 
@@ -39,7 +39,7 @@ Current limitations:
 ## Project Structure
 
 ```text
-h264_analyzer/
+ZStreamEye/
 +-- docs/
 +-- scripts/
 +-- src/
@@ -63,7 +63,7 @@ Folder responsibilities:
 ## Requirements
 
 - CMake 3.21 or later.
-- Qt 6 with `Core`, `Widgets`, `OpenGL`, and `OpenGLWidgets`.
+- Qt 6 with `Core`, `Widgets`, `Network`, `OpenGL`, and `OpenGLWidgets`.
 - FFmpeg development libraries:
   - `avformat`
   - `avcodec`
@@ -97,17 +97,17 @@ See [installEnv.md](installEnv.md) for the installation log and verification res
 Configure and build:
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake --build build-msys2-ucrt"
 ```
 
 Run from the development environment:
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ./build-msys2-ucrt/H264Analyzer.exe"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ./build-msys2-ucrt/ZStreamEye.exe"
 ```
 
-Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. It depends on DLLs from the MSYS2 UCRT64 environment.
+Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. It depends on DLLs from the MSYS2 UCRT64 environment.
 
 ## Windows Portable Package
 
@@ -120,19 +120,19 @@ Create a portable package:
 Output:
 
 ```text
-dist/H264Analyzer-windows-ucrt64/
-dist/H264Analyzer-windows-ucrt64.zip
+dist/ZStreamEye-windows-ucrt64/
+dist/ZStreamEye-windows-ucrt64.zip
 ```
 
 The portable package includes:
 
-- `H264Analyzer.exe`
+- `ZStreamEye.exe`
 - Qt runtime DLLs
 - Qt plugins, such as `platforms/qwindows.dll`
 - FFmpeg DLLs, such as `avcodec-62.dll`
 - MSYS2 UCRT64/GCC runtime DLLs
 
-End users only need to unzip the package and run `H264Analyzer.exe`.
+End users only need to unzip the package and run `ZStreamEye.exe`.
 
 ## Windows Installer
 
@@ -140,13 +140,13 @@ Create a Windows installer after the portable package has been generated:
 
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
-.\scripts\package-windows-installer.ps1 -Version "0.1.0"
+.\scripts\package-windows-installer.ps1 -Version "0.1.1"
 ```
 
 Output:
 
 ```text
-dist/H264Analyzer-0.1.0-windows-ucrt64-setup.exe
+dist/ZStreamEye-0.1.1-windows-ucrt64-setup.exe
 ```
 
 The installer is built with Inno Setup 6 and installs the same self-contained
@@ -188,7 +188,7 @@ ctest --test-dir build --output-on-failure
 Run:
 
 ```bash
-open build/H264Analyzer.app
+open build/ZStreamEye.app
 ```
 
 ## Linux
@@ -216,7 +216,7 @@ cmake --build build
 Run:
 
 ```bash
-./build/H264Analyzer
+./build/ZStreamEye
 ```
 
 ## Development Notes

@@ -5,13 +5,13 @@ This document is the current handoff note for future AI/coding agents working on
 Repository:
 
 ```text
-git@github.com:FreddieGeorge/h264_analyzer.git
+git@github.com:FreddieGeorge/ZStreamEye.git
 ```
 
 Typical local path:
 
 ```text
-D:\Desktop\h264_analyzer
+D:\Desktop\ZStreamEye
 ```
 
 ## Current State
@@ -66,8 +66,8 @@ Implemented capabilities:
   - last open/export directories
 - Windows portable deployment script:
   - `scripts/deploy-windows-msys2.ps1`
-  - output under `dist/H264Analyzer-windows-ucrt64`
-  - zip at `dist/H264Analyzer-windows-ucrt64.zip`
+  - output under `dist/ZStreamEye-windows-ucrt64`
+  - zip at `dist/ZStreamEye-windows-ucrt64.zip`
 - CTest parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
 - Tiny checked-in parser fixtures under `tests/fixtures/` for Annex B, AVCC,
   CAVLC I/P macroblocks, P-slice motion vectors, and unsupported CABAC
@@ -90,15 +90,15 @@ Implemented capabilities:
 Use MSYS2 UCRT64 on Windows:
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64 -DBUILD_TESTING=ON"
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && cmake --build build-msys2-ucrt"
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ctest --test-dir build-msys2-ucrt --output-on-failure"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake -S . -B build-msys2-ucrt -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=/ucrt64 -DBUILD_TESTING=ON"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && cmake --build build-msys2-ucrt"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ctest --test-dir build-msys2-ucrt --output-on-failure"
 ```
 
 Run from the development environment:
 
 ```powershell
-C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/h264_analyzer && ./build-msys2-ucrt/H264Analyzer.exe"
+C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/Desktop/ZStreamEye && ./build-msys2-ucrt/ZStreamEye.exe"
 ```
 
 Create portable package:
@@ -107,7 +107,7 @@ Create portable package:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-windows-msys2.ps1
 ```
 
-Do not distribute `build-msys2-ucrt/H264Analyzer.exe` alone. Use the portable folder or zip in `dist/`.
+Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. Use the portable folder or zip in `dist/`.
 
 ## Important Rules
 

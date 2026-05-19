@@ -1,22 +1,22 @@
-#define AppName "H264Analyzer"
+#define AppName "ZStreamEye"
 #ifndef AppVersion
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #endif
 #ifndef SourceDir
-#define SourceDir "..\dist\H264Analyzer-windows-ucrt64"
+#define SourceDir "..\dist\ZStreamEye-windows-ucrt64"
 #endif
 #ifndef OutputDir
 #define OutputDir "..\dist"
 #endif
 #ifndef OutputBaseFilename
-#define OutputBaseFilename "H264Analyzer-windows-ucrt64-setup"
+#define OutputBaseFilename "ZStreamEye-windows-ucrt64-setup"
 #endif
 
 [Setup]
 AppId={{7C6C1A56-6D79-4E42-9674-9D8D21691255}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=H264Analyzer
+AppPublisher=ZStreamEye
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -27,7 +27,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\H264Analyzer.exe
+UninstallDisplayIcon={app}\ZStreamEye.exe
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -39,9 +39,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\H264Analyzer"; Filename: "{app}\H264Analyzer.exe"; WorkingDir: "{app}"
-Name: "{group}\Uninstall H264Analyzer"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\H264Analyzer"; Filename: "{app}\H264Analyzer.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\ZStreamEye"; Filename: "{app}\ZStreamEye.exe"; WorkingDir: "{app}"
+Name: "{group}\Uninstall ZStreamEye"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\ZStreamEye"; Filename: "{app}\ZStreamEye.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\H264Analyzer.exe"; Description: "{cm:LaunchProgram,H264Analyzer}"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\ZStreamEye.exe"; Description: "{cm:LaunchProgram,ZStreamEye}"; Flags: nowait postinstall skipifsilent unchecked
