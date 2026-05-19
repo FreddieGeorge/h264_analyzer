@@ -67,6 +67,7 @@ private:
     void exportFrameListCsv();
     void exportScreenshot();
     void checkForUpdates();
+    void showAboutDialog();
     void downloadAndInstallUpdate(const QUrl &installerUrl,
                                   const QUrl &checksumUrl,
                                   const QString &installerFileName,

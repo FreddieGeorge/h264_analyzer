@@ -53,6 +53,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 namespace
@@ -345,6 +346,8 @@ void MainWindow::createMenus()
 
     QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(m_checkForUpdatesAction);
+    helpMenu->addSeparator();
+    helpMenu->addAction(tr("&About ZStreamEye"), this, &MainWindow::showAboutDialog);
 }
 
 void MainWindow::createToolBars()
@@ -839,6 +842,10 @@ void MainWindow::checkForUpdates()
         QPushButton *downloadPortableButton = nullptr;
         if (!installerAsset.downloadUrl.isEmpty() && !installerChecksumAsset.downloadUrl.isEmpty()) {
             downloadInstallerButton = messageBox.addButton(tr("Download and Install"), QMessageBox::AcceptRole);
+        } else if (!installerAsset.downloadUrl.isEmpty()) {
+            messageBox.setInformativeText(
+                messageBox.informativeText()
+                + tr("\n\nThe installer is available, but its SHA256 checksum asset is missing. Open the release page to download it manually."));
         }
         if (!portableAsset.downloadUrl.isEmpty()) {
             downloadPortableButton = messageBox.addButton(tr("Download Portable ZIP"), QMessageBox::ActionRole);
@@ -862,6 +869,27 @@ void MainWindow::checkForUpdates()
         m_logDock->appendLine(tr("[Info] Update available. Current version: %1, latest release: %2.")
                                   .arg(currentVersion, tagName));
     });
+}
+
+void MainWindow::showAboutDialog()
+{
+    QMessageBox aboutBox(this);
+    aboutBox.setWindowTitle(tr("About ZStreamEye"));
+    aboutBox.setIconPixmap(windowIcon().pixmap(64, 64));
+    aboutBox.setText(tr("ZStreamEye"));
+    aboutBox.setInformativeText(
+        tr("Version %1\n\n"
+           "A desktop tool for inspecting video bitstreams, decoded frames, and codec syntax.\n\n"
+           "GitHub: https://github.com/FreddieGeorge/ZStreamEye\n\n"
+           "Copyright 2026 ZStreamEye contributors.\n"
+           "Open source project. See the repository for license and release information.")
+            .arg(QCoreApplication::applicationVersion()));
+    QPushButton *githubButton = aboutBox.addButton(tr("Open GitHub"), QMessageBox::ActionRole);
+    aboutBox.addButton(QMessageBox::Ok);
+    aboutBox.exec();
+    if (aboutBox.clickedButton() == githubButton) {
+        QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/FreddieGeorge/ZStreamEye")));
+    }
 }
 
 void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
@@ -895,6 +923,7 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
         m_checkForUpdatesAction->setEnabled(false);
     }
 
+    auto canceled = std::make_shared<bool>(false);
     auto *progress = new QProgressDialog(tr("Downloading checksum..."), tr("Cancel"), 0, 0, this);
     progress->setWindowTitle(tr("Update ZStreamEye"));
     progress->setWindowModality(Qt::WindowModal);
@@ -906,9 +935,12 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
     checksumRequest.setHeader(QNetworkRequest::UserAgentHeader,
                               QStringLiteral("ZStreamEye/%1").arg(QCoreApplication::applicationVersion()));
     QNetworkReply *checksumReply = m_updateNetworkManager->get(checksumRequest);
-    connect(progress, &QProgressDialog::canceled, checksumReply, &QNetworkReply::abort);
+    connect(progress, &QProgressDialog::canceled, checksumReply, [checksumReply, canceled]() {
+        *canceled = true;
+        checksumReply->abort();
+    });
 
-    connect(checksumReply, &QNetworkReply::finished, this, [this, checksumReply, installerUrl, installerPath, tagName, progress]() {
+    connect(checksumReply, &QNetworkReply::finished, this, [this, checksumReply, installerUrl, installerPath, tagName, progress, canceled]() {
         checksumReply->deleteLater();
 
         const auto finishWithWarning = [this, progress](const QString &message) {
@@ -921,15 +953,29 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
             m_logDock->appendLine(tr("[Warning] %1").arg(message));
             QMessageBox::warning(this, tr("Update ZStreamEye"), message);
         };
+        const auto finishCanceled = [this, progress]() {
+            if (m_checkForUpdatesAction != nullptr) {
+                m_checkForUpdatesAction->setEnabled(true);
+            }
+            progress->close();
+            progress->deleteLater();
+            statusBar()->showMessage(tr("Update canceled."), 3000);
+            m_logDock->appendLine(tr("[Info] Update canceled by user."));
+        };
 
         if (checksumReply->error() != QNetworkReply::NoError) {
-            finishWithWarning(tr("Failed to download SHA256 checksum: %1").arg(checksumReply->errorString()));
+            if (*canceled) {
+                finishCanceled();
+            } else {
+                finishWithWarning(tr("Failed to download SHA256 checksum. Please try again.\n\n%1")
+                                      .arg(checksumReply->errorString()));
+            }
             return;
         }
 
         const QString expectedSha256 = sha256FromChecksumText(QString::fromUtf8(checksumReply->readAll()));
         if (expectedSha256.isEmpty()) {
-            finishWithWarning(tr("The release checksum file did not contain a valid SHA256 hash."));
+            finishWithWarning(tr("The release checksum file did not contain a valid SHA256 hash. Open the release page and download the installer manually."));
             return;
         }
 
@@ -948,7 +994,10 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
         installerRequest.setHeader(QNetworkRequest::UserAgentHeader,
                                    QStringLiteral("ZStreamEye/%1").arg(QCoreApplication::applicationVersion()));
         QNetworkReply *installerReply = m_updateNetworkManager->get(installerRequest);
-        connect(progress, &QProgressDialog::canceled, installerReply, &QNetworkReply::abort);
+        connect(progress, &QProgressDialog::canceled, installerReply, [installerReply, canceled]() {
+            *canceled = true;
+            installerReply->abort();
+        });
         connect(installerReply, &QNetworkReply::readyRead, installerFile, [installerReply, installerFile]() {
             installerFile->write(installerReply->readAll());
         });
@@ -961,7 +1010,7 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
             }
         });
 
-        connect(installerReply, &QNetworkReply::finished, this, [this, installerReply, installerFile, installerPath, expectedSha256, tagName, progress]() {
+        connect(installerReply, &QNetworkReply::finished, this, [this, installerReply, installerFile, installerPath, expectedSha256, tagName, progress, canceled]() {
             installerReply->deleteLater();
             installerFile->write(installerReply->readAll());
             installerFile->flush();
@@ -979,9 +1028,24 @@ void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
                 m_logDock->appendLine(tr("[Warning] %1").arg(message));
                 QMessageBox::warning(this, tr("Update ZStreamEye"), message);
             };
+            const auto finishCanceled = [this, progress, installerPath]() {
+                if (m_checkForUpdatesAction != nullptr) {
+                    m_checkForUpdatesAction->setEnabled(true);
+                }
+                QFile::remove(installerPath);
+                progress->close();
+                progress->deleteLater();
+                statusBar()->showMessage(tr("Update canceled."), 3000);
+                m_logDock->appendLine(tr("[Info] Update canceled by user."));
+            };
 
             if (installerReply->error() != QNetworkReply::NoError) {
-                finishWithWarning(tr("Failed to download installer: %1").arg(installerReply->errorString()));
+                if (*canceled) {
+                    finishCanceled();
+                } else {
+                    finishWithWarning(tr("Failed to download installer. Please try again.\n\n%1")
+                                          .arg(installerReply->errorString()));
+                }
                 return;
             }
 
