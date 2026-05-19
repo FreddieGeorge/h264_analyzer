@@ -67,6 +67,10 @@ private:
     void exportFrameListCsv();
     void exportScreenshot();
     void checkForUpdates();
+    void downloadAndInstallUpdate(const QUrl &installerUrl,
+                                  const QUrl &checksumUrl,
+                                  const QString &installerFileName,
+                                  const QString &tagName);
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleFrameListSelection(int frameIndex);

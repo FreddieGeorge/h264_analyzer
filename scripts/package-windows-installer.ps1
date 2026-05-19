@@ -1,7 +1,7 @@
 param(
     [string]$DistDir = "dist/ZStreamEye-windows-ucrt64",
     [string]$OutputDir = "dist",
-    [string]$Version = "0.1.2",
+    [string]$Version = "0.1.3",
     [string]$InstallerScript = "installer/ZStreamEye.iss",
     [string]$ISCCPath = ""
 )

@@ -10,6 +10,7 @@
 #include <QAction>
 #include <QCloseEvent>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -33,6 +34,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -46,6 +49,7 @@
 #include <QTextStream>
 #include <QTreeWidgetItem>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QWidget>
 
 #include <algorithm>
@@ -54,6 +58,12 @@
 namespace
 {
 constexpr int MaxCachedFrames = 80;
+
+struct ReleaseAsset
+{
+    QString name;
+    QString downloadUrl;
+};
 
 QString firstWritableLocation(QStandardPaths::StandardLocation location)
 {
@@ -118,7 +128,7 @@ QString compactReleaseNotes(QString body)
     return body;
 }
 
-QString releaseAssetDownloadUrl(const QJsonObject &release, const QRegularExpression &namePattern)
+ReleaseAsset releaseAsset(const QJsonObject &release, const QRegularExpression &namePattern)
 {
     const QJsonArray assets = release.value(QStringLiteral("assets")).toArray();
     for (const QJsonValue &assetValue : assets) {
@@ -134,11 +144,54 @@ QString releaseAssetDownloadUrl(const QJsonObject &release, const QRegularExpres
 
         const QString downloadUrl = asset.value(QStringLiteral("browser_download_url")).toString().trimmed();
         if (!downloadUrl.isEmpty()) {
-            return downloadUrl;
+            return ReleaseAsset { name, downloadUrl };
         }
     }
 
-    return QString {};
+    return ReleaseAsset {};
+}
+
+QString sha256FromChecksumText(const QString &checksumText)
+{
+    const QRegularExpression hashPattern(QStringLiteral("\\b([A-Fa-f0-9]{64})\\b"));
+    const QRegularExpressionMatch match = hashPattern.match(checksumText);
+    if (!match.hasMatch()) {
+        return QString {};
+    }
+    return match.captured(1).toLower();
+}
+
+QString sha256ForFile(const QString &filePath, QString *errorMessage)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (errorMessage != nullptr) {
+            *errorMessage = file.errorString();
+        }
+        return QString {};
+    }
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&file)) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Failed to read file for SHA256 hashing.");
+        }
+        return QString {};
+    }
+
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+QString safeInstallerFileName(QString fileName)
+{
+    if (fileName.isEmpty()) {
+        fileName = QStringLiteral("ZStreamEye-update-setup.exe");
+    }
+    fileName.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), QStringLiteral("-"));
+    if (!fileName.endsWith(QStringLiteral(".exe"), Qt::CaseInsensitive)) {
+        fileName.append(QStringLiteral(".exe"));
+    }
+    return fileName;
 }
 
 }
@@ -737,12 +790,18 @@ void MainWindow::checkForUpdates()
         const QString tagName = release.value(QStringLiteral("tag_name")).toString().trimmed();
         const QString releasePage = release.value(QStringLiteral("html_url")).toString().trimmed();
         const QString releaseNotes = compactReleaseNotes(release.value(QStringLiteral("body")).toString());
-        const QString installerDownloadUrl = releaseAssetDownloadUrl(
+        const ReleaseAsset installerAsset = releaseAsset(
             release,
             QRegularExpression(QStringLiteral("^ZStreamEye-.+-windows-ucrt64-setup\\.exe$")));
-        const QString portableDownloadUrl = releaseAssetDownloadUrl(
+        const ReleaseAsset portableAsset = releaseAsset(
             release,
             QRegularExpression(QStringLiteral("^ZStreamEye-.+-windows-ucrt64\\.zip$")));
+        const ReleaseAsset installerChecksumAsset = installerAsset.name.isEmpty()
+            ? ReleaseAsset {}
+            : releaseAsset(
+                  release,
+                  QRegularExpression(QStringLiteral("^%1\\.sha256$")
+                                         .arg(QRegularExpression::escape(installerAsset.name))));
         const QString currentVersion = QCoreApplication::applicationVersion();
 
         if (tagName.isEmpty() || releasePage.isEmpty()) {
@@ -770,7 +829,7 @@ void MainWindow::checkForUpdates()
         messageBox.setIcon(QMessageBox::Information);
         messageBox.setText(tr("A new ZStreamEye release is available."));
         messageBox.setInformativeText(
-            tr("Current version: %1\nLatest release: %2\n\nDownload the installer, then run it to update ZStreamEye.")
+            tr("Current version: %1\nLatest release: %2\n\nDownload the installer, verify SHA256, then close ZStreamEye and start the installer.")
                 .arg(currentVersion, tagName));
         if (!releaseNotes.isEmpty()) {
             messageBox.setDetailedText(releaseNotes);
@@ -778,10 +837,10 @@ void MainWindow::checkForUpdates()
 
         QPushButton *downloadInstallerButton = nullptr;
         QPushButton *downloadPortableButton = nullptr;
-        if (!installerDownloadUrl.isEmpty()) {
-            downloadInstallerButton = messageBox.addButton(tr("Download Installer"), QMessageBox::AcceptRole);
+        if (!installerAsset.downloadUrl.isEmpty() && !installerChecksumAsset.downloadUrl.isEmpty()) {
+            downloadInstallerButton = messageBox.addButton(tr("Download and Install"), QMessageBox::AcceptRole);
         }
-        if (!portableDownloadUrl.isEmpty()) {
+        if (!portableAsset.downloadUrl.isEmpty()) {
             downloadPortableButton = messageBox.addButton(tr("Download Portable ZIP"), QMessageBox::ActionRole);
         }
         QPushButton *openButton = messageBox.addButton(tr("Open Release Page"), QMessageBox::AcceptRole);
@@ -789,9 +848,12 @@ void MainWindow::checkForUpdates()
         messageBox.exec();
 
         if (messageBox.clickedButton() == downloadInstallerButton) {
-            QDesktopServices::openUrl(QUrl(installerDownloadUrl));
+            downloadAndInstallUpdate(QUrl(installerAsset.downloadUrl),
+                                     QUrl(installerChecksumAsset.downloadUrl),
+                                     installerAsset.name,
+                                     tagName);
         } else if (messageBox.clickedButton() == downloadPortableButton) {
-            QDesktopServices::openUrl(QUrl(portableDownloadUrl));
+            QDesktopServices::openUrl(QUrl(portableAsset.downloadUrl));
         } else if (messageBox.clickedButton() == openButton) {
             QDesktopServices::openUrl(QUrl(releasePage));
         }
@@ -799,6 +861,182 @@ void MainWindow::checkForUpdates()
         statusBar()->showMessage(tr("Update available: %1").arg(tagName), 5000);
         m_logDock->appendLine(tr("[Info] Update available. Current version: %1, latest release: %2.")
                                   .arg(currentVersion, tagName));
+    });
+}
+
+void MainWindow::downloadAndInstallUpdate(const QUrl &installerUrl,
+                                          const QUrl &checksumUrl,
+                                          const QString &installerFileName,
+                                          const QString &tagName)
+{
+    if (m_updateNetworkManager == nullptr) {
+        m_updateNetworkManager = new QNetworkAccessManager(this);
+    }
+
+    const QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QDir updateDir(QDir(tempRoot).filePath(QStringLiteral("ZStreamEye-updates")));
+    if (!updateDir.exists() && !QDir().mkpath(updateDir.absolutePath())) {
+        QMessageBox::warning(this,
+                             tr("Update ZStreamEye"),
+                             tr("Failed to create update download directory:\n%1").arg(updateDir.absolutePath()));
+        return;
+    }
+
+    const QString safeFileName = safeInstallerFileName(installerFileName);
+    const QString installerPath = updateDir.filePath(safeFileName);
+    if (QFile::exists(installerPath) && !QFile::remove(installerPath)) {
+        QMessageBox::warning(this,
+                             tr("Update ZStreamEye"),
+                             tr("Failed to replace existing installer:\n%1").arg(installerPath));
+        return;
+    }
+
+    if (m_checkForUpdatesAction != nullptr) {
+        m_checkForUpdatesAction->setEnabled(false);
+    }
+
+    auto *progress = new QProgressDialog(tr("Downloading checksum..."), tr("Cancel"), 0, 0, this);
+    progress->setWindowTitle(tr("Update ZStreamEye"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->setAutoClose(false);
+    progress->show();
+
+    QNetworkRequest checksumRequest(checksumUrl);
+    checksumRequest.setHeader(QNetworkRequest::UserAgentHeader,
+                              QStringLiteral("ZStreamEye/%1").arg(QCoreApplication::applicationVersion()));
+    QNetworkReply *checksumReply = m_updateNetworkManager->get(checksumRequest);
+    connect(progress, &QProgressDialog::canceled, checksumReply, &QNetworkReply::abort);
+
+    connect(checksumReply, &QNetworkReply::finished, this, [this, checksumReply, installerUrl, installerPath, tagName, progress]() {
+        checksumReply->deleteLater();
+
+        const auto finishWithWarning = [this, progress](const QString &message) {
+            if (m_checkForUpdatesAction != nullptr) {
+                m_checkForUpdatesAction->setEnabled(true);
+            }
+            progress->close();
+            progress->deleteLater();
+            statusBar()->showMessage(message, 5000);
+            m_logDock->appendLine(tr("[Warning] %1").arg(message));
+            QMessageBox::warning(this, tr("Update ZStreamEye"), message);
+        };
+
+        if (checksumReply->error() != QNetworkReply::NoError) {
+            finishWithWarning(tr("Failed to download SHA256 checksum: %1").arg(checksumReply->errorString()));
+            return;
+        }
+
+        const QString expectedSha256 = sha256FromChecksumText(QString::fromUtf8(checksumReply->readAll()));
+        if (expectedSha256.isEmpty()) {
+            finishWithWarning(tr("The release checksum file did not contain a valid SHA256 hash."));
+            return;
+        }
+
+        progress->setLabelText(tr("Downloading installer..."));
+        progress->setRange(0, 0);
+        progress->setValue(0);
+
+        auto *installerFile = new QFile(installerPath, progress);
+        if (!installerFile->open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            finishWithWarning(tr("Failed to write installer: %1").arg(installerFile->errorString()));
+            installerFile->deleteLater();
+            return;
+        }
+
+        QNetworkRequest installerRequest(installerUrl);
+        installerRequest.setHeader(QNetworkRequest::UserAgentHeader,
+                                   QStringLiteral("ZStreamEye/%1").arg(QCoreApplication::applicationVersion()));
+        QNetworkReply *installerReply = m_updateNetworkManager->get(installerRequest);
+        connect(progress, &QProgressDialog::canceled, installerReply, &QNetworkReply::abort);
+        connect(installerReply, &QNetworkReply::readyRead, installerFile, [installerReply, installerFile]() {
+            installerFile->write(installerReply->readAll());
+        });
+        connect(installerReply, &QNetworkReply::downloadProgress, progress, [progress](qint64 bytesReceived, qint64 bytesTotal) {
+            if (bytesTotal > 0) {
+                progress->setRange(0, 100);
+                progress->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
+            } else {
+                progress->setRange(0, 0);
+            }
+        });
+
+        connect(installerReply, &QNetworkReply::finished, this, [this, installerReply, installerFile, installerPath, expectedSha256, tagName, progress]() {
+            installerReply->deleteLater();
+            installerFile->write(installerReply->readAll());
+            installerFile->flush();
+            installerFile->close();
+            installerFile->deleteLater();
+
+            const auto finishWithWarning = [this, progress, installerPath](const QString &message) {
+                if (m_checkForUpdatesAction != nullptr) {
+                    m_checkForUpdatesAction->setEnabled(true);
+                }
+                QFile::remove(installerPath);
+                progress->close();
+                progress->deleteLater();
+                statusBar()->showMessage(message, 5000);
+                m_logDock->appendLine(tr("[Warning] %1").arg(message));
+                QMessageBox::warning(this, tr("Update ZStreamEye"), message);
+            };
+
+            if (installerReply->error() != QNetworkReply::NoError) {
+                finishWithWarning(tr("Failed to download installer: %1").arg(installerReply->errorString()));
+                return;
+            }
+
+            progress->setLabelText(tr("Verifying SHA256..."));
+            progress->setRange(0, 0);
+            QString hashError;
+            const QString actualSha256 = sha256ForFile(installerPath, &hashError);
+            if (actualSha256.isEmpty()) {
+                finishWithWarning(tr("Failed to verify installer: %1").arg(hashError));
+                return;
+            }
+            if (actualSha256.compare(expectedSha256, Qt::CaseInsensitive) != 0) {
+                finishWithWarning(tr("Installer SHA256 verification failed. The downloaded file was removed."));
+                return;
+            }
+
+            progress->close();
+            progress->deleteLater();
+
+            const QMessageBox::StandardButton choice = QMessageBox::question(
+                this,
+                tr("Install Update"),
+                tr("ZStreamEye %1 was downloaded and verified.\n\nThe installer will now start, and ZStreamEye will close. Continue?")
+                    .arg(tagName),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::Yes);
+            if (choice != QMessageBox::Yes) {
+                if (m_checkForUpdatesAction != nullptr) {
+                    m_checkForUpdatesAction->setEnabled(true);
+                }
+                statusBar()->showMessage(tr("Update installer downloaded and verified."), 5000);
+                m_logDock->appendLine(tr("[Info] Update installer downloaded and verified: %1")
+                                          .arg(QDir::toNativeSeparators(installerPath)));
+                return;
+            }
+
+            const bool started = QProcess::startDetached(
+                QDir::toNativeSeparators(installerPath),
+                QStringList {},
+                QFileInfo(installerPath).absolutePath());
+            if (!started) {
+                if (m_checkForUpdatesAction != nullptr) {
+                    m_checkForUpdatesAction->setEnabled(true);
+                }
+                const QString message = tr("Failed to start installer: %1").arg(QDir::toNativeSeparators(installerPath));
+                statusBar()->showMessage(message, 5000);
+                m_logDock->appendLine(tr("[Warning] %1").arg(message));
+                QMessageBox::warning(this, tr("Update ZStreamEye"), message);
+                return;
+            }
+
+            m_logDock->appendLine(tr("[Info] Started verified update installer: %1")
+                                      .arg(QDir::toNativeSeparators(installerPath)));
+            close();
+        });
     });
 }
 

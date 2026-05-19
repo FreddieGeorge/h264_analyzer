@@ -86,6 +86,16 @@ jobs:
             -LiteralPath dist/ZStreamEye-windows-ucrt64.zip `
             -Destination "dist/ZStreamEye-$version-windows-ucrt64.zip" `
             -Force
+          Get-ChildItem dist -Filter "ZStreamEye-*-windows-ucrt64*.zip" |
+            ForEach-Object {
+              $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)" | Set-Content -Encoding ASCII -NoNewline -LiteralPath "$($_.FullName).sha256"
+            }
+          Get-ChildItem dist -Filter "ZStreamEye-*-windows-ucrt64-setup.exe" |
+            ForEach-Object {
+              $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)" | Set-Content -Encoding ASCII -NoNewline -LiteralPath "$($_.FullName).sha256"
+            }
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
@@ -93,7 +103,9 @@ jobs:
           name: ZStreamEye-${{ github.ref_name }}-windows-ucrt64
           path: |
             dist/ZStreamEye-*-windows-ucrt64.zip
+            dist/ZStreamEye-*-windows-ucrt64.zip.sha256
             dist/ZStreamEye-*-windows-ucrt64-setup.exe
+            dist/ZStreamEye-*-windows-ucrt64-setup.exe.sha256
           retention-days: 30
 
       - name: Publish GitHub Release
@@ -105,4 +117,6 @@ jobs:
           make_latest: true
           files: |
             dist/ZStreamEye-*-windows-ucrt64.zip
+            dist/ZStreamEye-*-windows-ucrt64.zip.sha256
             dist/ZStreamEye-*-windows-ucrt64-setup.exe
+            dist/ZStreamEye-*-windows-ucrt64-setup.exe.sha256

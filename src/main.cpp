@@ -7,7 +7,7 @@
 #include <QStyleFactory>
 
 #ifndef ZSTREAMEYE_VERSION
-#define ZSTREAMEYE_VERSION "0.1.2"
+#define ZSTREAMEYE_VERSION "0.1.3"
 #endif
 
 int main(int argc, char *argv[])
