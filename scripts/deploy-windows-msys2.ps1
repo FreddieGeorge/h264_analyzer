@@ -24,12 +24,32 @@ function Assert-ToolExists {
 }
 
 function Resolve-FirstExistingTool {
-    param([string[]]$Paths)
+    param(
+        [string[]]$Paths,
+        [string]$CandidatePattern = "*"
+    )
     foreach ($path in $Paths) {
         if (Test-Path $path) {
             return $path
         }
     }
+
+    $candidateDirs = $Paths | ForEach-Object { Split-Path -Parent $_ } | Sort-Object -Unique
+    foreach ($candidateDir in $candidateDirs) {
+        Write-Host "Available ${CandidatePattern} candidates under ${candidateDir}:"
+        $candidates = Get-ChildItem -Path $candidateDir -Filter $CandidatePattern -ErrorAction SilentlyContinue
+        if ($candidates) {
+            $candidates | ForEach-Object { Write-Host "  $($_.FullName)" }
+        } else {
+            Write-Host "  none"
+        }
+    }
+
+    if (Test-Path $bash) {
+        Write-Host "Installed Qt deployment-related MSYS2 packages:"
+        & $bash -lc "pacman -Q mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-tools 2>/dev/null || true"
+    }
+
     throw "Required tool not found. Tried: $($Paths -join ', ')"
 }
 
@@ -78,10 +98,10 @@ function Copy-MsysRuntimeClosure {
 }
 
 Assert-ToolExists $bash
-$windeployqt = Resolve-FirstExistingTool @(
+$windeployqt = Resolve-FirstExistingTool -Paths @(
     (Join-Path $ucrtBin "windeployqt6.exe"),
     (Join-Path $ucrtBin "windeployqt.exe")
-)
+) -CandidatePattern "windeployqt*.exe"
 Assert-ToolExists $objdump
 Assert-PathUnderRepo $distPath
 
