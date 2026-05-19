@@ -1,5 +1,7 @@
 #include "ui/PropertyTreeView.h"
 
+#include "core/H264Parser.h"
+
 #include <QTreeWidgetItem>
 
 #include <algorithm>
@@ -42,66 +44,187 @@ void PropertyTreeView::showPlaceholder(const QString &message)
 
 void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
 {
-    showFrameSyntax(h264SyntaxFromFrameAnalysis(analysis));
-
-    auto *analysisRoot = new QTreeWidgetItem({tr("FrameAnalysis"), codecKindName(analysis.codecKind)});
-    insertTopLevelItem(0, analysisRoot);
-    addPair(analysisRoot, tr("frame_index"), QString::number(analysis.frameIndex));
-    addPair(analysisRoot, tr("frame_type"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType);
-    addPair(analysisRoot, tr("has_frame"), boolValue(analysis.hasFrame));
-    addPair(analysisRoot, tr("pts"), QString::number(analysis.pts));
-    addPair(analysisRoot, tr("dts"), QString::number(analysis.dts));
-    addPair(analysisRoot, tr("units"), QString::number(analysis.units.size()));
-    addPair(analysisRoot, tr("parameter_sets"), QString::number(analysis.parameterSets.size()));
-    addPair(analysisRoot, tr("regions"), QString::number(analysis.regions.size()));
-    addPair(analysisRoot, tr("motion_vectors"), QString::number(analysis.motionVectors.size()));
-
-    if (!analysis.units.isEmpty()) {
-        auto *unitsRoot = new QTreeWidgetItem(analysisRoot, {tr("Units"), QString::number(analysis.units.size())});
-        for (int i = 0; i < analysis.units.size(); ++i) {
-            const AnalysisUnit &unit = analysis.units[i];
-            auto *unitItem = new QTreeWidgetItem(unitsRoot, {
-                tr("Unit %1").arg(i),
-                tr("%1 %2").arg(analysisUnitKindName(unit.kind), unit.typeName)
-            });
-            addPair(unitItem, tr("offset"), QString::number(unit.offset));
-            addPair(unitItem, tr("size"), QString::number(unit.size));
-            addPair(unitItem, tr("type"), QString::number(unit.type));
-        }
-    }
-
-    if (!analysis.parameterSets.isEmpty()) {
-        auto *setsRoot = new QTreeWidgetItem(analysisRoot, {tr("Parameter Sets"), QString::number(analysis.parameterSets.size())});
-        for (const AnalysisParameterSet &parameterSet : analysis.parameterSets) {
-            auto *setItem = new QTreeWidgetItem(setsRoot, {parameterSet.kind, QString::number(parameterSet.id)});
-            addPair(setItem, tr("summary"), parameterSet.summary);
-            addPair(setItem, tr("bit_fields"), QString::number(parameterSet.bitFields.size()));
-        }
-    }
-
-    if (!analysis.diagnostics.isEmpty()) {
-        auto *diagnosticsRoot = new QTreeWidgetItem(analysisRoot, {tr("Diagnostics"), QString::number(analysis.diagnostics.size())});
-        for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
-            addPair(diagnosticsRoot,
-                    diagnostic.code,
-                    tr("%1: %2").arg(diagnostic.path, diagnostic.message));
-        }
-    }
-
-    analysisRoot->setExpanded(true);
-}
-
-void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
-{
     clear();
 
-    auto *frameRoot = new QTreeWidgetItem(this, {tr("Frame"), QString::number(syntaxInfo.index)});
+    auto *analysisRoot = new QTreeWidgetItem(this, {tr("FrameAnalysis"), codecKindName(analysis.codecKind)});
+    addFrameAnalysisSummary(analysisRoot, analysis);
+    addFrameAnalysisUnits(analysisRoot, analysis);
+    addFrameAnalysisParameterSets(analysisRoot, analysis);
+    addFrameAnalysisRegions(analysisRoot, analysis);
+    addFrameAnalysisMotionVectors(analysisRoot, analysis);
+    addFrameAnalysisDiagnostics(analysisRoot, analysis);
+    addFrameAnalysisBitFields(analysisRoot, analysis);
+    addCodecSpecificDetails(analysisRoot, analysis);
+    analysisRoot->setExpanded(true);
+    expandToDepth(1);
+}
+
+void PropertyTreeView::addFrameAnalysisSummary(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    auto *summaryRoot = new QTreeWidgetItem(parent, {tr("Summary"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType});
+    addPair(summaryRoot, tr("frame_index"), QString::number(analysis.frameIndex));
+    addPair(summaryRoot, tr("frame_type"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType);
+    addPair(summaryRoot, tr("has_frame"), boolValue(analysis.hasFrame));
+    addPair(summaryRoot, tr("pts"), QString::number(analysis.pts));
+    addPair(summaryRoot, tr("dts"), QString::number(analysis.dts));
+    addPair(summaryRoot, tr("POC"), analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-"));
+    addPair(summaryRoot, tr("frame_num"), analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-"));
+    addPair(summaryRoot, tr("units"), QString::number(analysis.units.size()));
+    addPair(summaryRoot, tr("parameter_sets"), QString::number(analysis.parameterSets.size()));
+    addPair(summaryRoot, tr("regions"), QString::number(analysis.regions.size()));
+    addPair(summaryRoot, tr("motion_vectors"), QString::number(analysis.motionVectors.size()));
+    addPair(summaryRoot, tr("diagnostics"), QString::number(analysis.diagnostics.size()));
+    addPair(summaryRoot, tr("bit_fields"), QString::number(analysis.bitFields.size()));
+}
+
+void PropertyTreeView::addFrameAnalysisUnits(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    if (analysis.units.isEmpty()) {
+        return;
+    }
+
+    auto *unitsRoot = new QTreeWidgetItem(parent, {tr("Units"), QString::number(analysis.units.size())});
+    for (int i = 0; i < analysis.units.size(); ++i) {
+        const AnalysisUnit &unit = analysis.units[i];
+        auto *unitItem = new QTreeWidgetItem(unitsRoot, {
+            tr("Unit %1").arg(i),
+            tr("%1 %2").arg(analysisUnitKindName(unit.kind), unit.typeName)
+        });
+        addPair(unitItem, tr("offset"), QString::number(unit.offset));
+        addPair(unitItem, tr("size"), QString::number(unit.size));
+        addPair(unitItem, tr("type"), QString::number(unit.type));
+    }
+}
+
+void PropertyTreeView::addFrameAnalysisParameterSets(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    if (analysis.parameterSets.isEmpty()) {
+        return;
+    }
+
+    auto *setsRoot = new QTreeWidgetItem(parent, {tr("Parameter Sets"), QString::number(analysis.parameterSets.size())});
+    for (const AnalysisParameterSet &parameterSet : analysis.parameterSets) {
+        auto *setItem = new QTreeWidgetItem(setsRoot, {parameterSet.kind, QString::number(parameterSet.id)});
+        addPair(setItem, tr("summary"), parameterSet.summary);
+        addPair(setItem, tr("bit_fields"), QString::number(parameterSet.bitFields.size()));
+    }
+}
+
+void PropertyTreeView::addFrameAnalysisRegions(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    auto *regionsRoot = new QTreeWidgetItem(parent, {tr("Regions"), QString::number(analysis.regions.size())});
+    const int displayedRegions = std::min(MaxDisplayedMacroblocks, static_cast<int>(analysis.regions.size()));
+    if (analysis.regions.size() > displayedRegions) {
+        addPair(regionsRoot,
+                tr("display limit"),
+                tr("Showing first %1 of %2 regions to keep the UI responsive.")
+                    .arg(displayedRegions)
+                    .arg(analysis.regions.size()));
+    }
+    for (int i = 0; i < displayedRegions; ++i) {
+        const AnalysisRegion &region = analysis.regions[i];
+        auto *regionItem = new QTreeWidgetItem(regionsRoot, {
+            tr("Region %1").arg(region.address),
+            tr("%1 %2").arg(analysisRegionKindName(region.kind), region.type)
+        });
+        addPair(regionItem, tr("x"), QString::number(region.x));
+        addPair(regionItem, tr("y"), QString::number(region.y));
+        addPair(regionItem, tr("width"), QString::number(region.width));
+        addPair(regionItem, tr("height"), QString::number(region.height));
+        addPair(regionItem, tr("QP"), region.qp >= 0 ? QString::number(region.qp) : QStringLiteral("-"));
+        addPair(regionItem, tr("prediction mode"), region.predictionMode.isEmpty() ? QStringLiteral("-") : region.predictionMode);
+        addPair(regionItem, tr("parsed"), boolValue(region.parsed));
+        addPair(regionItem, tr("skipped"), boolValue(region.skipped));
+        addPair(regionItem, tr("note"), region.note);
+    }
+}
+
+void PropertyTreeView::addFrameAnalysisMotionVectors(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    if (analysis.motionVectors.isEmpty()) {
+        return;
+    }
+
+    auto *mvRoot = new QTreeWidgetItem(parent, {tr("Motion Vectors"), QString::number(analysis.motionVectors.size())});
+    for (int i = 0; i < analysis.motionVectors.size(); ++i) {
+        const AnalysisMotionVector &mv = analysis.motionVectors[i];
+        auto *mvItem = new QTreeWidgetItem(mvRoot, {
+            tr("MV %1").arg(i),
+            tr("region %1 L%2 ref %3").arg(mv.regionAddress).arg(mv.list).arg(mv.referenceIndex)
+        });
+        addPair(mvItem, tr("source_x"), QString::number(mv.sourceX));
+        addPair(mvItem, tr("source_y"), QString::number(mv.sourceY));
+        addPair(mvItem, tr("mv_x quarter-pel"), QString::number(mv.mvXQuarterPel));
+        addPair(mvItem, tr("mv_y quarter-pel"), QString::number(mv.mvYQuarterPel));
+        addPair(mvItem, tr("reference_x"), mv.referenceX >= 0 ? QString::number(mv.referenceX) : QStringLiteral("co-located"));
+        addPair(mvItem, tr("reference_y"), mv.referenceY >= 0 ? QString::number(mv.referenceY) : QStringLiteral("co-located"));
+    }
+}
+
+void PropertyTreeView::addFrameAnalysisDiagnostics(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    if (analysis.diagnostics.isEmpty()) {
+        return;
+    }
+
+    auto *diagnosticsRoot = new QTreeWidgetItem(parent, {tr("Diagnostics"), QString::number(analysis.diagnostics.size())});
+    for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+        auto *diagnosticItem = new QTreeWidgetItem(diagnosticsRoot, {diagnostic.code, diagnostic.severity});
+        addPair(diagnosticItem, tr("path"), diagnostic.path);
+        addPair(diagnosticItem, tr("message"), diagnostic.message);
+    }
+}
+
+void PropertyTreeView::addFrameAnalysisBitFields(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    if (analysis.bitFields.isEmpty()) {
+        return;
+    }
+
+    auto *fieldsRoot = new QTreeWidgetItem(parent, {tr("Bit Fields"), QString::number(analysis.bitFields.size())});
+    for (const AnalysisBitField &field : analysis.bitFields) {
+        auto *fieldItem = new QTreeWidgetItem(fieldsRoot, {field.name, field.value});
+        addPair(fieldItem, tr("path"), field.path);
+        addPair(fieldItem, tr("bit_offset"), QString::number(field.bitOffset));
+        addPair(fieldItem, tr("bit_length"), QString::number(field.bitLength));
+    }
+}
+
+void PropertyTreeView::addCodecSpecificDetails(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    auto *detailsRoot = new QTreeWidgetItem(parent, {tr("Codec Details"), codecKindName(analysis.codecKind)});
+    if (analysis.codecKind == CodecKind::H264) {
+        addH264Details(detailsRoot, h264SyntaxFromFrameAnalysis(analysis));
+        return;
+    }
+
+    addPair(detailsRoot, tr("details"), tr("No codec-specific property view is available for this codec."));
+}
+
+void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntaxInfo &syntaxInfo)
+{
+    auto addSyntaxFields = [this](QTreeWidgetItem *fieldParent, const QVector<SyntaxFieldInfo> &fields) {
+        if (fields.isEmpty()) {
+            return;
+        }
+
+        auto *fieldsRoot = new QTreeWidgetItem(fieldParent, {tr("Bit positions"), QString::number(fields.size())});
+        for (const SyntaxFieldInfo &field : fields) {
+            const QString value = tr("%1 (bit %2, len %3)")
+                .arg(field.value)
+                .arg(field.bitOffset)
+                .arg(field.bitLength);
+            addPair(fieldsRoot, field.name, value);
+        }
+    };
+
+    auto *frameRoot = new QTreeWidgetItem(parent, {tr("Frame"), QString::number(syntaxInfo.index)});
     addPair(frameRoot, tr("type"), syntaxInfo.frameType);
     addPair(frameRoot, tr("POC"), syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-"));
     addPair(frameRoot, tr("frame_num"), syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-"));
     addPair(frameRoot, tr("NALU count"), QString::number(syntaxInfo.nalus.size()));
 
-    auto *nalusRoot = new QTreeWidgetItem(this, {tr("NAL Units"), QString::number(syntaxInfo.nalus.size())});
+    auto *nalusRoot = new QTreeWidgetItem(parent, {tr("NAL Units"), QString::number(syntaxInfo.nalus.size())});
     for (int i = 0; i < syntaxInfo.nalus.size(); ++i) {
         const NaluInfo &nalu = syntaxInfo.nalus[i];
         auto *naluItem = new QTreeWidgetItem(nalusRoot, {
@@ -178,7 +301,7 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         }
     }
 
-    auto *slicesRoot = new QTreeWidgetItem(this, {tr("Slice Headers"), QString::number(syntaxInfo.slices.size())});
+    auto *slicesRoot = new QTreeWidgetItem(parent, {tr("Slice Headers"), QString::number(syntaxInfo.slices.size())});
     for (int i = 0; i < syntaxInfo.slices.size(); ++i) {
         const SliceInfo &slice = syntaxInfo.slices[i];
         auto *sliceItem = new QTreeWidgetItem(slicesRoot, {
@@ -260,27 +383,10 @@ void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
         }
     }
 
-    expandToDepth(1);
 }
 
 QTreeWidgetItem *PropertyTreeView::addPair(QTreeWidgetItem *parent, const QString &field, const QString &value)
 {
     auto *item = new QTreeWidgetItem(parent, {field, value});
     return item;
-}
-
-void PropertyTreeView::addSyntaxFields(QTreeWidgetItem *parent, const QVector<SyntaxFieldInfo> &fields)
-{
-    if (fields.isEmpty()) {
-        return;
-    }
-
-    auto *fieldsRoot = new QTreeWidgetItem(parent, {tr("Bit positions"), QString::number(fields.size())});
-    for (const SyntaxFieldInfo &field : fields) {
-        const QString value = tr("%1 (bit %2, len %3)")
-            .arg(field.value)
-            .arg(field.bitOffset)
-            .arg(field.bitLength);
-        addPair(fieldsRoot, field.name, value);
-    }
 }

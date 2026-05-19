@@ -63,6 +63,8 @@ add_executable(H264Analyzer
     src/main.cpp
     src/app/MainWindow.h
     src/app/MainWindow.cpp
+    src/core/AnalysisExportWriter.h
+    src/core/AnalysisExportWriter.cpp
     src/core/BitstreamParser.h
     src/core/BitstreamParser.cpp
     src/core/CodecKind.h
@@ -115,6 +117,8 @@ set_target_properties(H264Analyzer PROPERTIES
 if(BUILD_TESTING)
     add_executable(H264AnalyzerParserTests
         tests/test_h264_parser.cpp
+        src/core/AnalysisExportWriter.h
+        src/core/AnalysisExportWriter.cpp
         src/core/BitstreamParser.h
         src/core/BitstreamParser.cpp
         src/core/CodecKind.h

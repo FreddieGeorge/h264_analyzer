@@ -1,8 +1,10 @@
 #pragma once
 
-#include "core/H264Parser.h"
+#include "core/FrameAnalysis.h"
 
 #include <QTreeWidget>
+
+struct FrameSyntaxInfo;
 
 class PropertyTreeView : public QTreeWidget
 {
@@ -13,9 +15,16 @@ public:
 
     void showPlaceholder(const QString &message);
     void showFrameAnalysis(const FrameAnalysis &analysis);
-    void showFrameSyntax(const FrameSyntaxInfo &syntaxInfo);
 
 private:
     QTreeWidgetItem *addPair(QTreeWidgetItem *parent, const QString &field, const QString &value);
-    void addSyntaxFields(QTreeWidgetItem *parent, const QVector<SyntaxFieldInfo> &fields);
+    void addFrameAnalysisSummary(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisUnits(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisParameterSets(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisRegions(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisMotionVectors(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisDiagnostics(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addFrameAnalysisBitFields(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addCodecSpecificDetails(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addH264Details(QTreeWidgetItem *parent, const FrameSyntaxInfo &syntaxInfo);
 };

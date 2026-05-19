@@ -1,7 +1,10 @@
+#include "core/AnalysisExportWriter.h"
 #include "core/H264Parser.h"
 
 #include <QByteArray>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 
 #include <cstdlib>
@@ -276,6 +279,50 @@ void testFrameAnalysisMirrorsH264SyntaxFixture()
     require(syntax.slices.first().macroblocks.size() == 1, "FrameAnalysis keeps H264 macroblocks");
 }
 
+void testFrameAnalysisExportSchemaFixture()
+{
+    H264Parser parser;
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 11, 7, 3);
+
+    StreamInfo stream;
+    stream.fileName = QStringLiteral("fixture.264");
+    stream.absoluteFilePath = QStringLiteral("D:/fixtures/fixture.264");
+    stream.codecName = QStringLiteral("h264");
+    stream.pixelFormatName = QStringLiteral("yuv420p");
+    stream.width = 16;
+    stream.height = 16;
+    stream.frameRate = 30.0;
+    stream.isValid = true;
+
+    const QJsonObject selected = selectedFrameExportToJson(stream,
+                                                          analysis,
+                                                          QStringLiteral("test-generator"),
+                                                          QStringLiteral("1.0"));
+    require(selected.value(QStringLiteral("schema_version")).toInt() == 2, "selected export schema version");
+    require(selected.value(QStringLiteral("generator")).toString() == QStringLiteral("test-generator"),
+            "selected export generator");
+    require(selected.contains(QStringLiteral("frame_analysis")), "selected export has frame_analysis");
+    require(selected.contains(QStringLiteral("frame")), "selected export keeps legacy frame details");
+
+    const QJsonObject frameAnalysis = selected.value(QStringLiteral("frame_analysis")).toObject();
+    require(frameAnalysis.value(QStringLiteral("has_frame")).toBool(), "frame_analysis has_frame");
+    require(!frameAnalysis.value(QStringLiteral("units")).toArray().isEmpty(), "frame_analysis units");
+    require(!frameAnalysis.value(QStringLiteral("regions")).toArray().isEmpty(), "frame_analysis regions");
+    require(!frameAnalysis.value(QStringLiteral("motion_vectors")).toArray().isEmpty(),
+            "frame_analysis motion vectors");
+
+    const QJsonObject legacyFrame = selected.value(QStringLiteral("frame")).toObject();
+    require(!legacyFrame.value(QStringLiteral("slices")).toArray().isEmpty(), "legacy frame slices");
+
+    const QJsonObject batch = allFramesExportToJson(stream,
+                                                   QVector<FrameAnalysis> {FrameAnalysis {}, analysis},
+                                                   QStringLiteral("test-generator"),
+                                                   QStringLiteral("1.0"));
+    const QJsonArray frames = batch.value(QStringLiteral("frames")).toArray();
+    require(frames.size() == 1, "batch export skips invalid frame entries");
+    require(frames.first().toObject().contains(QStringLiteral("h264")), "batch export keeps h264 details");
+}
+
 void testCavlcPResidualContinuesToMotionVectorFixture()
 {
     H264Parser parser;
@@ -319,6 +366,7 @@ int main()
     testCavlcPSkipFixture();
     testCavlcPMotionVectorFixture();
     testFrameAnalysisMirrorsH264SyntaxFixture();
+    testFrameAnalysisExportSchemaFixture();
     testCavlcPResidualContinuesToMotionVectorFixture();
     testUnsupportedCabacFixtureReportsDiagnostic();
     std::cout << "H264Parser tests passed\n";
