@@ -14,7 +14,7 @@ public:
     void showPlaceholder(const QString &message);
     void clearFrames();
     void addFrameAnalysis(const FrameAnalysis &analysis);
-    bool selectFrameIndex(int frameIndex);
+    bool selectFrameIndex(int frameIndex, bool scrollToSelection = true);
 
 signals:
     void frameSelected(int frameIndex);

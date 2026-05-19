@@ -3,7 +3,11 @@
 #include "core/H264FrameAnalysisAdapter.h"
 #include "core/H264Parser.h"
 
+#include <QApplication>
+#include <QClipboard>
+#include <QMenu>
 #include <QObject>
+#include <QPoint>
 #include <QTreeWidgetItem>
 
 #include <algorithm>
@@ -96,16 +100,16 @@ QString qpAvailabilityText(const FrameAnalysis &analysis)
 {
     const std::optional<QpSummary> summary = summarizeQpValues(analysis);
     if (!summary.has_value()) {
-        return QStringLiteral("No parsed QP values for this frame.");
+        return QObject::tr("No parsed QP values for this frame.");
     }
 
     if (summary->min == summary->max) {
-        return QObject::tr("%1 QP values, QP %2 constant across macroblock regions. The heatmap may appear as a flat color.")
+        return QObject::tr("%1 values, constant QP %2. Flat color is expected.")
             .arg(summary->count)
             .arg(summary->min);
     }
 
-    return QObject::tr("%1 QP values, range %2 - %3. Lower QP is greener; higher QP is redder.")
+    return QObject::tr("%1 values, range %2 - %3. Lower QP is greener; higher QP is redder.")
         .arg(summary->count)
         .arg(summary->min)
         .arg(summary->max);
@@ -164,7 +168,11 @@ PropertyTreeView::PropertyTreeView(QWidget *parent)
     setHeaderLabels({tr("Field"), tr("Value")});
     setRootIsDecorated(true);
     setAlternatingRowColors(true);
-    setUniformRowHeights(true);
+    setUniformRowHeights(false);
+    setWordWrap(true);
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, &QTreeWidget::customContextMenuRequested,
+            this, &PropertyTreeView::showContextMenu);
     showPlaceholder(tr("Open a stream to inspect syntax properties."));
 }
 
@@ -555,4 +563,60 @@ QTreeWidgetItem *PropertyTreeView::addPair(QTreeWidgetItem *parent, const QStrin
 {
     auto *item = new QTreeWidgetItem(parent, {field, value});
     return item;
+}
+
+void PropertyTreeView::showContextMenu(const QPoint &position)
+{
+    QTreeWidgetItem *item = itemAt(position);
+    if (item == nullptr) {
+        return;
+    }
+
+    const int column = columnAt(position.x());
+    QMenu menu(this);
+    QAction *copyCellAction = menu.addAction(tr("Copy Cell"));
+    QAction *copyRowAction = menu.addAction(tr("Copy Row"));
+    QAction *copySubtreeAction = menu.addAction(tr("Copy Row and Children"));
+
+    QAction *selected = menu.exec(viewport()->mapToGlobal(position));
+    if (selected == nullptr) {
+        return;
+    }
+
+    QString text;
+    if (selected == copyCellAction) {
+        text = item->text(column >= 0 ? column : 0);
+    } else if (selected == copyRowAction) {
+        text = itemRowText(item);
+    } else if (selected == copySubtreeAction) {
+        text = itemSubtreeText(item);
+    }
+
+    if (!text.isEmpty()) {
+        QApplication::clipboard()->setText(text);
+    }
+}
+
+QString PropertyTreeView::itemRowText(const QTreeWidgetItem *item) const
+{
+    if (item == nullptr) {
+        return {};
+    }
+
+    const QString field = item->text(0);
+    const QString value = item->text(1);
+    return value.isEmpty() ? field : QStringLiteral("%1\t%2").arg(field, value);
+}
+
+QString PropertyTreeView::itemSubtreeText(const QTreeWidgetItem *item, int depth) const
+{
+    if (item == nullptr) {
+        return {};
+    }
+
+    QString text = QString(depth * 2, QLatin1Char(' ')) + itemRowText(item);
+    for (int i = 0; i < item->childCount(); ++i) {
+        text += QLatin1Char('\n') + itemSubtreeText(item->child(i), depth + 1);
+    }
+    return text;
 }

@@ -225,7 +225,7 @@ bool frameAnalysisHasDiagnosticCode(const FrameAnalysis &analysis, const QString
 QString motionVectorStatusText(const FrameAnalysis &analysis)
 {
     if (analysis.codecKind != CodecKind::H264) {
-        return QObject::tr("Motion vector analysis is not supported for this codec yet.");
+        return QObject::tr("MV unsupported for this codec.");
     }
 
     if (!analysis.motionVectors.isEmpty()) {
@@ -233,27 +233,27 @@ QString motionVectorStatusText(const FrameAnalysis &analysis)
     }
 
     if (analysis.frameType == QStringLiteral("I")) {
-        return QObject::tr("No motion vectors are expected for this I-frame.");
+        return QObject::tr("MV: none expected for I-frame.");
     }
 
     if (analysis.frameType == QStringLiteral("B")
         || frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
-        return QObject::tr("B-slice motion vector parsing is not implemented yet.");
+        return QObject::tr("MV: B-slice parsing not implemented.");
     }
 
     if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("cabac_unsupported"))) {
-        return QObject::tr("CABAC macroblock and motion vector parsing is not implemented yet.");
+        return QObject::tr("MV: CABAC parsing not implemented.");
     }
 
     if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))) {
-        return QObject::tr("P_8x8 sub-macroblock motion vector parsing is not implemented yet.");
+        return QObject::tr("MV: P_8x8 parsing not implemented.");
     }
 
     if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("interlaced_or_fmo_unsupported"))) {
-        return QObject::tr("Interlaced/MBAFF or FMO motion vector parsing is not implemented yet.");
+        return QObject::tr("MV: MBAFF/FMO parsing not implemented.");
     }
 
-    return QObject::tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors.");
+    return QObject::tr("MV: no supported vectors parsed for this frame.");
 }
 
 QString safeInstallerFileName(QString fileName)
@@ -511,6 +511,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_seekCheckpoints.clear();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
+    m_preserveFrameListScroll = false;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
     updateExportActionState();
@@ -524,6 +525,7 @@ void MainWindow::startDecoder(const QString &filePath,
                               bool pauseAfterFirstFrame,
                               const FrameSeekCheckpoint &seekCheckpoint)
 {
+    const int generation = ++m_decoderGeneration;
     stopDecoder();
 
     m_decodeThread = new QThread(this);
@@ -572,10 +574,18 @@ void MainWindow::startDecoder(const QString &filePath,
     });
 
     connect(m_decodeWorker, &DecodeWorker::frameReady,
-            this, &MainWindow::handleFrameReady,
+            this, [this, generation](int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis) {
+                if (generation == m_decoderGeneration) {
+                    handleFrameReady(frameIndex, frame, analysis);
+                }
+            },
             Qt::QueuedConnection);
     connect(m_decodeWorker, &DecodeWorker::seekCheckpointReady,
-            this, &MainWindow::handleSeekCheckpoint,
+            this, [this, generation](const FrameSeekCheckpoint &checkpoint) {
+                if (generation == m_decoderGeneration) {
+                    handleSeekCheckpoint(checkpoint);
+                }
+            },
             Qt::QueuedConnection);
     connect(m_decodeWorker, &DecodeWorker::logMessage,
             m_logDock, &LogDock::appendLine,
@@ -587,7 +597,10 @@ void MainWindow::startDecoder(const QString &filePath,
     connect(m_decodeWorker, &DecodeWorker::finished, m_decodeThread, &QThread::quit);
     connect(m_decodeWorker, &DecodeWorker::finished, m_decodeWorker, &QObject::deleteLater);
     connect(m_decodeThread, &QThread::finished, m_decodeThread, &QObject::deleteLater);
-    connect(m_decodeThread, &QThread::finished, this, [this]() {
+    connect(m_decodeThread, &QThread::finished, this, [this, generation]() {
+        if (generation != m_decoderGeneration) {
+            return;
+        }
         m_decodeThread = nullptr;
         m_decodeWorker = nullptr;
         m_playbackPaused = false;
@@ -653,6 +666,7 @@ void MainWindow::resumePlayback()
 
     m_decodeWorker->play();
     m_playbackPaused = false;
+    m_preserveFrameListScroll = false;
     updatePlaybackActionState();
     statusBar()->showMessage(tr("Playing"), 2000);
 }
@@ -1277,7 +1291,10 @@ void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
 void MainWindow::handleFrameListSelection(int frameIndex)
 {
     if (!m_decodeWorker.isNull()) {
-        pausePlayback();
+        m_decodeWorker->pause();
+        m_playbackPaused = true;
+        m_preserveFrameListScroll = true;
+        updatePlaybackActionState();
     }
     if (!showFrameFromCache(frameIndex, false, true)) {
         seekToFrame(frameIndex);
@@ -1303,7 +1320,11 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
             updateOverlayStatusHint(cached.analysis);
         }
         if (selectInList) {
-            m_frameListView->selectFrameIndex(frameIndex);
+            const bool scrollSelection = !m_playbackPaused && !m_preserveFrameListScroll;
+            m_frameListView->selectFrameIndex(frameIndex, scrollSelection);
+            if (!scrollSelection) {
+                m_preserveFrameListScroll = false;
+            }
         }
         updateFrameIndexDisplay();
         updateExportActionState();
@@ -1320,6 +1341,7 @@ void MainWindow::seekToFrame(int frameIndex)
     }
 
     m_playbackPaused = true;
+    m_preserveFrameListScroll = true;
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
     m_videoCanvas->setOverlayMessage(QString());
@@ -1468,7 +1490,7 @@ void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
 
         if (minQp == maxQp) {
             statusBar()->showMessage(
-                tr("QP heatmap: %1 values, QP %2 is constant; a flat color is expected.")
+                tr("QP heatmap: %1 values, constant QP %2.")
                     .arg(qpCount)
                     .arg(minQp),
                 4000);
@@ -1476,7 +1498,7 @@ void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
         }
 
         statusBar()->showMessage(
-            tr("QP heatmap: %1 values, range %2 - %3. Lower QP is greener; higher QP is redder.")
+            tr("QP heatmap: %1 values, range %2 - %3.")
                 .arg(qpCount)
                 .arg(minQp)
                 .arg(maxQp),

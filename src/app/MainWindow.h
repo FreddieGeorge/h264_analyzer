@@ -127,7 +127,9 @@ private:
     QVector<CachedFrame> m_frameCache;
     QVector<FrameAnalysis> m_frameAnalysisByIndex;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
+    int m_decoderGeneration = 0;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;
     bool m_playbackPaused = false;
+    bool m_preserveFrameListScroll = false;
 };

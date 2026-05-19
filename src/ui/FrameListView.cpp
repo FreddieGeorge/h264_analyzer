@@ -1,6 +1,8 @@
 #include "ui/FrameListView.h"
 
+#include <QScrollBar>
 #include <QSignalBlocker>
+#include <QTimer>
 #include <QTreeWidgetItem>
 #include <QVariant>
 
@@ -77,14 +79,37 @@ void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
     addTopLevelItem(item);
 }
 
-bool FrameListView::selectFrameIndex(int frameIndex)
+bool FrameListView::selectFrameIndex(int frameIndex, bool scrollToSelection)
 {
+    const int verticalScrollValue = verticalScrollBar() != nullptr ? verticalScrollBar()->value() : 0;
+    const int horizontalScrollValue = horizontalScrollBar() != nullptr ? horizontalScrollBar()->value() : 0;
+    auto restoreScrollPosition = [this, scrollToSelection, verticalScrollValue, horizontalScrollValue]() {
+        if (scrollToSelection) {
+            return;
+        }
+        if (verticalScrollBar() != nullptr) {
+            verticalScrollBar()->setValue(verticalScrollValue);
+        }
+        if (horizontalScrollBar() != nullptr) {
+            horizontalScrollBar()->setValue(horizontalScrollValue);
+        }
+    };
+    auto restoreScrollPositionLater = [this, scrollToSelection, restoreScrollPosition]() {
+        if (!scrollToSelection) {
+            QTimer::singleShot(0, this, restoreScrollPosition);
+        }
+    };
+
     if (frameIndex >= 0 && frameIndex < topLevelItemCount()) {
         QTreeWidgetItem *item = topLevelItem(frameIndex);
         if (item->data(0, FrameIndexRole).toInt() == frameIndex) {
             const QSignalBlocker blocker(this);
             setCurrentItem(item);
-            scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            if (scrollToSelection) {
+                scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            }
+            restoreScrollPosition();
+            restoreScrollPositionLater();
             return true;
         }
     }
@@ -99,7 +124,11 @@ bool FrameListView::selectFrameIndex(int frameIndex)
         if (value.toInt() == frameIndex) {
             const QSignalBlocker blocker(this);
             setCurrentItem(item);
-            scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            if (scrollToSelection) {
+                scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            }
+            restoreScrollPosition();
+            restoreScrollPositionLater();
             return true;
         }
     }
