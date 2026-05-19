@@ -367,6 +367,19 @@ void testTruncatedPSliceDataReportsDiagnostic()
     require(!slice.macroblocks.first().parsed, "truncated P fixture macroblock is not marked parsed");
     require(!slice.macroblockParseWarnings.isEmpty(), "truncated P fixture warning text");
 }
+
+void testTruncatedSliceHeaderReportsDiagnostic()
+{
+    H264Parser parser;
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("truncated_slice_header.hex")), 0, 0, 0);
+    require(frame.nalus.size() == 3, "truncated header fixture NALU count");
+    const SliceInfo &slice = firstSlice(frame, "truncated header fixture has diagnostic slice");
+    require(!slice.valid, "truncated header fixture slice is invalid");
+    require(hasDiagnosticCode(slice, QStringLiteral("slice_header_truncated")),
+            "truncated header fixture reports structured diagnostic");
+    require(slice.macroblocks.isEmpty(), "truncated header fixture has no macroblock data");
+    require(!slice.macroblockParseWarnings.isEmpty(), "truncated header fixture warning text");
+}
 }
 
 int main()
@@ -384,6 +397,7 @@ int main()
     testCavlcPResidualContinuesToMotionVectorFixture();
     testUnsupportedCabacFixtureReportsDiagnostic();
     testTruncatedPSliceDataReportsDiagnostic();
+    testTruncatedSliceHeaderReportsDiagnostic();
     std::cout << "H264Parser tests passed\n";
     return 0;
 }

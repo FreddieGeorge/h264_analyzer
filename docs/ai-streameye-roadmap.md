@@ -51,6 +51,8 @@ Current status:
 - Common CAVLC I/P macroblocks, QP, residual block/coefficient counts, and
   P-slice L0 motion vectors are partially parsed.
 - Unsupported CABAC has regression coverage and reports structured diagnostics.
+- Truncated slice headers have regression coverage and report
+  `slice_header_truncated` without inventing macroblock data.
 - Truncated P-slice `slice_data` has regression coverage and reports
   `slice_data_truncated` while preserving estimated macroblock data.
 

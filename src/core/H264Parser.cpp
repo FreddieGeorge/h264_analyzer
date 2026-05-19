@@ -213,9 +213,9 @@ FrameSyntaxInfo H264Parser::parsePacketSyntax(const QByteArray &packetData, qint
         if (nalu.pps.valid) {
             m_ppsById.insert(nalu.pps.picParameterSetId, nalu.pps);
         }
-        if (nalu.slice.valid) {
+        if (nalu.slice.valid || !nalu.slice.diagnostics.isEmpty()) {
             frame.slices.append(nalu.slice);
-            if (frame.frameNum < 0) {
+            if (nalu.slice.valid && frame.frameNum < 0) {
                 frame.frameNum = nalu.slice.frameNum;
                 frame.poc = nalu.slice.picOrderCntLsb;
                 frame.frameType = nalu.slice.sliceTypeName;
@@ -711,6 +711,15 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
         addField(name, start, reader.bitOffset(), QString::number(value));
         return value;
     };
+    auto appendDiagnostic = [&slice](const QString &code, const QString &message) {
+        slice.diagnostics.append({code, message});
+        slice.macroblockParseWarnings.append(message);
+    };
+    auto appendHeaderTruncated = [&appendDiagnostic]() {
+        appendDiagnostic(
+            QStringLiteral("slice_header_truncated"),
+            QStringLiteral("slice header ended unexpectedly; slice_data was not parsed."));
+    };
 
     slice.nalUnitType = nalUnitType;
     slice.nalRefIdc = nalRefIdc;
@@ -718,10 +727,18 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
     slice.sliceType = static_cast<int>(readUEField(QStringLiteral("slice_type")));
     slice.sliceTypeName = sliceTypeName(slice.sliceType);
     slice.picParameterSetId = static_cast<int>(readUEField(QStringLiteral("pic_parameter_set_id")));
+    if (reader.hasError()) {
+        appendHeaderTruncated();
+        slice.valid = false;
+        return slice;
+    }
 
     const PpsInfo pps = m_ppsById.value(slice.picParameterSetId);
     const SpsInfo sps = m_spsById.value(pps.seqParameterSetId);
     if (!pps.valid || !sps.valid) {
+        if (reader.hasError()) {
+            appendHeaderTruncated();
+        }
         slice.valid = !reader.hasError();
         return slice;
     }
@@ -927,6 +944,9 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
         }
     }
     slice.derivedQp = std::clamp(26 + pps.picInitQpMinus26 + slice.sliceQpDelta, 0, 51);
+    if (reader.hasError()) {
+        appendHeaderTruncated();
+    }
     slice.valid = !reader.hasError();
 
     if (slice.valid) {

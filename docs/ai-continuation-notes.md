@@ -75,6 +75,8 @@ Implemented capabilities:
 - Truncated P-slice fixture coverage verifies structured `slice_data_truncated`
   diagnostics and keeps estimated macroblock data instead of dropping the
   interrupted macroblock.
+- Truncated slice-header fixture coverage verifies structured
+  `slice_header_truncated` diagnostics without inventing macroblock data.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 - Tag-triggered release workflow for versioned Windows portable zips.
 
