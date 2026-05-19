@@ -88,6 +88,20 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         FrameAnalysis analysis = decoder.lastFrameAnalysis();
         analysis.frameIndex = frameIndex;
         analysis.pts = copy ? copy->pts : analysis.pts;
+        if (analysis.codecKind == CodecKind::Unknown) {
+            analysis.codecKind = streamInfo.codecKind;
+            analysis.codecName = streamInfo.codecName.isEmpty()
+                ? codecKindName(streamInfo.codecKind)
+                : streamInfo.codecName;
+            if (streamInfo.codecKind != CodecKind::H264) {
+                analysis.diagnostics.append({
+                    QStringLiteral("frame"),
+                    QStringLiteral("codec_analysis_unsupported"),
+                    tr("Playback is available, but bitstream syntax analysis is not implemented for this codec yet."),
+                    QStringLiteral("info")
+                });
+            }
+        }
         FrameSeekCheckpoint seekCheckpoint = decoder.lastFrameSeekCheckpoint();
         seekCheckpoint.frameIndex = frameIndex;
         if ((seekCheckpoint.keyframe || seekCheckpoint.idr || frameIndex == 0)

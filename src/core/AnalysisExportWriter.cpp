@@ -161,6 +161,7 @@ QJsonObject streamInfoToJson(const StreamInfo &stream)
         {QStringLiteral("file_name"), stream.fileName},
         {QStringLiteral("absolute_file_path"), QDir::toNativeSeparators(stream.absoluteFilePath)},
         {QStringLiteral("size_bytes"), static_cast<double>(stream.sizeBytes)},
+        {QStringLiteral("codec"), codecKindName(stream.codecKind)},
         {QStringLiteral("codec_name"), stream.codecName},
         {QStringLiteral("pixel_format"), stream.pixelFormatName},
         {QStringLiteral("width"), stream.width},

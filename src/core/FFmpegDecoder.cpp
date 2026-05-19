@@ -15,6 +15,27 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
+namespace
+{
+CodecKind codecKindFromAvCodecId(AVCodecID codecId)
+{
+    switch (codecId) {
+    case AV_CODEC_ID_H264:
+        return CodecKind::H264;
+    case AV_CODEC_ID_HEVC:
+        return CodecKind::HEVC;
+    case AV_CODEC_ID_AV1:
+        return CodecKind::AV1;
+    case AV_CODEC_ID_VP9:
+        return CodecKind::VP9;
+    case AV_CODEC_ID_VVC:
+        return CodecKind::VVC;
+    default:
+        return CodecKind::Unknown;
+    }
+}
+}
+
 FFmpegDecoder::FFmpegDecoder()
 {
     m_packet = av_packet_alloc();
@@ -101,6 +122,7 @@ bool FFmpegDecoder::openFile(const QString &filePath)
     m_streamInfo.fileName = info.fileName();
     m_streamInfo.directory = info.absolutePath();
     m_streamInfo.sizeBytes = info.size();
+    m_streamInfo.codecKind = codecKindFromAvCodecId(m_codecContext->codec_id);
     m_streamInfo.codecName = QString::fromUtf8(decoder->name);
     const char *pixelFormatName = av_get_pix_fmt_name(m_codecContext->pix_fmt);
     m_streamInfo.pixelFormatName = pixelFormatName != nullptr

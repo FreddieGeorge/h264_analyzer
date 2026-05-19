@@ -29,6 +29,11 @@ void StreamDocument::clear()
     m_streamInfo = StreamInfo {};
 }
 
+void StreamDocument::updateStreamInfo(const StreamInfo &streamInfo)
+{
+    m_streamInfo = streamInfo;
+}
+
 const StreamInfo &StreamDocument::streamInfo() const
 {
     return m_streamInfo;

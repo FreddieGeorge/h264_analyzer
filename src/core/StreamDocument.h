@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/CodecKind.h"
+
 #include <QString>
 #include <QtGlobal>
 
@@ -8,6 +10,7 @@ struct StreamInfo
     QString absoluteFilePath;
     QString fileName;
     QString directory;
+    CodecKind codecKind = CodecKind::Unknown;
     QString codecName;
     QString pixelFormatName;
     qint64 sizeBytes = 0;
@@ -24,6 +27,7 @@ class StreamDocument
 public:
     bool openFile(const QString &filePath, QString *errorMessage = nullptr);
     void clear();
+    void updateStreamInfo(const StreamInfo &streamInfo);
 
     const StreamInfo &streamInfo() const;
 

@@ -462,6 +462,28 @@ void MainWindow::startDecoder(const QString &filePath,
     });
 
     connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this](const StreamInfo &streamInfo) {
+        m_document.updateStreamInfo(streamInfo);
+        const QString streamSummary = tr("Codec: %1, %2x%3, %4 fps, %5")
+                                          .arg(streamInfo.codecName)
+                                          .arg(streamInfo.width)
+                                          .arg(streamInfo.height)
+                                          .arg(streamInfo.frameRate, 0, 'f', 3)
+                                          .arg(streamInfo.pixelFormatName);
+        if (streamInfo.codecKind != CodecKind::H264) {
+            const QString unsupportedMessage =
+                tr("%1\n\nPlayback is available, but bitstream syntax analysis is not implemented for this codec yet.")
+                    .arg(streamSummary);
+            statusBar()->showMessage(
+                tr("Playback only: %1 bitstream analysis is not supported yet.")
+                    .arg(codecKindName(streamInfo.codecKind)),
+                7000);
+            m_logDock->appendLine(
+                tr("[Info] %1 bitstream analysis is not supported yet; playback will continue without syntax overlays.")
+                    .arg(codecKindName(streamInfo.codecKind)));
+            m_propertyTreeView->showPlaceholder(unsupportedMessage);
+            return;
+        }
+
         statusBar()->showMessage(
             tr("Decoding %1 (%2x%3, %4 fps)")
                 .arg(streamInfo.fileName)
@@ -469,13 +491,7 @@ void MainWindow::startDecoder(const QString &filePath,
                 .arg(streamInfo.height)
                 .arg(streamInfo.frameRate, 0, 'f', 3),
             5000);
-        m_propertyTreeView->showPlaceholder(
-            tr("Codec: %1, %2x%3, %4 fps, %5")
-                .arg(streamInfo.codecName)
-                .arg(streamInfo.width)
-                .arg(streamInfo.height)
-                .arg(streamInfo.frameRate, 0, 'f', 3)
-                .arg(streamInfo.pixelFormatName));
+        m_propertyTreeView->showPlaceholder(streamSummary);
     });
 
     connect(m_decodeWorker, &DecodeWorker::frameReady,
@@ -1228,8 +1244,8 @@ void MainWindow::seekToFrame(int frameIndex)
     m_playbackPaused = true;
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
-    m_videoCanvas->setOverlayMessage(QStringLiteral("Buffering frame %1...").arg(frameIndex + 1));
-    statusBar()->showMessage(tr("Buffering to frame %1").arg(frameIndex + 1), 3000);
+    m_videoCanvas->setOverlayMessage(QString());
+    statusBar()->showMessage(QStringLiteral("Buffering frame %1...").arg(frameIndex + 1), 3000);
 
     FrameSeekCheckpoint checkpoint;
     for (const FrameSeekCheckpoint &candidate : std::as_const(m_seekCheckpoints)) {
