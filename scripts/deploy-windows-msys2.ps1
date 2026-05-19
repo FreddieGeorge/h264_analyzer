@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildPath = Join-Path $repoRoot $BuildDir
 $distPath = Join-Path $repoRoot $DistDir
+$binPath = Join-Path $distPath "bin"
 
 function Resolve-MsysRoot {
     param([string]$ExplicitRoot)
@@ -153,29 +154,29 @@ if (Test-Path $distPath) {
     Remove-Item -LiteralPath $distPath -Recurse -Force
 }
 
-New-Item -ItemType Directory -Force -Path $distPath | Out-Null
-Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $distPath "ZStreamEye.exe")
+New-Item -ItemType Directory -Force -Path $binPath | Out-Null
+Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $binPath "ZStreamEye.exe")
 
 Write-Host "Deploying Qt runtime and plugins..."
 & $windeployqt `
-    --dir $distPath `
+    --dir $binPath `
     --compiler-runtime `
     --no-translations `
     --no-system-d3d-compiler `
     --no-opengl-sw `
-    (Join-Path $distPath "ZStreamEye.exe")
+    (Join-Path $binPath "ZStreamEye.exe")
 
 Write-Host "Collecting FFmpeg/MSYS2 runtime DLL closure..."
-Copy-MsysRuntimeClosure -TargetDir $distPath
+Copy-MsysRuntimeClosure -TargetDir $binPath
 
 $readmePath = Join-Path $distPath "README-RUN.txt"
 @"
 ZStreamEye Windows portable package
 
 Run:
-  ZStreamEye.exe
+  bin\ZStreamEye.exe
 
-This folder contains the Qt, FFmpeg and MSYS2 UCRT64 runtime DLLs required by the application.
+The bin folder contains ZStreamEye.exe plus the Qt, FFmpeg and MSYS2 UCRT64 runtime DLLs required by the application.
 No MSYS2, Qt or FFmpeg installation is required on the target machine.
 "@ | Set-Content -Path $readmePath -Encoding ASCII
 

@@ -319,7 +319,7 @@ void MainWindow::createDocks()
     m_logDockWidget->setWidget(m_logDock);
     addDockWidget(Qt::BottomDockWidgetArea, m_logDockWidget);
 
-    m_videoCanvas->setOverlayMessage(tr("Open an H.264 stream to begin."));
+    m_videoCanvas->setOverlayMessage(tr("Open a video or H.264 stream to begin."));
 }
 
 void MainWindow::createMenus()
@@ -392,9 +392,12 @@ void MainWindow::openStream()
 {
     const QString filePath = QFileDialog::getOpenFileName(
         this,
-        tr("Open H.264 Stream"),
+        tr("Open Video or Bitstream"),
         defaultOpenDirectory(),
-        tr("H.264 bitstream (*.264 *.h264 *.es *.bin);;All Files (*)"));
+        tr("Video and bitstream files (*.264 *.h264 *.avc *.h265 *.hevc *.mp4 *.m4v *.mov *.mkv *.avi *.ts *.m2ts *.mts *.webm *.flv *.wmv *.mpg *.mpeg *.3gp *.mp5 *.es *.bin);;"
+           "H.264 bitstream (*.264 *.h264 *.avc *.es *.bin);;"
+           "MP4 / MOV (*.mp4 *.m4v *.mov);;"
+           "All Files (*)"));
 
     if (filePath.isEmpty()) {
         return;
@@ -885,7 +888,8 @@ void MainWindow::showAboutDialog()
            "Open source project. See the repository for license and release information.")
             .arg(QCoreApplication::applicationVersion()));
     QPushButton *githubButton = aboutBox.addButton(tr("Open GitHub"), QMessageBox::ActionRole);
-    aboutBox.addButton(QMessageBox::Ok);
+    QPushButton *closeButton = aboutBox.addButton(QMessageBox::Close);
+    aboutBox.setEscapeButton(closeButton);
     aboutBox.exec();
     if (aboutBox.clickedButton() == githubButton) {
         QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/FreddieGeorge/ZStreamEye")));
