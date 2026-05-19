@@ -356,19 +356,22 @@ Suggested files:
 
 ## Suggested Next Commit Order
 
-Good focused commits:
+The project has already completed most of the codec-neutral `FrameAnalysis`
+migration, so the next work should emphasize release confidence, seek/rebuffer
+polish, and H.264 trustworthiness before starting a full HEVC parser. Good
+focused commits:
 
 ```text
-Add codec-neutral frame analysis model
-Move H264 syntax into codec-specific analysis details
-Add bitstream hex view and field navigation
-Track H264 DPB and reference pictures
+Add packaged Windows layout smoke validation
+Cancel stale checkpoint rebuffer requests
+Show progress while buffering old frames
+Expose H264 residual coefficient details
+Add H264 P8x8 parser fixtures
 Parse H264 P8x8 sub-macroblock motion vectors
-Parse H264 B-slice motion vectors
-Add QP bitrate and block-type statistics
-Add reference YUV reader and PSNR metric
-Add HEVC VPS SPS PPS parser skeleton
-Add CLI analysis report mode
+Add bitstream hex dock skeleton
+Link property fields to bit offsets
+Add QP and frame-type statistics dock
+Add HEVC parser skeleton with graceful unsupported UI
 ```
 
 ## Notes For Future Agents

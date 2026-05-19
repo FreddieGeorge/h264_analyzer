@@ -233,11 +233,11 @@ Key modules:
 
 Recommended next work:
 
-1. Expose richer residual coefficient details and broaden macroblock support.
-2. Introduce a codec-neutral `FrameAnalysis` model before adding HEVC/H.265.
-3. Add P_8x8 / P_8x8ref0 sub-macroblock parsing.
-4. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
-5. Add Linux CI once Qt/FFmpeg package availability is stable enough.
+1. Smoke-test the latest Windows installer/portable release and upgrade path.
+2. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
+3. Expose richer residual coefficient details and broaden macroblock support.
+4. Add P_8x8 / P_8x8ref0 parser fixtures and sub-macroblock parsing.
+5. Add a bitstream hex dock linked to existing syntax field bit offsets.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

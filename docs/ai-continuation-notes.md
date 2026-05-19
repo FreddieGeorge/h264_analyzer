@@ -126,6 +126,26 @@ Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. Use the portable fold
 
 ## Highest Priority Improvements
 
+Recommended next direction for the next AI/coding session:
+
+1. First verify the `v0.1.7` GitHub release artifacts and upgrade path. Install
+   or upgrade from `v0.1.6`, confirm that the install root keeps only the
+   launcher and support files, and confirm that Qt/FFmpeg/MSYS2 DLLs live under
+   `runtime/`.
+2. Then improve the old-frame seek/rebuffer experience. Add cancellation for
+   stale checkpoint rebuffer requests, add visible progress, and keep the
+   behavior stable for both raw Annex B `.264` files and containers such as
+   `.mp4`/`.mkv`.
+3. Continue H.264 correctness work before adding a full new codec. Prefer
+   residual coefficient details, P_8x8/sub-macroblock parsing fixtures, and
+   B-slice motion-vector diagnostics/support over CABAC.
+4. Start Stage 3 only after the seek/rebuffer path is comfortable: add a
+   bitstream hex dock and connect existing syntax field bit offsets to
+   selection/highlighting.
+5. Use a thin HEVC/unknown-codec parser skeleton later to prove that the
+   codec-neutral `FrameAnalysis` UI/export path degrades gracefully, but do not
+   start a large HEVC parser before the H.264 parser is more trusted.
+
 ### 1. Real Random Access And Seeking
 
 Current behavior:
@@ -201,6 +221,12 @@ Completed fixture coverage:
 - CAVLC P-slice skip macroblock
 - CAVLC P-slice with non-zero L0 motion vector
 - Unsupported CABAC stream that reports a structured diagnostic and does not crash
+- Truncated slice headers that report `slice_header_truncated`
+- Truncated P-slice data that reports `slice_data_truncated`
+- Malformed AVCC length-prefixed packets that report
+  `avcc_nalu_length_exceeds_packet`
+- Truncated SPS/PPS NALUs that report `sps_truncated` / `pps_truncated`
+  without caching invalid parameter sets
 
 Recommended remaining improvement:
 
@@ -298,19 +324,28 @@ Current CI:
 
 - Windows MSYS2 configure/build/test/package workflow exists.
 - Portable zip is uploaded as a retained, SHA-named artifact.
-- Release workflow creates versioned Windows portable zips for `v*` tags.
+- Release workflow creates versioned Windows portable zips and Inno Setup
+  installers for `v*` tags.
+- Windows packages use a root `ZStreamEye.exe` launcher and group the real Qt
+  app plus runtime DLLs/plugins under `runtime/`.
 
 Implemented:
 
 - Add workflow status badge to README.
 - Add release workflow triggered by tags.
 - Add artifact retention and versioned zip names.
+- Add release notes files under `docs/releases/<tag>.md`; the release workflow
+  uses them as GitHub Release bodies.
 
 Recommended remaining improvement:
 
+- After each tagged Windows release, manually smoke-test the installer and
+  portable zip before announcing the release.
+- Add a packaged-app smoke test that checks the root launcher starts the app and
+  that no DLLs are left in the package/install root.
 - Run tests on Linux too if Qt/FFmpeg packages are stable enough.
 - Cache MSYS2 packages if workflow time becomes painful.
-- Add a small smoke test that runs the parser test binary from the packaged environment.
+- Consider code signing later to remove the Windows "Unknown publisher" warning.
 
 Suggested files:
 
@@ -320,7 +355,6 @@ Suggested files:
 
 ## Lower Priority Ideas
 
-- Add a codec-neutral `FrameAnalysis` model before exposing HEVC/H.265 in the UI.
 - Add support for HEVC/H.265 as a separate parser module after H.264 is more mature.
 - Add side-by-side frame comparison.
 - Add search/filter in property tree.
@@ -335,16 +369,16 @@ Suggested files:
 Use focused commits. Good examples:
 
 ```text
-Add indexed frame seek checkpoints
-Parse CAVLC residual coefficients
-Continue macroblock parsing after residual data
-Parse P8x8 sub-macroblock motion vectors
-Add parser fixture bitstreams
-Persist overlay and window settings
-Improve export writers and metadata
-Add release workflow for tagged builds
-Introduce codec-neutral parser interface
-Add codec-neutral frame analysis model
+Add packaged Windows layout smoke validation
+Cancel stale checkpoint rebuffer requests
+Show progress while buffering old frames
+Expose H264 residual coefficient details
+Add H264 P8x8 parser fixtures
+Parse H264 P8x8 sub-macroblock motion vectors
+Add bitstream hex dock skeleton
+Link property fields to bit offsets
+Add QP and frame-type statistics dock
+Add HEVC parser skeleton with graceful unsupported UI
 ```
 
 ## Quick Orientation For Future Agents
