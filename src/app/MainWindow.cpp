@@ -19,6 +19,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
@@ -115,6 +116,29 @@ QString compactReleaseNotes(QString body)
         body = body.left(1200).trimmed() + QStringLiteral("...");
     }
     return body;
+}
+
+QString releaseAssetDownloadUrl(const QJsonObject &release, const QRegularExpression &namePattern)
+{
+    const QJsonArray assets = release.value(QStringLiteral("assets")).toArray();
+    for (const QJsonValue &assetValue : assets) {
+        if (!assetValue.isObject()) {
+            continue;
+        }
+
+        const QJsonObject asset = assetValue.toObject();
+        const QString name = asset.value(QStringLiteral("name")).toString();
+        if (!namePattern.match(name).hasMatch()) {
+            continue;
+        }
+
+        const QString downloadUrl = asset.value(QStringLiteral("browser_download_url")).toString().trimmed();
+        if (!downloadUrl.isEmpty()) {
+            return downloadUrl;
+        }
+    }
+
+    return QString {};
 }
 
 }
@@ -646,7 +670,7 @@ void MainWindow::exportScreenshot()
     const QString filePath = QFileDialog::getSaveFileName(
         this,
         tr("Export Screenshot"),
-        QDir(defaultExportDirectory()).filePath(QStringLiteral("h264-analyzer-screenshot.png")),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("zstreameye-screenshot.png")),
         tr("PNG Images (*.png);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -713,6 +737,12 @@ void MainWindow::checkForUpdates()
         const QString tagName = release.value(QStringLiteral("tag_name")).toString().trimmed();
         const QString releasePage = release.value(QStringLiteral("html_url")).toString().trimmed();
         const QString releaseNotes = compactReleaseNotes(release.value(QStringLiteral("body")).toString());
+        const QString installerDownloadUrl = releaseAssetDownloadUrl(
+            release,
+            QRegularExpression(QStringLiteral("^ZStreamEye-.+-windows-ucrt64-setup\\.exe$")));
+        const QString portableDownloadUrl = releaseAssetDownloadUrl(
+            release,
+            QRegularExpression(QStringLiteral("^ZStreamEye-.+-windows-ucrt64\\.zip$")));
         const QString currentVersion = QCoreApplication::applicationVersion();
 
         if (tagName.isEmpty() || releasePage.isEmpty()) {
@@ -740,16 +770,29 @@ void MainWindow::checkForUpdates()
         messageBox.setIcon(QMessageBox::Information);
         messageBox.setText(tr("A new ZStreamEye release is available."));
         messageBox.setInformativeText(
-            tr("Current version: %1\nLatest release: %2").arg(currentVersion, tagName));
+            tr("Current version: %1\nLatest release: %2\n\nDownload the installer, then run it to update ZStreamEye.")
+                .arg(currentVersion, tagName));
         if (!releaseNotes.isEmpty()) {
             messageBox.setDetailedText(releaseNotes);
         }
 
+        QPushButton *downloadInstallerButton = nullptr;
+        QPushButton *downloadPortableButton = nullptr;
+        if (!installerDownloadUrl.isEmpty()) {
+            downloadInstallerButton = messageBox.addButton(tr("Download Installer"), QMessageBox::AcceptRole);
+        }
+        if (!portableDownloadUrl.isEmpty()) {
+            downloadPortableButton = messageBox.addButton(tr("Download Portable ZIP"), QMessageBox::ActionRole);
+        }
         QPushButton *openButton = messageBox.addButton(tr("Open Release Page"), QMessageBox::AcceptRole);
         messageBox.addButton(QMessageBox::Close);
         messageBox.exec();
 
-        if (messageBox.clickedButton() == openButton) {
+        if (messageBox.clickedButton() == downloadInstallerButton) {
+            QDesktopServices::openUrl(QUrl(installerDownloadUrl));
+        } else if (messageBox.clickedButton() == downloadPortableButton) {
+            QDesktopServices::openUrl(QUrl(portableDownloadUrl));
+        } else if (messageBox.clickedButton() == openButton) {
             QDesktopServices::openUrl(QUrl(releasePage));
         }
 

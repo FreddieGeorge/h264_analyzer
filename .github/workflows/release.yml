@@ -31,6 +31,10 @@ jobs:
           if ($tagVersion -ne $projectVersion) {
             throw "Release tag version ($tagVersion) must match CMake project version ($projectVersion)"
           }
+          $releaseNotes = "docs/releases/${{ github.ref_name }}.md"
+          if (-not (Test-Path $releaseNotes)) {
+            throw "Release notes file is required: $releaseNotes"
+          }
 
       - name: Set up MSYS2 UCRT64
         id: msys2
@@ -96,7 +100,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: docs/releases/${{ github.ref_name }}.md
           fail_on_unmatched_files: true
           make_latest: true
           files: |

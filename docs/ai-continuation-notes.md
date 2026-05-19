@@ -120,6 +120,9 @@ Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. Use the portable fold
   - `mapVideoPointToWidget()`
   - `macroblockWidgetRect()`
 - After meaningful code changes, run build and tests. If deployment script changes, run the deployment script too.
+- For every release tag, add `docs/releases/<tag>.md` before pushing the tag.
+  The release workflow uses that file as the GitHub Release body and fails if
+  it is missing. Do not rely on auto-generated release notes.
 
 ## Highest Priority Improvements
 

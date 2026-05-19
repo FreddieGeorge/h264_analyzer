@@ -1,6 +1,6 @@
 #define AppName "ZStreamEye"
 #ifndef AppVersion
-#define AppVersion "0.1.1"
+#define AppVersion "0.1.2"
 #endif
 #ifndef SourceDir
 #define SourceDir "..\dist\ZStreamEye-windows-ucrt64"
