@@ -205,7 +205,7 @@ FrameSyntaxInfo H264Parser::parsePacketSyntax(const QByteArray &packetData, qint
     frame.pts = pts;
     frame.dts = dts;
 
-    frame.nalus = splitNalus(packetData);
+    frame.nalus = splitNalus(packetData, &frame.diagnostics);
     for (NaluInfo &nalu : frame.nalus) {
         if (nalu.sps.valid) {
             m_spsById.insert(nalu.sps.seqParameterSetId, nalu.sps);
@@ -291,11 +291,11 @@ qint32 H264Parser::decodeSignedExpGolombForTest(const QByteArray &data, bool *ok
 }
 #endif
 
-QVector<NaluInfo> H264Parser::splitNalus(const QByteArray &packetData)
+QVector<NaluInfo> H264Parser::splitNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics)
 {
     return hasAnnexBStartCode(packetData)
         ? splitAnnexBNalus(packetData)
-        : splitLengthPrefixedNalus(packetData);
+        : splitLengthPrefixedNalus(packetData, diagnostics);
 }
 
 QVector<NaluInfo> H264Parser::splitAnnexBNalus(const QByteArray &packetData)
@@ -329,18 +329,38 @@ QVector<NaluInfo> H264Parser::splitAnnexBNalus(const QByteArray &packetData)
     return nalus;
 }
 
-QVector<NaluInfo> H264Parser::splitLengthPrefixedNalus(const QByteArray &packetData)
+QVector<NaluInfo> H264Parser::splitLengthPrefixedNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics)
 {
     QVector<NaluInfo> nalus;
     qsizetype offset = 0;
+    auto appendDiagnostic = [diagnostics](const QString &code, const QString &message) {
+        if (diagnostics != nullptr) {
+            diagnostics->append({code, message});
+        }
+    };
 
     while (offset + m_nalLengthSize <= packetData.size()) {
+        const qsizetype lengthOffset = offset;
         const int naluLength = readBigEndianLength(
             reinterpret_cast<const uint8_t *>(packetData.constData() + offset),
             m_nalLengthSize);
         offset += m_nalLengthSize;
 
-        if (naluLength <= 0 || offset + naluLength > packetData.size()) {
+        if (naluLength <= 0) {
+            appendDiagnostic(
+                QStringLiteral("avcc_invalid_nalu_length"),
+                QStringLiteral("Length-prefixed packet contains a non-positive NALU length at byte %1.")
+                    .arg(lengthOffset));
+            break;
+        }
+
+        if (offset + naluLength > packetData.size()) {
+            appendDiagnostic(
+                QStringLiteral("avcc_nalu_length_exceeds_packet"),
+                QStringLiteral("Length-prefixed NALU at byte %1 declares %2 bytes, but only %3 bytes remain.")
+                    .arg(lengthOffset)
+                    .arg(naluLength)
+                    .arg(packetData.size() - offset));
             break;
         }
 
@@ -350,6 +370,14 @@ QVector<NaluInfo> H264Parser::splitLengthPrefixedNalus(const QByteArray &packetD
         const QByteArray nalu = packetData.mid(offset, naluLength);
         nalus.append(parseNaluPayload(base, nalu));
         offset += naluLength;
+    }
+
+    if (offset < packetData.size() && packetData.size() - offset < m_nalLengthSize) {
+        appendDiagnostic(
+            QStringLiteral("avcc_length_prefix_truncated"),
+            QStringLiteral("Length-prefixed packet ends with %1 trailing byte(s), shorter than the configured %2-byte NALU length field.")
+                .arg(packetData.size() - offset)
+                .arg(m_nalLengthSize));
     }
 
     return nalus;

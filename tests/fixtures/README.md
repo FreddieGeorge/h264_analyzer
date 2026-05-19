@@ -7,6 +7,7 @@ They are intentionally minimal parser fixtures, not visual-quality video clips:
 
 - `annexb_sps_pps_idr_i.hex`: Annex B SPS/PPS/IDR I-slice with one 16x16 macroblock.
 - `avcc_sps_pps.hex`: AVCC/length-prefixed SPS/PPS packet.
+- `avcc_length_exceeds_packet.hex`: AVCC/length-prefixed packet whose declared NALU length exceeds the available bytes.
 - `cavlc_i_qp_delta.hex`: CAVLC I-slice that exposes a non-zero `mb_qp_delta`.
 - `cavlc_p_skip.hex`: CAVLC P-slice skip macroblock.
 - `cavlc_p_motion_vector.hex`: CAVLC P-slice with a non-zero L0 motion vector delta.

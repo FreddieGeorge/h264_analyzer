@@ -14,6 +14,13 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
     analysis.hasFrame = !syntaxInfo.slices.isEmpty();
     analysis.codecSpecificDetails = QVariant::fromValue(syntaxInfo);
 
+    for (const ParserDiagnosticInfo &diagnostic : syntaxInfo.diagnostics) {
+        analysis.diagnostics.append({QStringLiteral("frame"),
+                                     diagnostic.code,
+                                     diagnostic.message,
+                                     QStringLiteral("warning")});
+    }
+
     auto appendBitFields = [&analysis](const QString &path, const QVector<SyntaxFieldInfo> &fields) {
         for (const SyntaxFieldInfo &field : fields) {
             AnalysisBitField bitField;

@@ -77,6 +77,9 @@ Implemented capabilities:
   interrupted macroblock.
 - Truncated slice-header fixture coverage verifies structured
   `slice_header_truncated` diagnostics without inventing macroblock data.
+- Malformed AVCC length-prefix fixture coverage verifies
+  `avcc_nalu_length_exceeds_packet` frame-level diagnostics, exposed through
+  both H.264 syntax export and codec-neutral `FrameAnalysis`.
 - GitHub Actions workflow for Windows MSYS2 build/test/package artifact.
 - Tag-triggered release workflow for versioned Windows portable zips.
 

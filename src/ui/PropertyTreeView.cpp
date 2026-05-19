@@ -224,6 +224,12 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
     addPair(frameRoot, tr("POC"), syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-"));
     addPair(frameRoot, tr("frame_num"), syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-"));
     addPair(frameRoot, tr("NALU count"), QString::number(syntaxInfo.nalus.size()));
+    if (!syntaxInfo.diagnostics.isEmpty()) {
+        auto *diagnosticsRoot = new QTreeWidgetItem(frameRoot, {tr("Parser diagnostics"), QString::number(syntaxInfo.diagnostics.size())});
+        for (const ParserDiagnosticInfo &diagnostic : syntaxInfo.diagnostics) {
+            addPair(diagnosticsRoot, diagnostic.code, diagnostic.message);
+        }
+    }
 
     auto *nalusRoot = new QTreeWidgetItem(parent, {tr("NAL Units"), QString::number(syntaxInfo.nalus.size())});
     for (int i = 0; i < syntaxInfo.nalus.size(); ++i) {

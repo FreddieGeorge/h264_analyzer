@@ -55,6 +55,8 @@ Current status:
   `slice_header_truncated` without inventing macroblock data.
 - Truncated P-slice `slice_data` has regression coverage and reports
   `slice_data_truncated` while preserving estimated macroblock data.
+- Malformed AVCC length-prefixed packets have regression coverage and report
+  `avcc_nalu_length_exceeds_packet` at frame level.
 
 Acceptance criteria:
 

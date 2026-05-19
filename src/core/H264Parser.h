@@ -185,6 +185,7 @@ struct FrameSyntaxInfo
     int poc = -1;
     int frameNum = -1;
     QString frameType;
+    QVector<ParserDiagnosticInfo> diagnostics;
     QVector<NaluInfo> nalus;
     QVector<SliceInfo> slices;
 };
@@ -225,9 +226,9 @@ public:
 private:
     class BitReader;
 
-    QVector<NaluInfo> splitNalus(const QByteArray &packetData);
+    QVector<NaluInfo> splitNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics);
     QVector<NaluInfo> splitAnnexBNalus(const QByteArray &packetData);
-    QVector<NaluInfo> splitLengthPrefixedNalus(const QByteArray &packetData);
+    QVector<NaluInfo> splitLengthPrefixedNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics);
     NaluInfo parseNaluPayload(const NaluInfo &base, const QByteArray &nalu);
     SpsInfo parseSps(const QByteArray &rbsp) const;
     PpsInfo parsePps(const QByteArray &rbsp) const;

@@ -167,6 +167,11 @@ QJsonObject streamInfoToJson(const StreamInfo &stream)
 
 QJsonObject h264FrameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
 {
+    QJsonArray diagnostics;
+    for (const ParserDiagnosticInfo &diagnostic : syntaxInfo.diagnostics) {
+        diagnostics.append(diagnosticToJson(diagnostic));
+    }
+
     QJsonArray nalus;
     for (const NaluInfo &nalu : syntaxInfo.nalus) {
         nalus.append(naluToJson(nalu));
@@ -186,6 +191,7 @@ QJsonObject h264FrameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
         {QStringLiteral("poc"), syntaxInfo.poc},
         {QStringLiteral("frame_num"), syntaxInfo.frameNum},
         {QStringLiteral("frame_type"), syntaxInfo.frameType},
+        {QStringLiteral("diagnostics"), diagnostics},
         {QStringLiteral("nalus"), nalus},
         {QStringLiteral("slices"), slices}
     };

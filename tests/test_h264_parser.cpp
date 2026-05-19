@@ -112,6 +112,26 @@ bool hasDiagnosticCode(const SliceInfo &slice, const QString &code)
     return false;
 }
 
+bool hasFrameDiagnosticCode(const FrameSyntaxInfo &frame, const QString &code)
+{
+    for (const ParserDiagnosticInfo &diagnostic : frame.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool hasAnalysisDiagnosticCode(const FrameAnalysis &analysis, const QString &code)
+{
+    for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QByteArray makeMinimalSpsNalu()
 {
     BitWriter rbsp;
@@ -213,6 +233,20 @@ void testAvccFixtureWithSpsPps()
     require(frame.nalus[1].pps.valid, "fixture AVCC PPS validity");
     require(frame.nalus[0].sps.width == 16, "fixture AVCC SPS width");
     require(frame.nalus[0].sps.height == 16, "fixture AVCC SPS height");
+}
+
+void testAvccLengthExceedsPacketReportsDiagnostic()
+{
+    H264Parser parser;
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("avcc_length_exceeds_packet.hex")), 0, 0, 0);
+    require(frame.nalus.isEmpty(), "AVCC overrun fixture has no complete NALU");
+    require(hasFrameDiagnosticCode(frame, QStringLiteral("avcc_nalu_length_exceeds_packet")),
+            "AVCC overrun fixture reports structured diagnostic");
+    require(frame.slices.isEmpty(), "AVCC overrun fixture has no slices");
+
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("avcc_length_exceeds_packet.hex")), 0, 0, 0);
+    require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("avcc_nalu_length_exceeds_packet")),
+            "AVCC overrun diagnostic is exposed in FrameAnalysis");
 }
 
 void testCavlcIFrameQpDeltaFixture()
@@ -389,6 +423,7 @@ int main()
     testAvccSps();
     testAnnexBFixtureWithIdr();
     testAvccFixtureWithSpsPps();
+    testAvccLengthExceedsPacketReportsDiagnostic();
     testCavlcIFrameQpDeltaFixture();
     testCavlcPSkipFixture();
     testCavlcPMotionVectorFixture();
