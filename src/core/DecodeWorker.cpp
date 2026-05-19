@@ -69,6 +69,11 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
     }
 
+    const int rebufferStartFrameIndex = frameIndex;
+    if (targetFrameIndex > rebufferStartFrameIndex) {
+        emit bufferingProgress(rebufferStartFrameIndex, rebufferStartFrameIndex, targetFrameIndex);
+    }
+
     bool firstEmittedFrame = true;
     while (!m_stopRequested.load()) {
         const bool emitThisFrame = frameIndex >= targetFrameIndex;
@@ -116,6 +121,16 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
         if (emitThisFrame && analysis.hasFrame) {
             emit frameAnalysisDecoded(analysis);
+        }
+
+        if (!emitThisFrame && targetFrameIndex > rebufferStartFrameIndex) {
+            const int bufferedFrames = frameIndex - rebufferStartFrameIndex + 1;
+            const int totalBufferedFrames = targetFrameIndex - rebufferStartFrameIndex;
+            if (bufferedFrames == 1
+                || bufferedFrames == totalBufferedFrames
+                || bufferedFrames % 10 == 0) {
+                emit bufferingProgress(rebufferStartFrameIndex, frameIndex, targetFrameIndex);
+            }
         }
 
         if (emitThisFrame && firstEmittedFrame) {

@@ -34,6 +34,7 @@ signals:
     void frameDecoded(const DecodedVideoFramePtr &frame);
     void frameAnalysisDecoded(const FrameAnalysis &analysis);
     void seekCheckpointReady(const FrameSeekCheckpoint &checkpoint);
+    void bufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex);
     void frameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void logMessage(const QString &message);
     void errorOccurred(const QString &message);

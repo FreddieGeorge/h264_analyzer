@@ -509,6 +509,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
     m_seekCheckpoints.clear();
+    m_bufferingTargetFrameIndex = -1;
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_preserveFrameListScroll = false;
@@ -540,7 +541,10 @@ void MainWindow::startDecoder(const QString &filePath,
         }
     });
 
-    connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this](const StreamInfo &streamInfo) {
+    connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this, generation](const StreamInfo &streamInfo) {
+        if (generation != m_decoderGeneration) {
+            return;
+        }
         m_document.updateStreamInfo(streamInfo);
         const QString streamSummary = tr("Codec: %1, %2x%3, %4 fps, %5")
                                           .arg(streamInfo.codecName)
@@ -587,10 +591,24 @@ void MainWindow::startDecoder(const QString &filePath,
                 }
             },
             Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::logMessage,
-            m_logDock, &LogDock::appendLine,
+    connect(m_decodeWorker, &DecodeWorker::bufferingProgress,
+            this, [this, generation](int startFrameIndex, int currentFrameIndex, int targetFrameIndex) {
+                if (generation == m_decoderGeneration) {
+                    handleBufferingProgress(startFrameIndex, currentFrameIndex, targetFrameIndex);
+                }
+            },
             Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::errorOccurred, this, [this](const QString &message) {
+    connect(m_decodeWorker, &DecodeWorker::logMessage,
+            this, [this, generation](const QString &message) {
+                if (generation == m_decoderGeneration) {
+                    m_logDock->appendLine(message);
+                }
+            },
+            Qt::QueuedConnection);
+    connect(m_decodeWorker, &DecodeWorker::errorOccurred, this, [this, generation](const QString &message) {
+        if (generation != m_decoderGeneration) {
+            return;
+        }
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Error] %1").arg(message));
     });
@@ -603,6 +621,7 @@ void MainWindow::startDecoder(const QString &filePath,
         }
         m_decodeThread = nullptr;
         m_decodeWorker = nullptr;
+        m_bufferingTargetFrameIndex = -1;
         m_playbackPaused = false;
         updatePlaybackActionState();
         setPlaybackControlsEnabled(hasOpenStream());
@@ -726,6 +745,7 @@ void MainWindow::replayFromBeginning()
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
+    m_bufferingTargetFrameIndex = -1;
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_playbackPaused = false;
@@ -1266,6 +1286,10 @@ void MainWindow::handleFrameReady(int frameIndex,
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
     m_frameListView->addFrameAnalysis(analysis);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
+    if (m_bufferingTargetFrameIndex == frameIndex) {
+        m_bufferingTargetFrameIndex = -1;
+        statusBar()->showMessage(tr("Buffered frame %1").arg(frameIndex + 1), 2000);
+    }
     updateExportActionState();
 }
 
@@ -1286,6 +1310,24 @@ void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
     std::sort(m_seekCheckpoints.begin(), m_seekCheckpoints.end(), [](const FrameSeekCheckpoint &a, const FrameSeekCheckpoint &b) {
         return a.frameIndex < b.frameIndex;
     });
+}
+
+void MainWindow::handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex)
+{
+    if (targetFrameIndex < 0 || targetFrameIndex != m_bufferingTargetFrameIndex) {
+        return;
+    }
+
+    const int totalFrames = std::max(1, targetFrameIndex - startFrameIndex);
+    const int bufferedFrames = std::clamp(currentFrameIndex - startFrameIndex + 1, 0, totalFrames);
+    const int percent = (bufferedFrames * 100) / totalFrames;
+    statusBar()->showMessage(
+        tr("Buffering frame %1 from checkpoint %2: %3/%4 (%5%)")
+            .arg(targetFrameIndex + 1)
+            .arg(startFrameIndex + 1)
+            .arg(bufferedFrames)
+            .arg(totalFrames)
+            .arg(percent));
 }
 
 void MainWindow::handleFrameListSelection(int frameIndex)
@@ -1345,7 +1387,12 @@ void MainWindow::seekToFrame(int frameIndex)
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
     m_videoCanvas->setOverlayMessage(QString());
-    statusBar()->showMessage(QStringLiteral("Buffering frame %1...").arg(frameIndex + 1), 3000);
+    if (m_bufferingTargetFrameIndex >= 0 && m_bufferingTargetFrameIndex != frameIndex) {
+        m_logDock->appendLine(tr("[Info] Canceling pending rebuffer for frame %1.")
+                                  .arg(m_bufferingTargetFrameIndex));
+    }
+    m_bufferingTargetFrameIndex = frameIndex;
+    statusBar()->showMessage(tr("Buffering frame %1...").arg(frameIndex + 1));
 
     FrameSeekCheckpoint checkpoint;
     for (const FrameSeekCheckpoint &candidate : std::as_const(m_seekCheckpoints)) {

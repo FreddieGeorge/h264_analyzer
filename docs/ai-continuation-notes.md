@@ -187,15 +187,29 @@ Implemented:
 
 Recommended remaining improvement:
 
-- Add cancellation if the user clicks another frame while a checkpoint rebuffer
-  is already in progress; the current generation guard ignores stale callbacks
-  but does not stop wasted decode work early.
-- Add visible progress reporting during long checkpoint rebuffer seeks.
+- Continue hardening repeated old-frame clicks while a checkpoint rebuffer is
+  already in progress. The current UI now marks the old target as canceled,
+  stops the previous worker, guards all worker callbacks by decoder generation,
+  and shows status-bar progress from checkpoint/start frame to target frame.
 - Add regression or manual smoke coverage for repeated old-frame clicks while a
   checkpoint rebuffer is already running.
 - Add more real stream smoke tests for raw Annex B `.264` files and containers.
 - Keep UI behavior unchanged: selecting an old frame should show buffering, then land on that frame and pause.
 - Be careful: H.264 raw `.264` streams may not have container timestamps or seek indexes, so Annex B byte offsets and IDR detection matter.
+
+Manual smoke path for the current rebuffer behavior:
+
+1. Open a long raw Annex B `.264` stream and wait until early frames are evicted
+   from the recent cache.
+2. While paused, click several far-apart old frames in quick succession. The
+   status bar should report buffering progress for only the newest target, the
+   selected frame should land paused, and old queued callbacks must not replace
+   the current image/property tree.
+3. Repeat the same quick-click path with indexed `.mp4` or `.mkv` H.264 content.
+   Check that the frame list does not jump to the middle after manual selection
+   or rebuffer completion.
+4. Repeat with a non-H.264 video. Playback should still work, and the property
+   tree should continue to report that bitstream analysis is unsupported.
 
 Suggested files:
 

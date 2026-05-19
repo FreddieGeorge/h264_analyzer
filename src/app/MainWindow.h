@@ -75,6 +75,7 @@ private:
                                   const QString &tagName);
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
+    void handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex);
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
     void seekToFrame(int frameIndex);
@@ -128,6 +129,7 @@ private:
     QVector<FrameAnalysis> m_frameAnalysisByIndex;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
     int m_decoderGeneration = 0;
+    int m_bufferingTargetFrameIndex = -1;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;
     bool m_playbackPaused = false;
