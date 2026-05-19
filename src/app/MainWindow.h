@@ -14,6 +14,7 @@ class QDragEnterEvent;
 class QDropEvent;
 class QLabel;
 class QMenu;
+class QNetworkAccessManager;
 class QSlider;
 class QThread;
 
@@ -65,6 +66,7 @@ private:
     void exportAllFrameSyntaxJson();
     void exportFrameListCsv();
     void exportScreenshot();
+    void checkForUpdates();
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleFrameListSelection(int frameIndex);
@@ -89,6 +91,7 @@ private:
     QAction *m_exportAllFrameSyntaxJsonAction = nullptr;
     QAction *m_exportFrameListCsvAction = nullptr;
     QAction *m_exportScreenshotAction = nullptr;
+    QAction *m_checkForUpdatesAction = nullptr;
     QAction *m_showGridAction = nullptr;
     QAction *m_showQpHeatmapAction = nullptr;
     QAction *m_showMotionVectorsAction = nullptr;
@@ -108,6 +111,7 @@ private:
     StreamDocument m_document;
     QPointer<QThread> m_decodeThread;
     QPointer<DecodeWorker> m_decodeWorker;
+    QNetworkAccessManager *m_updateNetworkManager = nullptr;
     QString m_lastOpenDirectory;
     QString m_lastExportDirectory;
     QVector<CachedFrame> m_frameCache;

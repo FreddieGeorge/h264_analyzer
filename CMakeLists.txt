@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network OpenGL OpenGLWidgets)
 find_package(PkgConfig QUIET)
 include(CTest)
 
@@ -95,6 +95,7 @@ target_include_directories(H264Analyzer PRIVATE src)
 target_link_libraries(H264Analyzer PRIVATE
     Qt6::Core
     Qt6::Widgets
+    Qt6::Network
     Qt6::OpenGL
     Qt6::OpenGLWidgets
 )
@@ -106,6 +107,9 @@ else()
 endif()
 
 target_compile_features(H264Analyzer PRIVATE cxx_std_17)
+target_compile_definitions(H264Analyzer PRIVATE
+    H264_ANALYZER_VERSION="${PROJECT_VERSION}"
+)
 
 if(MSVC)
     target_compile_options(H264Analyzer PRIVATE /utf-8)

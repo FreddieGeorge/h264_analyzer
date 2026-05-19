@@ -28,6 +28,7 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Export selected frame syntax JSON, frame list CSV, and screenshots with overlays.
 - Export all decoded frame syntax JSON with schema/version and stream metadata.
 - Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
+- Check GitHub Releases for updates from `Help -> Check for Updates`.
 
 Current limitations:
 
@@ -151,6 +152,8 @@ dist/H264Analyzer-0.1.0-windows-ucrt64-setup.exe
 The installer is built with Inno Setup 6 and installs the same self-contained
 Qt, FFmpeg, and MSYS2 UCRT64 runtime files as the portable package. GitHub
 release builds publish both the portable `.zip` and the installer `.exe`.
+Tag releases as `vX.Y.Z`; the release workflow verifies that the tag matches
+the CMake project version before publishing GitHub Release assets.
 
 For more details, see [docs/windows-deployment.md](docs/windows-deployment.md).
 

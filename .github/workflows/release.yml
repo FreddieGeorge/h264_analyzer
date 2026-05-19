@@ -17,6 +17,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          $cmake = Get-Content CMakeLists.txt -Raw
+          $match = [regex]::Match($cmake, 'project\(H264Analyzer\s+VERSION\s+([0-9]+(?:\.[0-9]+){1,3})')
+          if (-not $match.Success) {
+            throw "Could not read project version from CMakeLists.txt"
+          }
+          $projectVersion = $match.Groups[1].Value
+          if ($tagVersion -ne $projectVersion) {
+            throw "Release tag version ($tagVersion) must match CMake project version ($projectVersion)"
+          }
+
       - name: Set up MSYS2 UCRT64
         uses: msys2/setup-msys2@v2
         with:
@@ -78,6 +93,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          make_latest: true
           files: |
             dist/H264Analyzer-*-windows-ucrt64.zip
             dist/H264Analyzer-*-windows-ucrt64-setup.exe

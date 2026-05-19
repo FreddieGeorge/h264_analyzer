@@ -10,6 +10,7 @@
 #include <QAction>
 #include <QCloseEvent>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -19,6 +20,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeySequence>
 #include <QLabel>
 #include <QList>
@@ -26,6 +28,12 @@
 #include <QMenuBar>
 #include <QMetaType>
 #include <QMimeData>
+#include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QPushButton>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSettings>
 #include <QStringList>
@@ -62,6 +70,51 @@ QString csvEscape(const QString &value)
     QString escaped = value;
     escaped.replace('"', QStringLiteral("\"\""));
     return QStringLiteral("\"%1\"").arg(escaped);
+}
+
+QVector<int> parseVersionParts(QString version)
+{
+    version = version.trimmed();
+    if (version.startsWith(QLatin1Char('v'), Qt::CaseInsensitive)) {
+        version.remove(0, 1);
+    }
+
+    const int suffixIndex = version.indexOf(QRegularExpression(QStringLiteral("[+-]")));
+    if (suffixIndex >= 0) {
+        version.truncate(suffixIndex);
+    }
+
+    QVector<int> parts;
+    const QStringList tokens = version.split(QLatin1Char('.'), Qt::SkipEmptyParts);
+    for (const QString &token : tokens) {
+        const QRegularExpressionMatch match = QRegularExpression(QStringLiteral("^(\\d+)")).match(token);
+        parts.append(match.hasMatch() ? match.captured(1).toInt() : 0);
+    }
+    return parts;
+}
+
+int compareVersions(const QString &left, const QString &right)
+{
+    const QVector<int> leftParts = parseVersionParts(left);
+    const QVector<int> rightParts = parseVersionParts(right);
+    const int partCount = std::max(leftParts.size(), rightParts.size());
+    for (int i = 0; i < partCount; ++i) {
+        const int leftValue = i < leftParts.size() ? leftParts.at(i) : 0;
+        const int rightValue = i < rightParts.size() ? rightParts.at(i) : 0;
+        if (leftValue != rightValue) {
+            return leftValue < rightValue ? -1 : 1;
+        }
+    }
+    return 0;
+}
+
+QString compactReleaseNotes(QString body)
+{
+    body = body.trimmed();
+    if (body.size() > 1200) {
+        body = body.left(1200).trimmed() + QStringLiteral("...");
+    }
+    return body;
 }
 
 }
@@ -134,6 +187,9 @@ void MainWindow::createActions()
 
     m_exportScreenshotAction = new QAction(tr("Export Screenshot"), this);
     connect(m_exportScreenshotAction, &QAction::triggered, this, &MainWindow::exportScreenshot);
+
+    m_checkForUpdatesAction = new QAction(tr("Check for Updates"), this);
+    connect(m_checkForUpdatesAction, &QAction::triggered, this, &MainWindow::checkForUpdates);
 
     m_showGridAction = new QAction(tr("Show Macroblock Grid"), this);
     m_showGridAction->setCheckable(true);
@@ -209,6 +265,9 @@ void MainWindow::createMenus()
     viewMenu->addAction(m_showGridAction);
     viewMenu->addAction(m_showQpHeatmapAction);
     viewMenu->addAction(m_showMotionVectorsAction);
+
+    QMenu *helpMenu = menuBar()->addMenu(tr("&Help"));
+    helpMenu->addAction(m_checkForUpdatesAction);
 }
 
 void MainWindow::createToolBars()
@@ -604,6 +663,100 @@ void MainWindow::exportScreenshot()
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported screenshot: %1").arg(QDir::toNativeSeparators(filePath)));
     statusBar()->showMessage(tr("Exported screenshot"), 3000);
+}
+
+void MainWindow::checkForUpdates()
+{
+    if (m_updateNetworkManager == nullptr) {
+        m_updateNetworkManager = new QNetworkAccessManager(this);
+    }
+
+    if (m_checkForUpdatesAction != nullptr) {
+        m_checkForUpdatesAction->setEnabled(false);
+    }
+
+    const QUrl latestReleaseUrl(QStringLiteral("https://api.github.com/repos/FreddieGeorge/h264_analyzer/releases/latest"));
+    QNetworkRequest request(latestReleaseUrl);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("H264Analyzer/%1").arg(QCoreApplication::applicationVersion()));
+    request.setRawHeader("Accept", "application/vnd.github+json");
+
+    statusBar()->showMessage(tr("Checking for updates..."), 3000);
+    m_logDock->appendLine(tr("[Info] Checking GitHub Releases for updates."));
+
+    QNetworkReply *reply = m_updateNetworkManager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+        if (m_checkForUpdatesAction != nullptr) {
+            m_checkForUpdatesAction->setEnabled(true);
+        }
+
+        if (reply->error() != QNetworkReply::NoError) {
+            const QString message = tr("Update check failed: %1").arg(reply->errorString());
+            statusBar()->showMessage(message, 5000);
+            m_logDock->appendLine(tr("[Warning] %1").arg(message));
+            QMessageBox::warning(this, tr("Check for Updates"), message);
+            return;
+        }
+
+        QJsonParseError error;
+        const QJsonDocument document = QJsonDocument::fromJson(reply->readAll(), &error);
+        if (error.error != QJsonParseError::NoError || !document.isObject()) {
+            const QString message = tr("GitHub returned an invalid release response.");
+            statusBar()->showMessage(message, 5000);
+            m_logDock->appendLine(tr("[Warning] %1").arg(message));
+            QMessageBox::warning(this, tr("Check for Updates"), message);
+            return;
+        }
+
+        const QJsonObject release = document.object();
+        const QString tagName = release.value(QStringLiteral("tag_name")).toString().trimmed();
+        const QString releasePage = release.value(QStringLiteral("html_url")).toString().trimmed();
+        const QString releaseNotes = compactReleaseNotes(release.value(QStringLiteral("body")).toString());
+        const QString currentVersion = QCoreApplication::applicationVersion();
+
+        if (tagName.isEmpty() || releasePage.isEmpty()) {
+            const QString message = tr("GitHub release response did not include a release tag or page URL.");
+            statusBar()->showMessage(message, 5000);
+            m_logDock->appendLine(tr("[Warning] %1").arg(message));
+            QMessageBox::warning(this, tr("Check for Updates"), message);
+            return;
+        }
+
+        if (compareVersions(tagName, currentVersion) <= 0) {
+            statusBar()->showMessage(tr("H264 Analyzer is up to date."), 4000);
+            m_logDock->appendLine(tr("[Info] No update available. Current version: %1, latest release: %2.")
+                                      .arg(currentVersion, tagName));
+            QMessageBox::information(
+                this,
+                tr("Check for Updates"),
+                tr("You are using the latest version.\n\nCurrent version: %1\nLatest release: %2")
+                    .arg(currentVersion, tagName));
+            return;
+        }
+
+        QMessageBox messageBox(this);
+        messageBox.setWindowTitle(tr("Update Available"));
+        messageBox.setIcon(QMessageBox::Information);
+        messageBox.setText(tr("A new H264 Analyzer release is available."));
+        messageBox.setInformativeText(
+            tr("Current version: %1\nLatest release: %2").arg(currentVersion, tagName));
+        if (!releaseNotes.isEmpty()) {
+            messageBox.setDetailedText(releaseNotes);
+        }
+
+        QPushButton *openButton = messageBox.addButton(tr("Open Release Page"), QMessageBox::AcceptRole);
+        messageBox.addButton(QMessageBox::Close);
+        messageBox.exec();
+
+        if (messageBox.clickedButton() == openButton) {
+            QDesktopServices::openUrl(QUrl(releasePage));
+        }
+
+        statusBar()->showMessage(tr("Update available: %1").arg(tagName), 5000);
+        m_logDock->appendLine(tr("[Info] Update available. Current version: %1, latest release: %2.")
+                                  .arg(currentVersion, tagName));
+    });
 }
 
 void MainWindow::handleFrameReady(int frameIndex,

@@ -5,11 +5,15 @@
 #include <QGuiApplication>
 #include <QStyleFactory>
 
+#ifndef H264_ANALYZER_VERSION
+#define H264_ANALYZER_VERSION "0.1.0"
+#endif
+
 int main(int argc, char *argv[])
 {
     QCoreApplication::setOrganizationName(QStringLiteral("H264Analyzer"));
     QCoreApplication::setApplicationName(QStringLiteral("H264 Analyzer"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(H264_ANALYZER_VERSION));
 
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
@@ -22,4 +26,3 @@ int main(int argc, char *argv[])
 
     return app.exec();
 }
-
