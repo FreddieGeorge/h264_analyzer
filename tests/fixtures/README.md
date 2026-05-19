@@ -17,3 +17,8 @@ They are intentionally minimal parser fixtures, not visual-quality video clips:
 - `truncated_pps.hex`: PPS NALU cut off before required fields are complete.
 - `truncated_slice_header.hex`: P-slice NALU cut off before the slice header is complete.
 - `truncated_p_slice_data.hex`: P-slice cut off during `slice_data`, used to assert structured truncation diagnostics.
+
+Additional H.264 parser tests build tiny packets in memory with `BitWriter`
+when that is clearer than storing hex. These currently cover CAVLC
+P_8x8/P_8x8ref0 sub-macroblock L0 motion vectors and B-slice unsupported
+diagnostics.

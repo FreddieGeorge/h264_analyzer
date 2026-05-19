@@ -236,17 +236,29 @@ QString motionVectorStatusText(const FrameAnalysis &analysis)
         return QObject::tr("MV: none expected for I-frame.");
     }
 
-    if (analysis.frameType == QStringLiteral("B")
-        || frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
-        return QObject::tr("MV: B-slice parsing not implemented.");
-    }
-
     if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("cabac_unsupported"))) {
-        return QObject::tr("MV: CABAC parsing not implemented.");
+        return QObject::tr("MV: frame uses CABAC; CABAC parsing not implemented.");
     }
 
-    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))) {
-        return QObject::tr("MV: P_8x8 parsing not implemented.");
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b_direct_macroblock_unsupported"))) {
+        return QObject::tr("MV: B_Direct parsing not implemented.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b8x8_sub_macroblock_unsupported"))) {
+        return QObject::tr("MV: B_8x8 parsing not implemented.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
+        return QObject::tr("MV: unsupported B-slice macroblock type.");
+    }
+
+    if (analysis.frameType == QStringLiteral("B")) {
+        return QObject::tr("MV: no supported B-slice vectors parsed.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))
+        || frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_type_unsupported"))) {
+        return QObject::tr("MV: unsupported P_8x8 sub-macroblock type.");
     }
 
     if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("interlaced_or_fmo_unsupported"))) {
@@ -509,7 +521,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
     m_seekCheckpoints.clear();
-    m_bufferingTargetFrameIndex = -1;
+    m_rebufferState.reset();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_preserveFrameListScroll = false;
@@ -621,7 +633,7 @@ void MainWindow::startDecoder(const QString &filePath,
         }
         m_decodeThread = nullptr;
         m_decodeWorker = nullptr;
-        m_bufferingTargetFrameIndex = -1;
+        m_rebufferState.reset();
         m_playbackPaused = false;
         updatePlaybackActionState();
         setPlaybackControlsEnabled(hasOpenStream());
@@ -745,7 +757,7 @@ void MainWindow::replayFromBeginning()
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
-    m_bufferingTargetFrameIndex = -1;
+    m_rebufferState.reset();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
     m_playbackPaused = false;
@@ -1286,8 +1298,7 @@ void MainWindow::handleFrameReady(int frameIndex,
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
     m_frameListView->addFrameAnalysis(analysis);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
-    if (m_bufferingTargetFrameIndex == frameIndex) {
-        m_bufferingTargetFrameIndex = -1;
+    if (m_rebufferState.complete(m_decoderGeneration, frameIndex)) {
         statusBar()->showMessage(tr("Buffered frame %1").arg(frameIndex + 1), 2000);
     }
     updateExportActionState();
@@ -1314,20 +1325,20 @@ void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
 
 void MainWindow::handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex)
 {
-    if (targetFrameIndex < 0 || targetFrameIndex != m_bufferingTargetFrameIndex) {
+    if (!m_rebufferState.accepts(m_decoderGeneration, targetFrameIndex)) {
         return;
     }
 
-    const int totalFrames = std::max(1, targetFrameIndex - startFrameIndex);
-    const int bufferedFrames = std::clamp(currentFrameIndex - startFrameIndex + 1, 0, totalFrames);
-    const int percent = (bufferedFrames * 100) / totalFrames;
+    const RebufferState::Progress progress = RebufferState::progress(startFrameIndex,
+                                                                     currentFrameIndex,
+                                                                     targetFrameIndex);
     statusBar()->showMessage(
         tr("Buffering frame %1 from checkpoint %2: %3/%4 (%5%)")
             .arg(targetFrameIndex + 1)
             .arg(startFrameIndex + 1)
-            .arg(bufferedFrames)
-            .arg(totalFrames)
-            .arg(percent));
+            .arg(progress.bufferedFrames)
+            .arg(progress.totalFrames)
+            .arg(progress.percent));
 }
 
 void MainWindow::handleFrameListSelection(int frameIndex)
@@ -1387,11 +1398,11 @@ void MainWindow::seekToFrame(int frameIndex)
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
     m_videoCanvas->setOverlayMessage(QString());
-    if (m_bufferingTargetFrameIndex >= 0 && m_bufferingTargetFrameIndex != frameIndex) {
+    const RebufferState::StartResult rebufferStart = m_rebufferState.start(frameIndex, m_decoderGeneration + 1);
+    if (rebufferStart.canceledPrevious) {
         m_logDock->appendLine(tr("[Info] Canceling pending rebuffer for frame %1.")
-                                  .arg(m_bufferingTargetFrameIndex));
+                                  .arg(rebufferStart.canceledTargetFrameIndex));
     }
-    m_bufferingTargetFrameIndex = frameIndex;
     statusBar()->showMessage(tr("Buffering frame %1...").arg(frameIndex + 1));
 
     FrameSeekCheckpoint checkpoint;

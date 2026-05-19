@@ -244,6 +244,7 @@ private:
     static int codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType);
     static QString intraMbTypeName(int mbType);
     static QString pMbTypeName(int mbType);
+    static QString bMbTypeName(int mbType);
 
     QHash<int, SpsInfo> m_spsById;
     QHash<int, PpsInfo> m_ppsById;

@@ -15,7 +15,7 @@ The current project already has:
 - A H.264-to-`FrameAnalysis` adapter that keeps rich H.264 syntax details
   nested as codec-specific data.
 - H.264 SPS/PPS/Slice Header parsing.
-- Partial CAVLC macroblock parsing, residual block counting, QP, and P-slice L0 MV overlay.
+- Partial CAVLC macroblock parsing, residual block counting, QP, P-slice L0 MV overlay, focused P_8x8/P_8x8ref0 sub-macroblock MV coverage, and focused non-direct B-slice L0/L1/Bi MV parsing.
 - Property-tree/status-bar explanations for overlay availability, including QP
   constant/range notes and motion-vector unsupported reasons.
 - Seek checkpoints for rebuffering from keyframe/IDR positions.
@@ -40,8 +40,9 @@ Goal:
 
 Main tasks:
 
-- Implement P_8x8 / P_8x8ref0 sub-macroblock prediction parsing.
-- Implement B-slice L0/L1/bi/direct motion vectors.
+- Expand P_8x8 / P_8x8ref0 sub-macroblock prediction parsing beyond the current focused CAVLC L0 fixtures.
+- Expand B-slice L0/L1/bi/direct motion vectors beyond the current focused
+  non-direct CAVLC fixtures.
 - Add CABAC macroblock parsing after CAVLC paths are stable.
 - Add MBAFF/interlaced handling or precise structured diagnostics.
 - Add FMO diagnostics or support where practical.
@@ -51,11 +52,14 @@ Main tasks:
 Current status:
 
 - Common CAVLC I/P macroblocks, QP, residual block/coefficient counts, and
-  P-slice L0 motion vectors are partially parsed.
+  P-slice L0 motion vectors are partially parsed, including focused
+  P_8x8/P_8x8ref0 sub-macroblock L0 vectors and focused non-direct B-slice
+  L0/L1/Bi vectors.
 - The UI now distinguishes available overlay data from unsupported or missing
   analysis data through `PropertyTreeView` and status bar hints rather than
   canvas text.
-- Unsupported CABAC has regression coverage and reports structured diagnostics.
+- Unsupported CABAC, B_Direct, and B_8x8 macroblock/MV paths have regression
+  coverage and report structured diagnostics.
 - Truncated slice headers have regression coverage and report
   `slice_header_truncated` without inventing macroblock data.
 - Truncated P-slice `slice_data` has regression coverage and reports
@@ -364,17 +368,16 @@ Suggested files:
 
 The project has already completed most of the codec-neutral `FrameAnalysis`
 migration and basic overlay explainability, so the next work should emphasize
-release confidence, seek/rebuffer cancellation/progress, and H.264
+release confidence, real-stream seek/rebuffer smoke coverage, and H.264
 trustworthiness before starting a full HEVC parser. Good focused commits:
 
 ```text
 Add packaged Windows layout smoke validation
-Cancel stale checkpoint rebuffer requests
-Show progress while buffering old frames
-Add repeated old-frame rebuffer smoke coverage
-Add H264 P8x8 parser fixtures
+Add repeated old-frame rebuffer UI smoke coverage
 Expose H264 residual coefficient details
-Parse H264 P8x8 sub-macroblock motion vectors
+Expand H264 P8x8 sub-macroblock fixtures
+Parse H264 B_Direct motion vectors
+Parse H264 B_8x8 sub-macroblock motion vectors
 Add bitstream hex dock skeleton
 Link property fields to bit offsets
 Add QP and frame-type statistics dock

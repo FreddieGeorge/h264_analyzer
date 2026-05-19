@@ -72,6 +72,7 @@ set(ZSTREAMEYE_SOURCES
     src/core/FrameAnalysis.cpp
     src/core/H264FrameAnalysisAdapter.h
     src/core/H264FrameAnalysisAdapter.cpp
+    src/core/RebufferState.h
     src/core/DecodeWorker.h
     src/core/DecodeWorker.cpp
     src/core/FFmpegDecoder.h
@@ -162,4 +163,12 @@ if(BUILD_TESTING)
     )
     target_compile_features(ZStreamEyeParserTests PRIVATE cxx_std_17)
     add_test(NAME ZStreamEyeParserTests COMMAND ZStreamEyeParserTests)
+
+    add_executable(ZStreamEyeRebufferStateTests
+        tests/test_rebuffer_state.cpp
+        src/core/RebufferState.h
+    )
+    target_include_directories(ZStreamEyeRebufferStateTests PRIVATE src)
+    target_compile_features(ZStreamEyeRebufferStateTests PRIVATE cxx_std_17)
+    add_test(NAME ZStreamEyeRebufferStateTests COMMAND ZStreamEyeRebufferStateTests)
 endif()

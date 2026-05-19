@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/FFmpegDecoder.h"
+#include "core/RebufferState.h"
 #include "core/StreamDocument.h"
 
 #include <QMainWindow>
@@ -129,7 +130,7 @@ private:
     QVector<FrameAnalysis> m_frameAnalysisByIndex;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
     int m_decoderGeneration = 0;
-    int m_bufferingTargetFrameIndex = -1;
+    RebufferState m_rebufferState;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;
     bool m_playbackPaused = false;

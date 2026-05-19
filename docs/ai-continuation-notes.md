@@ -46,7 +46,10 @@ Implemented capabilities:
   - coded block pattern
   - QP / `mb_qp_delta`
   - residual CAVLC block parsing/counting for common 4:2:0 streams
-  - P-slice L0 motion vector differences for supported partition types
+  - P-slice L0 motion vector differences for supported partition types,
+    including focused CAVLC P_8x8/P_8x8ref0 sub-macroblock fixtures
+  - focused CAVLC B-slice L0/L1/Bi motion vector parsing for non-direct
+    16x16/16x8/8x16 macroblocks
 - Analysis overlays:
   - macroblock grid
   - macroblock QP heatmap
@@ -59,8 +62,8 @@ Implemented capabilities:
   - QP heatmap notes explain flat-color frames when QP is constant, and range
     frames when QP varies.
   - Motion-vector notes distinguish I-frames, B-slice unsupported parsing,
-    CABAC unsupported parsing, P_8x8 unsupported parsing, and MBAFF/FMO
-    unsupported parsing where diagnostics are available.
+    CABAC unsupported parsing, unsupported P sub-macroblock types, and
+    MBAFF/FMO unsupported parsing where diagnostics are available.
   - Status bar hints mirror the current QP/MV overlay state using short text.
 - `PropertyTreeView` supports word-wrapped values and a right-click copy menu
   for cell, row, or row-with-children text.
@@ -85,8 +88,10 @@ Implemented capabilities:
   - output under `dist/ZStreamEye-windows-ucrt64`
   - zip at `dist/ZStreamEye-windows-ucrt64.zip`
 - CTest parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
-- Tiny checked-in parser fixtures under `tests/fixtures/` for Annex B, AVCC,
-  CAVLC I/P macroblocks, P-slice motion vectors, and unsupported CABAC
+- Tiny checked-in parser fixtures under `tests/fixtures/` plus synthetic
+  bit-writer fixtures for Annex B, AVCC, CAVLC I/P macroblocks, P-slice motion
+  vectors, P_8x8/P_8x8ref0 sub-macroblock motion vectors, focused B_Bi
+  motion vectors, B_Direct unsupported diagnostics, and unsupported CABAC
   diagnostics.
 - Truncated P-slice fixture coverage verifies structured `slice_data_truncated`
   diagnostics and keeps estimated macroblock data instead of dropping the
@@ -148,13 +153,14 @@ Recommended next direction for the next AI/coding session:
    or upgrade from `v0.1.6`, confirm that the install root keeps only the
    launcher and support files, and confirm that Qt/FFmpeg/MSYS2 DLLs live under
    `runtime/`.
-2. Improve the old-frame seek/rebuffer experience. Add explicit cancellation for
-   stale checkpoint rebuffer requests, visible progress, and stress tests for
-   repeated FrameListView clicks while rebuffering. Keep behavior stable for
-   both raw Annex B `.264` files and containers such as `.mp4`/`.mkv`.
+2. Broaden old-frame seek/rebuffer validation. Explicit cancellation, status-bar
+   buffering progress, generation-guarded callbacks, and
+   `ZStreamEyeRebufferStateTests` are in place; remaining work is UI/integration
+   smoke coverage with real raw Annex B `.264` files and indexed `.mp4`/`.mkv`
+   content.
 3. Continue H.264 correctness work before adding a full new codec. Prefer
-   residual coefficient details, P_8x8/sub-macroblock parsing fixtures, and
-   B-slice motion-vector diagnostics/support over CABAC.
+   residual coefficient details, broader P/B sub-macroblock fixtures,
+   B_Direct/B_8x8 support, and richer diagnostics over CABAC.
 4. Start Stage 3 only after the seek/rebuffer path is comfortable: add a
    bitstream hex dock and connect existing syntax field bit offsets to
    selection/highlighting.
@@ -184,15 +190,18 @@ Implemented:
   paused/manual selection and rebuffer completion.
 - MainWindow tracks decoder generations so stale queued callbacks from an older
   worker are ignored after a newer decode/rebuffer starts.
+- Starting a new old-frame rebuffer cancels the previous worker early, records
+  the canceled target, and shows status-bar progress from checkpoint/start
+  frame to target frame. `RebufferState` holds the pending target/generation
+  logic and is covered by `ZStreamEyeRebufferStateTests`.
 
 Recommended remaining improvement:
 
-- Continue hardening repeated old-frame clicks while a checkpoint rebuffer is
-  already in progress. The current UI now marks the old target as canceled,
-  stops the previous worker, guards all worker callbacks by decoder generation,
-  and shows status-bar progress from checkpoint/start frame to target frame.
-- Add regression or manual smoke coverage for repeated old-frame clicks while a
-  checkpoint rebuffer is already running.
+- Add broader UI/integration coverage for repeated old-frame clicks while a
+  checkpoint rebuffer is already running. The core state behavior is covered:
+  repeated old-frame requests cancel the previous target, stale
+  generation/target progress and completion are ignored, and progress is
+  clamped to the checkpoint-to-target range.
 - Add more real stream smoke tests for raw Annex B `.264` files and containers.
 - Keep UI behavior unchanged: selecting an old frame should show buffering, then land on that frame and pause.
 - Be careful: H.264 raw `.264` streams may not have container timestamps or seek indexes, so Annex B byte offsets and IDR detection matter.
@@ -226,16 +235,21 @@ Current limitations:
   macroblock parsing can continue, but individual residual coefficient values
   are not yet represented in the public syntax model.
 - CABAC macroblock parsing is not implemented.
-- B-slice motion vectors are not implemented.
-- P_8x8 and sub-macroblock prediction parsing are not implemented.
+- Focused CAVLC B-slice L0/L1/Bi motion vector parsing is implemented for
+  non-direct 16x16/16x8/8x16 macroblocks. B_Direct and B_8x8 remain
+  unsupported with structured diagnostics.
+- Focused CAVLC P_8x8 / P_8x8ref0 sub-macroblock L0 motion vector parsing is
+  implemented; broader sub-macroblock prediction coverage still needs work.
 - MBAFF/interlaced and FMO are not implemented.
 - Some fields are safely skipped or summarized instead of fully represented.
 
 Recommended next parser milestones:
 
 1. Expose residual coefficient details where useful instead of only block/coeff counts.
-2. Implement P_8x8 / P_8x8ref0 sub-macroblock parsing.
-3. Add B-slice direct/list0/list1/bi prediction modes and L1 MV visualization.
+2. Expand P_8x8 / P_8x8ref0 sub-macroblock parsing coverage beyond the current
+   focused CAVLC L0 fixtures.
+3. Expand B-slice support to B_Direct and B_8x8/sub-macroblock prediction
+   modes, and refine L1 MV visualization.
 4. Add CABAC support only after the CAVLC path is well tested.
 5. Add richer diagnostics for unsupported syntax instead of generic notes.
 
@@ -257,6 +271,10 @@ Completed fixture coverage:
 - CAVLC I-slice with non-zero `mb_qp_delta`
 - CAVLC P-slice skip macroblock
 - CAVLC P-slice with non-zero L0 motion vector
+- CAVLC P_8x8 / P_8x8ref0 sub-macroblock L0 motion vectors through synthetic
+  bit-writer fixtures
+- Focused CAVLC B_Bi L0/L1 motion vectors through synthetic bit-writer fixtures
+- B_Direct unsupported diagnostics through synthetic bit-writer fixtures
 - Unsupported CABAC stream that reports a structured diagnostic and does not crash
 - Truncated slice headers that report `slice_header_truncated`
 - Truncated P-slice data that reports `slice_data_truncated`
@@ -296,8 +314,7 @@ Remaining optimizations:
 - Consider `QSharedPointer<const FrameSyntaxInfo>` for cache and UI handoff.
 - Consider a model/view table for frame list instead of `QTreeWidget`.
 - Add a bounded syntax cache separate from decoded image cache.
-- Add cancellation if the user clicks another frame while a rebuffer seek is in progress.
-- Add progress reporting during long rebuffer seeks.
+- Add UI/integration stress coverage for repeated old-frame rebuffer seeks.
 
 Suggested files:
 
@@ -414,12 +431,11 @@ Use focused commits. Good examples:
 
 ```text
 Add packaged Windows layout smoke validation
-Cancel stale checkpoint rebuffer requests
-Show progress while buffering old frames
-Add repeated old-frame rebuffer smoke coverage
-Add H264 P8x8 parser fixtures
+Add repeated old-frame rebuffer UI smoke coverage
 Expose H264 residual coefficient details
-Parse H264 P8x8 sub-macroblock motion vectors
+Expand H264 P8x8 sub-macroblock fixtures
+Parse H264 B_Direct motion vectors
+Parse H264 B_8x8 sub-macroblock motion vectors
 Add bitstream hex dock skeleton
 Link property fields to bit offsets
 Add QP and frame-type statistics dock

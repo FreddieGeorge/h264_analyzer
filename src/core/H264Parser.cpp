@@ -1012,6 +1012,23 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         int mvY = 0;
     };
 
+    enum class PredictionList
+    {
+        None,
+        L0,
+        L1,
+        Bi
+    };
+
+    struct BPartitionModes
+    {
+        int partitionCount = 1;
+        std::array<PredictionList, 2> modes {PredictionList::None, PredictionList::None};
+        bool supported = false;
+        QString unsupportedCode;
+        QString unsupportedMessage;
+    };
+
     struct CoeffToken
     {
         int totalCoeff = 0;
@@ -1032,22 +1049,24 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
     const int normalizedSliceType = slice.sliceType % 5;
     const bool isISlice = normalizedSliceType == 2 || normalizedSliceType == 4;
     const bool isPSlice = normalizedSliceType == 0 || normalizedSliceType == 3;
+    const bool isBSlice = normalizedSliceType == 1;
     const int chromaArrayType = sps.chromaFormatIdc == 0 ? 0 : sps.chromaFormatIdc;
-    QVector<MacroblockMvState> mvStates(totalMacroblocks);
+    QVector<MacroblockMvState> mvStatesL0(totalMacroblocks);
+    QVector<MacroblockMvState> mvStatesL1(totalMacroblocks);
     QVector<MacroblockCoeffState> coeffStates(totalMacroblocks);
 
     auto median = [](int a, int b, int c) {
         return a + b + c - std::min({a, b, c}) - std::max({a, b, c});
     };
 
-    auto neighborMv = [&](int address) {
-        if (address < 0 || address >= mvStates.size()) {
+    auto neighborMv = [&](const QVector<MacroblockMvState> &states, int address) {
+        if (address < 0 || address >= states.size()) {
             return MacroblockMvState {};
         }
-        return mvStates[address];
+        return states[address];
     };
 
-    auto predictMv = [&](int address, int refIndex) {
+    auto predictMv = [&](const QVector<MacroblockMvState> &states, int address, int refIndex) {
         const int mbX = address % slice.picWidthInMbs;
         const int leftAddress = mbX > 0 ? address - 1 : -1;
         const int topAddress = address >= slice.picWidthInMbs ? address - slice.picWidthInMbs : -1;
@@ -1058,11 +1077,11 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             ? topAddress - 1
             : -1;
 
-        const MacroblockMvState a = neighborMv(leftAddress);
-        const MacroblockMvState b = neighborMv(topAddress);
-        MacroblockMvState c = neighborMv(topRightAddress);
+        const MacroblockMvState a = neighborMv(states, leftAddress);
+        const MacroblockMvState b = neighborMv(states, topAddress);
+        MacroblockMvState c = neighborMv(states, topRightAddress);
         if (!c.valid) {
-            c = neighborMv(topLeftAddress);
+            c = neighborMv(states, topLeftAddress);
         }
 
         QVector<MacroblockMvState> matching;
@@ -1083,21 +1102,25 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         return result;
     };
 
-    auto addMotionVector = [&](MacroblockInfo &mb, int refIndex, int mvX, int mvY) {
+    auto addMotionVector = [&](MacroblockInfo &mb, int list, int refIndex, int mvX, int mvY) {
         MotionVectorInfo mv;
-        mv.list = 0;
+        mv.list = list;
         mv.referenceIndex = refIndex;
         mv.mvXQuarterPel = mvX;
         mv.mvYQuarterPel = mvY;
         mb.motionVectors.append(mv);
     };
 
-    auto setPrimaryMvState = [&](const MacroblockInfo &mb) {
-        if (mb.address < 0 || mb.address >= mvStates.size() || mb.motionVectors.isEmpty()) {
+    auto setMvState = [&](const MacroblockInfo &mb) {
+        if (mb.address < 0 || mb.motionVectors.isEmpty()) {
             return;
         }
-        const MotionVectorInfo &mv = mb.motionVectors.first();
-        mvStates[mb.address] = {true, mv.referenceIndex, mv.mvXQuarterPel, mv.mvYQuarterPel};
+        for (const MotionVectorInfo &mv : mb.motionVectors) {
+            QVector<MacroblockMvState> &states = mv.list == 1 ? mvStatesL1 : mvStatesL0;
+            if (mb.address < states.size()) {
+                states[mb.address] = {true, mv.referenceIndex, mv.mvXQuarterPel, mv.mvYQuarterPel};
+            }
+        }
     };
 
     auto readTE = [&](int range) {
@@ -1108,6 +1131,74 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             return reader.readBit() ? 0 : 1;
         }
         return static_cast<int>(reader.readUE());
+    };
+
+    auto bPartitionModes = [](int mbType) {
+        BPartitionModes result;
+        if (mbType == 0) {
+            result.unsupportedCode = QStringLiteral("b_direct_macroblock_unsupported");
+            result.unsupportedMessage = QStringLiteral("B_Direct motion vector derivation is not implemented.");
+            return result;
+        }
+        if (mbType == 22) {
+            result.unsupportedCode = QStringLiteral("b8x8_sub_macroblock_unsupported");
+            result.unsupportedMessage = QStringLiteral("B_8x8 sub-macroblock motion vector parsing is not implemented.");
+            return result;
+        }
+        if (mbType < 1 || mbType > 21) {
+            result.unsupportedCode = QStringLiteral("b_slice_macroblock_unsupported");
+            result.unsupportedMessage = QStringLiteral("Unsupported B-slice macroblock type %1.").arg(mbType);
+            return result;
+        }
+
+        result.supported = true;
+        if (mbType <= 3) {
+            result.partitionCount = 1;
+            result.modes[0] = mbType == 1 ? PredictionList::L0
+                : (mbType == 2 ? PredictionList::L1 : PredictionList::Bi);
+            return result;
+        }
+
+        result.partitionCount = 2;
+        switch (mbType) {
+        case 4:
+        case 5:
+            result.modes = {PredictionList::L0, PredictionList::L0};
+            break;
+        case 6:
+        case 7:
+            result.modes = {PredictionList::L1, PredictionList::L1};
+            break;
+        case 8:
+        case 9:
+            result.modes = {PredictionList::L0, PredictionList::L1};
+            break;
+        case 10:
+        case 11:
+            result.modes = {PredictionList::L1, PredictionList::L0};
+            break;
+        case 12:
+        case 13:
+            result.modes = {PredictionList::L0, PredictionList::Bi};
+            break;
+        case 14:
+        case 15:
+            result.modes = {PredictionList::L1, PredictionList::Bi};
+            break;
+        case 16:
+        case 17:
+            result.modes = {PredictionList::Bi, PredictionList::L0};
+            break;
+        case 18:
+        case 19:
+            result.modes = {PredictionList::Bi, PredictionList::L1};
+            break;
+        case 20:
+        case 21:
+            result.modes = {PredictionList::Bi, PredictionList::Bi};
+            break;
+        }
+        return result;
     };
 
     auto appendDiagnostic = [&](const QString &code, const QString &message) {
@@ -1629,9 +1720,9 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
                 mb.skipped = true;
                 mb.parsed = true;
                 if (isPSlice) {
-                    const MacroblockMvState predicted = predictMv(mb.address, 0);
-                    addMotionVector(mb, 0, predicted.mvX, predicted.mvY);
-                    setPrimaryMvState(mb);
+                    const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, 0);
+                    addMotionVector(mb, 0, 0, predicted.mvX, predicted.mvY);
+                    setMvState(mb);
                     mb.note = QStringLiteral("Parsed from mb_skip_run; P_Skip motion vector uses neighboring median prediction.");
                 } else {
                     mb.note = QStringLiteral("Parsed from mb_skip_run; B direct motion vector parsing is not implemented.");
@@ -1662,6 +1753,9 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         if (isPSlice && localMbType >= 5) {
             intra = true;
             localMbType -= 5;
+        } else if (isBSlice && localMbType >= 23) {
+            intra = true;
+            localMbType -= 23;
         }
 
         const bool intra16x16 = intra && localMbType >= 1 && localMbType <= 24;
@@ -1676,13 +1770,16 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         } else if (isPSlice) {
             mb.mbType = pMbTypeName(localMbType);
             mb.predictionMode = QStringLiteral("Pred_L0");
+        } else if (isBSlice) {
+            mb.mbType = bMbTypeName(localMbType);
+            mb.predictionMode = QStringLiteral("BiPred");
         } else {
-            mb.mbType = QStringLiteral("B/unsupported");
+            mb.mbType = QStringLiteral("Unsupported");
             mb.predictionMode = QStringLiteral("unsupported");
-            mb.note = QStringLiteral("B slice macroblock parsing is not implemented.");
+            mb.note = QStringLiteral("This slice type is not supported for macroblock parsing.");
             currentAddress = mb.address + 1;
             slice.macroblocks.append(mb);
-            appendEstimatedRemainder(QStringLiteral("b_slice_macroblock_unsupported"), mb.note);
+            appendEstimatedRemainder(QStringLiteral("slice_macroblock_unsupported"), mb.note);
             return;
         }
 
@@ -1711,27 +1808,119 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             if (localMbType == 1 || localMbType == 2) {
                 partitionCount = 2;
             } else if (p8x8) {
-                mb.note = QStringLiteral("P_8x8 sub-macroblock prediction parsing is not implemented.");
-                currentAddress = mb.address + 1;
-                slice.macroblocks.append(mb);
-                appendEstimatedRemainder(QStringLiteral("p8x8_sub_macroblock_unsupported"), mb.note);
-                return;
+                struct SubMacroblock
+                {
+                    int type = 0;
+                    int refIndex = 0;
+                    int partitionCount = 1;
+                };
+
+                std::array<SubMacroblock, 4> subMacroblocks;
+                for (SubMacroblock &subMb : subMacroblocks) {
+                    subMb.type = static_cast<int>(reader.readUE());
+                    switch (subMb.type) {
+                    case 0:
+                        subMb.partitionCount = 1;
+                        break;
+                    case 1:
+                    case 2:
+                        subMb.partitionCount = 2;
+                        break;
+                    case 3:
+                        subMb.partitionCount = 4;
+                        break;
+                    default:
+                        mb.note = QStringLiteral("Unsupported P sub_mb_type %1; remaining macroblocks are estimated.")
+                                      .arg(subMb.type);
+                        currentAddress = mb.address + 1;
+                        slice.macroblocks.append(mb);
+                        appendEstimatedRemainder(QStringLiteral("p8x8_sub_macroblock_type_unsupported"), mb.note);
+                        return;
+                    }
+                }
+
+                if (slice.numRefIdxL0ActiveMinus1 > 0 && localMbType != 4) {
+                    for (SubMacroblock &subMb : subMacroblocks) {
+                        subMb.refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
+                    }
+                }
+
+                for (const SubMacroblock &subMb : subMacroblocks) {
+                    for (int part = 0; part < subMb.partitionCount; ++part) {
+                        const int mvdX = reader.readSE();
+                        const int mvdY = reader.readSE();
+                        const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, subMb.refIndex);
+                        addMotionVector(mb, 0, subMb.refIndex, predicted.mvX + mvdX, predicted.mvY + mvdY);
+                    }
+                }
+                setMvState(mb);
+                mb.predictionMode = QStringLiteral("Pred_L0 sub-macroblock");
             }
 
-            if (slice.numRefIdxL0ActiveMinus1 > 0) {
+            if (!p8x8 && slice.numRefIdxL0ActiveMinus1 > 0) {
                 for (int i = 0; i < partitionCount; ++i) {
                     partitions[i].refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
                 }
             }
-            for (int i = 0; i < partitionCount; ++i) {
-                partitions[i].mvdX = reader.readSE();
-                partitions[i].mvdY = reader.readSE();
-                const MacroblockMvState predicted = predictMv(mb.address, partitions[i].refIndex);
-                partitions[i].mvX = predicted.mvX + partitions[i].mvdX;
-                partitions[i].mvY = predicted.mvY + partitions[i].mvdY;
-                addMotionVector(mb, partitions[i].refIndex, partitions[i].mvX, partitions[i].mvY);
+            if (!p8x8) {
+                for (int i = 0; i < partitionCount; ++i) {
+                    partitions[i].mvdX = reader.readSE();
+                    partitions[i].mvdY = reader.readSE();
+                    const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, partitions[i].refIndex);
+                    partitions[i].mvX = predicted.mvX + partitions[i].mvdX;
+                    partitions[i].mvY = predicted.mvY + partitions[i].mvdY;
+                    addMotionVector(mb, 0, partitions[i].refIndex, partitions[i].mvX, partitions[i].mvY);
+                }
+                setMvState(mb);
             }
-            setPrimaryMvState(mb);
+        } else if (isBSlice) {
+            const BPartitionModes modes = bPartitionModes(localMbType);
+            if (!modes.supported) {
+                mb.note = modes.unsupportedMessage;
+                currentAddress = mb.address + 1;
+                slice.macroblocks.append(mb);
+                appendEstimatedRemainder(modes.unsupportedCode, mb.note);
+                return;
+            }
+
+            std::array<PartitionMv, 2> l0Partitions;
+            std::array<PartitionMv, 2> l1Partitions;
+            if (slice.numRefIdxL0ActiveMinus1 > 0) {
+                for (int i = 0; i < modes.partitionCount; ++i) {
+                    if (modes.modes[i] == PredictionList::L0 || modes.modes[i] == PredictionList::Bi) {
+                        l0Partitions[i].refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
+                    }
+                }
+            }
+            if (slice.numRefIdxL1ActiveMinus1 > 0) {
+                for (int i = 0; i < modes.partitionCount; ++i) {
+                    if (modes.modes[i] == PredictionList::L1 || modes.modes[i] == PredictionList::Bi) {
+                        l1Partitions[i].refIndex = readTE(slice.numRefIdxL1ActiveMinus1);
+                    }
+                }
+            }
+
+            for (int i = 0; i < modes.partitionCount; ++i) {
+                if (modes.modes[i] == PredictionList::L0 || modes.modes[i] == PredictionList::Bi) {
+                    l0Partitions[i].mvdX = reader.readSE();
+                    l0Partitions[i].mvdY = reader.readSE();
+                    const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, l0Partitions[i].refIndex);
+                    l0Partitions[i].mvX = predicted.mvX + l0Partitions[i].mvdX;
+                    l0Partitions[i].mvY = predicted.mvY + l0Partitions[i].mvdY;
+                    addMotionVector(mb, 0, l0Partitions[i].refIndex, l0Partitions[i].mvX, l0Partitions[i].mvY);
+                }
+            }
+            for (int i = 0; i < modes.partitionCount; ++i) {
+                if (modes.modes[i] == PredictionList::L1 || modes.modes[i] == PredictionList::Bi) {
+                    l1Partitions[i].mvdX = reader.readSE();
+                    l1Partitions[i].mvdY = reader.readSE();
+                    const MacroblockMvState predicted = predictMv(mvStatesL1, mb.address, l1Partitions[i].refIndex);
+                    l1Partitions[i].mvX = predicted.mvX + l1Partitions[i].mvdX;
+                    l1Partitions[i].mvY = predicted.mvY + l1Partitions[i].mvdY;
+                    addMotionVector(mb, 1, l1Partitions[i].refIndex, l1Partitions[i].mvX, l1Partitions[i].mvY);
+                }
+            }
+            setMvState(mb);
         }
 
         if (reader.hasError()) {
@@ -1922,5 +2111,35 @@ QString H264Parser::pMbTypeName(int mbType)
     case 3: return QStringLiteral("P_8x8");
     case 4: return QStringLiteral("P_8x8ref0");
     default: return QStringLiteral("P_Unknown(%1)").arg(mbType);
+    }
+}
+
+QString H264Parser::bMbTypeName(int mbType)
+{
+    switch (mbType) {
+    case 0: return QStringLiteral("B_Direct_16x16");
+    case 1: return QStringLiteral("B_L0_16x16");
+    case 2: return QStringLiteral("B_L1_16x16");
+    case 3: return QStringLiteral("B_Bi_16x16");
+    case 4: return QStringLiteral("B_L0_L0_16x8");
+    case 5: return QStringLiteral("B_L0_L0_8x16");
+    case 6: return QStringLiteral("B_L1_L1_16x8");
+    case 7: return QStringLiteral("B_L1_L1_8x16");
+    case 8: return QStringLiteral("B_L0_L1_16x8");
+    case 9: return QStringLiteral("B_L0_L1_8x16");
+    case 10: return QStringLiteral("B_L1_L0_16x8");
+    case 11: return QStringLiteral("B_L1_L0_8x16");
+    case 12: return QStringLiteral("B_L0_Bi_16x8");
+    case 13: return QStringLiteral("B_L0_Bi_8x16");
+    case 14: return QStringLiteral("B_L1_Bi_16x8");
+    case 15: return QStringLiteral("B_L1_Bi_8x16");
+    case 16: return QStringLiteral("B_Bi_L0_16x8");
+    case 17: return QStringLiteral("B_Bi_L0_8x16");
+    case 18: return QStringLiteral("B_Bi_L1_16x8");
+    case 19: return QStringLiteral("B_Bi_L1_8x16");
+    case 20: return QStringLiteral("B_Bi_Bi_16x8");
+    case 21: return QStringLiteral("B_Bi_Bi_8x16");
+    case 22: return QStringLiteral("B_8x8");
+    default: return QStringLiteral("B_Unknown(%1)").arg(mbType);
     }
 }

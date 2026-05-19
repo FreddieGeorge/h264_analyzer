@@ -130,16 +130,29 @@ QString motionVectorAvailabilityText(const FrameAnalysis &analysis)
         return QObject::tr("No motion vectors are expected for this I-frame.");
     }
 
-    if (analysis.frameType == QStringLiteral("B") || hasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
-        return QObject::tr("B-slice motion vector parsing is not implemented yet.");
-    }
-
     if (hasDiagnosticCode(analysis, QStringLiteral("cabac_unsupported"))) {
-        return QObject::tr("CABAC macroblock and motion vector parsing is not implemented yet.");
+        return QObject::tr("This frame uses CABAC; CABAC macroblock and motion vector parsing is not implemented yet.");
     }
 
-    if (hasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))) {
-        return QObject::tr("P_8x8 sub-macroblock motion vector parsing is not implemented yet.");
+    if (hasDiagnosticCode(analysis, QStringLiteral("b_direct_macroblock_unsupported"))) {
+        return QObject::tr("This frame uses B_Direct motion vectors, which are not implemented yet.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("b8x8_sub_macroblock_unsupported"))) {
+        return QObject::tr("This frame uses B_8x8 sub-macroblock motion vectors, which are not implemented yet.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
+        return QObject::tr("This frame uses an unsupported B-slice macroblock type.");
+    }
+
+    if (analysis.frameType == QStringLiteral("B")) {
+        return QObject::tr("No supported B-slice motion vectors were parsed for this frame.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))
+        || hasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_type_unsupported"))) {
+        return QObject::tr("This frame uses an unsupported P_8x8 sub-macroblock type.");
     }
 
     if (hasDiagnosticCode(analysis, QStringLiteral("interlaced_or_fmo_unsupported"))) {

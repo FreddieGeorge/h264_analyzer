@@ -35,7 +35,7 @@ The project currently supports video loading/decoding, controllable playback, H.
 Current limitations:
 
 - CAVLC residual parsing consumes and counts residual blocks so macroblock parsing can continue, but individual coefficient values are not yet exposed in the UI/export model.
-- CABAC, B-slice motion vectors, MBAFF/FMO, and sub-macroblock motion vectors are reported as unsupported or partially parsed.
+- CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 - OpenGL canvas text is intentionally avoided for analysis hints because some
   Windows/OpenGL deployments render QPainter text incorrectly; use the property
@@ -239,10 +239,11 @@ Key modules:
 Recommended next work:
 
 1. Smoke-test the latest Windows installer/portable release and upgrade path.
-2. Add cancellation/progress reporting for long checkpoint rebuffer seeks and
-   verify repeated FrameListView clicks do not queue stale decode work.
-3. Add P_8x8 / P_8x8ref0 parser fixtures before implementing sub-macroblock
-   motion vector parsing.
+2. Broaden old-frame rebuffer smoke coverage with real raw Annex B `.264` and
+   indexed `.mp4`/`.mkv` files; cancellation/progress and core state tests are
+   already in place.
+3. Expand parser coverage beyond the focused CAVLC P_8x8/P_8x8ref0 and
+   non-direct B-slice fixtures; keep B_Direct/B_8x8/CABAC diagnostics precise.
 4. Expose richer residual coefficient details and broaden macroblock support.
 5. Add a bitstream hex dock linked to existing syntax field bit offsets.
 
