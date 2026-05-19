@@ -1,6 +1,6 @@
-# AI Next Steps for H264 Analyzer
+# AI Continuation Notes
 
-This document is the current continuation note for future AI/coding agents working on this repository.
+This document is the current handoff note for future AI/coding agents working on this repository.
 
 Repository:
 
@@ -28,6 +28,11 @@ Implemented capabilities:
 - Indexed seek checkpoints built from decoded keyframe/IDR packets, including
   packet timestamps/byte positions and parser parameter-set state for resumed
   syntax parsing.
+- Codec-neutral bitstream parser interface:
+  - `CodecKind`
+  - `IBitstreamParser`
+  - parser state snapshots for checkpoint resume
+  - `FFmpegDecoder` no longer owns `H264Parser` directly
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
@@ -297,6 +302,7 @@ Suggested files:
 
 ## Lower Priority Ideas
 
+- Add a codec-neutral `FrameAnalysis` model before exposing HEVC/H.265 in the UI.
 - Add support for HEVC/H.265 as a separate parser module after H.264 is more mature.
 - Add side-by-side frame comparison.
 - Add search/filter in property tree.
@@ -319,6 +325,8 @@ Add parser fixture bitstreams
 Persist overlay and window settings
 Improve export writers and metadata
 Add release workflow for tagged builds
+Introduce codec-neutral parser interface
+Add codec-neutral frame analysis model
 ```
 
 ## Quick Orientation For Future Agents
@@ -329,6 +337,7 @@ Most important files:
 src/app/MainWindow.*
 src/core/DecodeWorker.*
 src/core/FFmpegDecoder.*
+src/core/BitstreamParser.*
 src/core/H264Parser.*
 src/ui/VideoCanvas.*
 src/ui/FrameListView.*

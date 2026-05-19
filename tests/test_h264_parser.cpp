@@ -156,7 +156,8 @@ void testAnnexBSps()
     packet.append(makeMinimalSpsNalu());
 
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(packet, 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    require(frame.codecKind == CodecKind::H264, "Annex B codec kind");
     require(frame.nalus.size() == 1, "Annex B NALU count");
     require(frame.nalus[0].sps.valid, "Annex B SPS validity");
     require(frame.nalus[0].sps.width == 16, "Annex B SPS width");
@@ -175,7 +176,8 @@ void testAvccSps()
     packet.append(nalu);
 
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(packet, 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    require(frame.codecKind == CodecKind::H264, "AVCC codec kind");
     require(frame.nalus.size() == 1, "AVCC NALU count");
     require(frame.nalus[0].sps.valid, "AVCC SPS validity");
     require(frame.nalus[0].sps.width == 16, "AVCC SPS width");
@@ -185,7 +187,7 @@ void testAvccSps()
 void testAnnexBFixtureWithIdr()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("annexb_sps_pps_idr_i.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("annexb_sps_pps_idr_i.hex")), 0, 0, 0);
     require(frame.nalus.size() == 3, "fixture Annex B NALU count");
     require(frame.slices.size() == 1, "fixture Annex B frame slice count");
     require(frame.nalus[0].sps.valid, "fixture Annex B SPS validity");
@@ -201,7 +203,7 @@ void testAnnexBFixtureWithIdr()
 void testAvccFixtureWithSpsPps()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("avcc_sps_pps.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("avcc_sps_pps.hex")), 0, 0, 0);
     require(frame.nalus.size() == 2, "fixture AVCC NALU count");
     require(frame.nalus[0].sps.valid, "fixture AVCC SPS validity");
     require(frame.nalus[1].pps.valid, "fixture AVCC PPS validity");
@@ -212,7 +214,7 @@ void testAvccFixtureWithSpsPps()
 void testCavlcIFrameQpDeltaFixture()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("cavlc_i_qp_delta.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("cavlc_i_qp_delta.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CAVLC I fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("I"), "CAVLC I fixture slice type");
     require(slice.macroblocks.size() == 2, "CAVLC I fixture macroblock count");
@@ -229,7 +231,7 @@ void testCavlcIFrameQpDeltaFixture()
 void testCavlcPSkipFixture()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_skip.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("cavlc_p_skip.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CAVLC P skip fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("P"), "CAVLC P skip fixture slice type");
     require(slice.macroblocks.size() == 1, "CAVLC P skip fixture macroblock count");
@@ -240,7 +242,7 @@ void testCavlcPSkipFixture()
 void testCavlcPMotionVectorFixture()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CAVLC P MV fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("P"), "CAVLC P MV fixture slice type");
     require(slice.macroblocks.size() == 1, "CAVLC P MV fixture macroblock count");
@@ -251,10 +253,33 @@ void testCavlcPMotionVectorFixture()
     require(mv.mvYQuarterPel == -1, "CAVLC P MV fixture mv_y");
 }
 
+void testFrameAnalysisMirrorsH264SyntaxFixture()
+{
+    H264Parser parser;
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 11, 7, 3);
+    require(analysis.codecKind == CodecKind::H264, "FrameAnalysis codec kind");
+    require(analysis.frameIndex == 3, "FrameAnalysis packet index");
+    require(analysis.pts == 11, "FrameAnalysis pts");
+    require(analysis.dts == 7, "FrameAnalysis dts");
+    require(analysis.frameType == QStringLiteral("P"), "FrameAnalysis frame type");
+    require(analysis.hasFrame, "FrameAnalysis has frame");
+    require(!analysis.units.isEmpty(), "FrameAnalysis units");
+    require(!analysis.regions.isEmpty(), "FrameAnalysis regions");
+    require(!analysis.motionVectors.isEmpty(), "FrameAnalysis motion vectors");
+    require(analysis.regions.first().kind == AnalysisRegionKind::Macroblock, "FrameAnalysis macroblock region kind");
+    require(analysis.regions.first().qp == 26, "FrameAnalysis macroblock QP");
+    require(analysis.motionVectors.first().mvXQuarterPel == 2, "FrameAnalysis mv_x");
+    require(analysis.motionVectors.first().mvYQuarterPel == -1, "FrameAnalysis mv_y");
+
+    const FrameSyntaxInfo syntax = h264SyntaxFromFrameAnalysis(analysis);
+    require(syntax.slices.size() == 1, "FrameAnalysis keeps H264 details");
+    require(syntax.slices.first().macroblocks.size() == 1, "FrameAnalysis keeps H264 macroblocks");
+}
+
 void testCavlcPResidualContinuesToMotionVectorFixture()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_residual_then_motion_vector.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("cavlc_p_residual_then_motion_vector.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CAVLC P residual fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("P"), "CAVLC P residual fixture slice type");
     require(slice.macroblocks.size() == 2, "CAVLC P residual fixture macroblock count");
@@ -273,7 +298,7 @@ void testCavlcPResidualContinuesToMotionVectorFixture()
 void testUnsupportedCabacFixtureReportsDiagnostic()
 {
     H264Parser parser;
-    const FrameSyntaxInfo frame = parser.parsePacket(loadFixture(QStringLiteral("unsupported_cabac_p.hex")), 0, 0, 0);
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("unsupported_cabac_p.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CABAC fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("P"), "CABAC fixture slice type");
     require(slice.macroblocks.size() == 1, "CABAC fixture estimated macroblock count");
@@ -293,6 +318,7 @@ int main()
     testCavlcIFrameQpDeltaFixture();
     testCavlcPSkipFixture();
     testCavlcPMotionVectorFixture();
+    testFrameAnalysisMirrorsH264SyntaxFixture();
     testCavlcPResidualContinuesToMotionVectorFixture();
     testUnsupportedCabacFixtureReportsDiagnostic();
     std::cout << "H264Parser tests passed\n";

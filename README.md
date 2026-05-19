@@ -15,6 +15,7 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Play, pause, stop, and step frame-by-frame.
 - Rebuffer evicted frames from indexed keyframe/IDR seek checkpoints when available.
 - Render decoded frames through `QOpenGLWidget`.
+- Route bitstream parsing through a codec-neutral parser interface so additional codecs can be added without coupling them to `FFmpegDecoder`.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show frame list information such as frame type, POC, and `frame_num`.
@@ -53,7 +54,7 @@ h264_analyzer/
 Folder responsibilities:
 
 - `src/app`: application window, menu, toolbar, dock layout, file opening, and workflow wiring.
-- `src/core`: stream document model, FFmpeg decoder wrapper, decode worker, and H.264 syntax parser.
+- `src/core`: stream document model, FFmpeg decoder wrapper, decode worker, codec-neutral parser interface, and H.264 syntax parser.
 - `src/ui`: reusable Qt widgets such as frame list, property tree, log dock, and video canvas.
 - `scripts`: build/deployment helper scripts.
 - `docs`: developer notes, deployment notes, and AI continuation roadmap.
@@ -200,7 +201,8 @@ Run:
 
 Key modules:
 
-- `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`.
+- `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`; owns codec-specific bitstream parsers through `IBitstreamParser`.
+- `BitstreamParser`: codec-neutral parser interface and codec kind identifiers.
 - `DecodeWorker`: runs decoding on a background `QThread`.
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
 - `VideoCanvas`: renders video frames and analysis overlays.
@@ -209,12 +211,13 @@ Key modules:
 Recommended next work:
 
 1. Expose richer residual coefficient details and broaden macroblock support.
-2. Add P_8x8 / P_8x8ref0 sub-macroblock parsing.
-3. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
-4. Extend B-slice and sub-macroblock motion vector parsing.
+2. Introduce a codec-neutral `FrameAnalysis` model before adding HEVC/H.265.
+3. Add P_8x8 / P_8x8ref0 sub-macroblock parsing.
+4. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
 5. Add Linux CI once Qt/FFmpeg package availability is stable enough.
 
-For a staged AI continuation plan, see [docs/ai-next-steps.md](docs/ai-next-steps.md).
+For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
+For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).
 
 ## Repository Hygiene
 

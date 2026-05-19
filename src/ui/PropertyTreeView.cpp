@@ -40,6 +40,57 @@ void PropertyTreeView::showPlaceholder(const QString &message)
     addTopLevelItem(item);
 }
 
+void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
+{
+    showFrameSyntax(h264SyntaxFromFrameAnalysis(analysis));
+
+    auto *analysisRoot = new QTreeWidgetItem({tr("FrameAnalysis"), codecKindName(analysis.codecKind)});
+    insertTopLevelItem(0, analysisRoot);
+    addPair(analysisRoot, tr("frame_index"), QString::number(analysis.frameIndex));
+    addPair(analysisRoot, tr("frame_type"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType);
+    addPair(analysisRoot, tr("has_frame"), boolValue(analysis.hasFrame));
+    addPair(analysisRoot, tr("pts"), QString::number(analysis.pts));
+    addPair(analysisRoot, tr("dts"), QString::number(analysis.dts));
+    addPair(analysisRoot, tr("units"), QString::number(analysis.units.size()));
+    addPair(analysisRoot, tr("parameter_sets"), QString::number(analysis.parameterSets.size()));
+    addPair(analysisRoot, tr("regions"), QString::number(analysis.regions.size()));
+    addPair(analysisRoot, tr("motion_vectors"), QString::number(analysis.motionVectors.size()));
+
+    if (!analysis.units.isEmpty()) {
+        auto *unitsRoot = new QTreeWidgetItem(analysisRoot, {tr("Units"), QString::number(analysis.units.size())});
+        for (int i = 0; i < analysis.units.size(); ++i) {
+            const AnalysisUnit &unit = analysis.units[i];
+            auto *unitItem = new QTreeWidgetItem(unitsRoot, {
+                tr("Unit %1").arg(i),
+                tr("%1 %2").arg(analysisUnitKindName(unit.kind), unit.typeName)
+            });
+            addPair(unitItem, tr("offset"), QString::number(unit.offset));
+            addPair(unitItem, tr("size"), QString::number(unit.size));
+            addPair(unitItem, tr("type"), QString::number(unit.type));
+        }
+    }
+
+    if (!analysis.parameterSets.isEmpty()) {
+        auto *setsRoot = new QTreeWidgetItem(analysisRoot, {tr("Parameter Sets"), QString::number(analysis.parameterSets.size())});
+        for (const AnalysisParameterSet &parameterSet : analysis.parameterSets) {
+            auto *setItem = new QTreeWidgetItem(setsRoot, {parameterSet.kind, QString::number(parameterSet.id)});
+            addPair(setItem, tr("summary"), parameterSet.summary);
+            addPair(setItem, tr("bit_fields"), QString::number(parameterSet.bitFields.size()));
+        }
+    }
+
+    if (!analysis.diagnostics.isEmpty()) {
+        auto *diagnosticsRoot = new QTreeWidgetItem(analysisRoot, {tr("Diagnostics"), QString::number(analysis.diagnostics.size())});
+        for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+            addPair(diagnosticsRoot,
+                    diagnostic.code,
+                    tr("%1: %2").arg(diagnostic.path, diagnostic.message));
+        }
+    }
+
+    analysisRoot->setExpanded(true);
+}
+
 void PropertyTreeView::showFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
 {
     clear();

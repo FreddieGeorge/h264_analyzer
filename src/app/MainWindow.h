@@ -41,7 +41,7 @@ private:
     {
         int index = -1;
         DecodedVideoFramePtr frame;
-        FrameSyntaxInfo syntaxInfo;
+        FrameAnalysis analysis;
     };
 
     void createActions();
@@ -65,7 +65,7 @@ private:
     void exportAllFrameSyntaxJson();
     void exportFrameListCsv();
     void exportScreenshot();
-    void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
+    void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
@@ -111,7 +111,7 @@ private:
     QString m_lastOpenDirectory;
     QString m_lastExportDirectory;
     QVector<CachedFrame> m_frameCache;
-    QVector<FrameSyntaxInfo> m_frameSyntaxByIndex;
+    QVector<FrameAnalysis> m_frameAnalysisByIndex;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;

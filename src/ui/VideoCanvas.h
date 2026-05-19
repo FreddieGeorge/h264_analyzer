@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/FFmpegDecoder.h"
-#include "core/H264Parser.h"
 
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
@@ -27,7 +26,7 @@ public:
 
 public slots:
     void setFrame(const DecodedVideoFramePtr &frame);
-    void setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo);
+    void setAnalysisOverlay(const FrameAnalysis &analysis);
     void setShowGrid(bool enabled);
     void setShowQpHeatmap(bool enabled);
     void setShowMotionVectors(bool enabled);
@@ -49,12 +48,12 @@ private:
     void paintOverlayText();
     QRectF videoDisplayRect() const;
     QPointF mapVideoPointToWidget(const QPointF &videoPoint, const QRectF &videoRect) const;
-    QRectF macroblockWidgetRect(int macroblockAddress, int picWidthInMbs, const QRectF &videoRect) const;
+    QRectF analysisRegionWidgetRect(const AnalysisRegion &region, const QRectF &videoRect) const;
     QColor qpHeatColor(int qp) const;
 
     QString m_overlayMessage;
     DecodedVideoFramePtr m_currentFrame;
-    FrameSyntaxInfo m_currentSyntaxInfo;
+    FrameAnalysis m_currentAnalysis;
     bool m_showGrid = true;
     bool m_showQpHeatmap = false;
     bool m_showMotionVectors = false;

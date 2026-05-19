@@ -85,9 +85,9 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
 
         DecodedVideoFramePtr copy = FFmpegDecoder::copyFrame(frame);
-        FrameSyntaxInfo syntaxInfo = decoder.lastFrameSyntaxInfo();
-        syntaxInfo.index = frameIndex;
-        syntaxInfo.pts = copy ? copy->pts : syntaxInfo.pts;
+        FrameAnalysis analysis = decoder.lastFrameAnalysis();
+        analysis.frameIndex = frameIndex;
+        analysis.pts = copy ? copy->pts : analysis.pts;
         FrameSeekCheckpoint seekCheckpoint = decoder.lastFrameSeekCheckpoint();
         seekCheckpoint.frameIndex = frameIndex;
         if ((seekCheckpoint.keyframe || seekCheckpoint.idr || frameIndex == 0)
@@ -98,10 +98,10 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
         if (copy && emitThisFrame) {
             emit frameDecoded(copy);
-            emit frameReady(frameIndex, copy, syntaxInfo);
+            emit frameReady(frameIndex, copy, analysis);
         }
-        if (emitThisFrame && !syntaxInfo.slices.isEmpty()) {
-            emit frameSyntaxDecoded(syntaxInfo);
+        if (emitThisFrame && analysis.hasFrame) {
+            emit frameAnalysisDecoded(analysis);
         }
 
         if (emitThisFrame && firstEmittedFrame) {

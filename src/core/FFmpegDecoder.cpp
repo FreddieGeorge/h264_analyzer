@@ -5,6 +5,7 @@
 #include <QFileInfo>
 
 #include <algorithm>
+#include <utility>
 
 extern "C" {
 #include <libavutil/error.h>
@@ -26,6 +27,16 @@ FFmpegDecoder::~FFmpegDecoder()
     close();
     av_packet_free(&m_packet);
     av_frame_free(&m_frame);
+}
+
+void FFmpegDecoder::createParserForCodec(AVCodecID codecId)
+{
+    if (codecId == AV_CODEC_ID_H264) {
+        m_parser = std::make_unique<H264Parser>();
+        return;
+    }
+
+    m_parser.reset();
 }
 
 bool FFmpegDecoder::openFile(const QString &filePath)
@@ -101,14 +112,18 @@ bool FFmpegDecoder::openFile(const QString &filePath)
     m_streamInfo.height = m_codecContext->height;
     m_streamInfo.frameRate = rationalToDouble(rate);
     m_streamInfo.isValid = true;
-    m_h264Parser.reset();
-    if (m_codecContext->codec_id == AV_CODEC_ID_H264 && m_codecContext->extradata != nullptr) {
+
+    createParserForCodec(m_codecContext->codec_id);
+    if (m_parser != nullptr) {
+        m_parser->reset();
+    }
+    if (m_parser != nullptr && m_codecContext->extradata != nullptr) {
         const QByteArray extraData(reinterpret_cast<const char *>(m_codecContext->extradata),
                                    m_codecContext->extradata_size);
-        m_h264Parser.parseDecoderConfigurationRecord(extraData);
+        m_parser->parseDecoderConfigurationRecord(extraData);
     }
     m_pendingFrames.clear();
-    m_lastFrameSyntax = FrameSyntaxInfo {};
+    m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
     m_draining = false;
     m_lastError.clear();
@@ -152,9 +167,11 @@ bool FFmpegDecoder::seekToCheckpoint(const FrameSeekCheckpoint &checkpoint)
     av_packet_unref(m_packet);
     av_frame_unref(m_frame);
     m_pendingFrames.clear();
-    m_lastFrameSyntax = FrameSyntaxInfo {};
+    m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
-    m_h264Parser.setParameterSets(checkpoint.spsById, checkpoint.ppsById);
+    if (m_parser != nullptr && checkpoint.codecKind == m_parser->codecKind()) {
+        m_parser->restoreState(checkpoint.parserState);
+    }
     m_packetIndex = std::max(0, checkpoint.packetIndex);
     m_draining = false;
     m_lastError.clear();
@@ -173,13 +190,13 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
         if (ret == 0) {
             if (!m_pendingFrames.isEmpty()) {
                 const PendingFrameInfo info = m_pendingFrames.takeFirst();
-                m_lastFrameSyntax = info.syntax;
+                m_lastFrameAnalysis = info.analysis;
                 m_lastFrameSeekCheckpoint = info.checkpoint;
             } else {
-                m_lastFrameSyntax = FrameSyntaxInfo {};
+                m_lastFrameAnalysis = FrameAnalysis {};
                 m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
             }
-            m_lastFrameSyntax.pts = m_frame->best_effort_timestamp;
+            m_lastFrameAnalysis.pts = m_frame->best_effort_timestamp;
             return m_frame;
         }
 
@@ -209,29 +226,31 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
                 continue;
             }
 
-            if (m_codecContext->codec_id == AV_CODEC_ID_H264 && m_packet->data != nullptr && m_packet->size > 0) {
+            if (m_parser != nullptr && m_packet->data != nullptr && m_packet->size > 0) {
                 const QByteArray packetData(reinterpret_cast<const char *>(m_packet->data), m_packet->size);
                 const int packetIndex = m_packetIndex++;
-                FrameSyntaxInfo syntax = m_h264Parser.parsePacket(packetData,
-                                                                  m_packet->pts,
-                                                                  m_packet->dts,
-                                                                  packetIndex);
-                if (!syntax.slices.isEmpty()) {
+                FrameAnalysis analysis = m_parser->parsePacket(packetData,
+                                                               m_packet->pts,
+                                                               m_packet->dts,
+                                                               packetIndex);
+                if (analysis.hasFrame) {
                     FrameSeekCheckpoint checkpoint;
                     checkpoint.packetIndex = packetIndex;
                     checkpoint.packetPosition = m_packet->pos;
                     checkpoint.packetPts = m_packet->pts;
                     checkpoint.packetDts = m_packet->dts;
                     checkpoint.keyframe = (m_packet->flags & AV_PKT_FLAG_KEY) != 0;
-                    checkpoint.spsById = m_h264Parser.spsMap();
-                    checkpoint.ppsById = m_h264Parser.ppsMap();
-                    for (const NaluInfo &nalu : syntax.nalus) {
-                        if (nalu.nalUnitType == 5) {
+                    checkpoint.codecKind = m_parser->codecKind();
+                    checkpoint.parserState = m_parser->snapshotState();
+                    for (const AnalysisUnit &unit : analysis.units) {
+                        if (analysis.codecKind == CodecKind::H264
+                            && unit.kind == AnalysisUnitKind::Nalu
+                            && unit.type == 5) {
                             checkpoint.idr = true;
                             break;
                         }
                     }
-                    m_pendingFrames.append({syntax, checkpoint});
+                    m_pendingFrames.append({analysis, checkpoint});
                 }
             }
 
@@ -251,9 +270,14 @@ StreamInfo FFmpegDecoder::getStreamInfo() const
     return m_streamInfo;
 }
 
+FrameAnalysis FFmpegDecoder::lastFrameAnalysis() const
+{
+    return m_lastFrameAnalysis;
+}
+
 FrameSyntaxInfo FFmpegDecoder::lastFrameSyntaxInfo() const
 {
-    return m_lastFrameSyntax;
+    return h264SyntaxFromFrameAnalysis(m_lastFrameAnalysis);
 }
 
 FrameSeekCheckpoint FFmpegDecoder::lastFrameSeekCheckpoint() const
@@ -273,9 +297,12 @@ void FFmpegDecoder::close()
     m_packetIndex = 0;
     m_streamInfo = StreamInfo {};
     m_pendingFrames.clear();
-    m_lastFrameSyntax = FrameSyntaxInfo {};
+    m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
-    m_h264Parser.reset();
+    if (m_parser != nullptr) {
+        m_parser->reset();
+    }
+    m_parser.reset();
 
     if (m_codecContext != nullptr) {
         avcodec_free_context(&m_codecContext);

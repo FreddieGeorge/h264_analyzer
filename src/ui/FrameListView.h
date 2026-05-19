@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/H264Parser.h"
+#include "core/FrameAnalysis.h"
 
 #include <QTreeWidget>
 
@@ -13,7 +13,7 @@ public:
 
     void showPlaceholder(const QString &message);
     void clearFrames();
-    void addFrameSyntax(const FrameSyntaxInfo &syntaxInfo);
+    void addFrameAnalysis(const FrameAnalysis &analysis);
     bool selectFrameIndex(int frameIndex);
 
 signals:

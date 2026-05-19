@@ -224,6 +224,8 @@ QJsonObject frameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
 
     return {
         {QStringLiteral("index"), syntaxInfo.index},
+        {QStringLiteral("codec"), codecKindName(syntaxInfo.codecKind)},
+        {QStringLiteral("codec_name"), syntaxInfo.codecName},
         {QStringLiteral("pts"), static_cast<double>(syntaxInfo.pts)},
         {QStringLiteral("dts"), static_cast<double>(syntaxInfo.dts)},
         {QStringLiteral("poc"), syntaxInfo.poc},
@@ -234,28 +236,137 @@ QJsonObject frameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo)
     };
 }
 
-QJsonObject selectedFrameExportToJson(const StreamInfo &stream, const FrameSyntaxInfo &syntaxInfo)
+QJsonObject bitFieldToJson(const AnalysisBitField &field)
 {
     return {
-        {QStringLiteral("schema_version"), 1},
+        {QStringLiteral("path"), field.path},
+        {QStringLiteral("name"), field.name},
+        {QStringLiteral("bit_offset"), static_cast<double>(field.bitOffset)},
+        {QStringLiteral("bit_length"), static_cast<double>(field.bitLength)},
+        {QStringLiteral("value"), field.value}
+    };
+}
+
+QJsonObject frameAnalysisToJson(const FrameAnalysis &analysis)
+{
+    QJsonArray units;
+    for (const AnalysisUnit &unit : analysis.units) {
+        units.append(QJsonObject {
+            {QStringLiteral("kind"), analysisUnitKindName(unit.kind)},
+            {QStringLiteral("offset"), static_cast<double>(unit.offset)},
+            {QStringLiteral("size"), static_cast<double>(unit.size)},
+            {QStringLiteral("type"), unit.type},
+            {QStringLiteral("type_name"), unit.typeName}
+        });
+    }
+
+    QJsonArray parameterSets;
+    for (const AnalysisParameterSet &parameterSet : analysis.parameterSets) {
+        QJsonArray fields;
+        for (const AnalysisBitField &field : parameterSet.bitFields) {
+            fields.append(bitFieldToJson(field));
+        }
+        parameterSets.append(QJsonObject {
+            {QStringLiteral("kind"), parameterSet.kind},
+            {QStringLiteral("id"), parameterSet.id},
+            {QStringLiteral("summary"), parameterSet.summary},
+            {QStringLiteral("bit_fields"), fields}
+        });
+    }
+
+    QJsonArray regions;
+    for (const AnalysisRegion &region : analysis.regions) {
+        regions.append(QJsonObject {
+            {QStringLiteral("kind"), analysisRegionKindName(region.kind)},
+            {QStringLiteral("address"), region.address},
+            {QStringLiteral("x"), region.x},
+            {QStringLiteral("y"), region.y},
+            {QStringLiteral("width"), region.width},
+            {QStringLiteral("height"), region.height},
+            {QStringLiteral("qp"), region.qp},
+            {QStringLiteral("type"), region.type},
+            {QStringLiteral("prediction_mode"), region.predictionMode},
+            {QStringLiteral("parsed"), region.parsed},
+            {QStringLiteral("skipped"), region.skipped},
+            {QStringLiteral("note"), region.note}
+        });
+    }
+
+    QJsonArray motionVectors;
+    for (const AnalysisMotionVector &mv : analysis.motionVectors) {
+        motionVectors.append(QJsonObject {
+            {QStringLiteral("region_address"), mv.regionAddress},
+            {QStringLiteral("list"), mv.list},
+            {QStringLiteral("reference_index"), mv.referenceIndex},
+            {QStringLiteral("source_x"), mv.sourceX},
+            {QStringLiteral("source_y"), mv.sourceY},
+            {QStringLiteral("reference_x"), mv.referenceX},
+            {QStringLiteral("reference_y"), mv.referenceY},
+            {QStringLiteral("mv_x_quarter_pel"), mv.mvXQuarterPel},
+            {QStringLiteral("mv_y_quarter_pel"), mv.mvYQuarterPel}
+        });
+    }
+
+    QJsonArray diagnostics;
+    for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+        diagnostics.append(QJsonObject {
+            {QStringLiteral("path"), diagnostic.path},
+            {QStringLiteral("code"), diagnostic.code},
+            {QStringLiteral("message"), diagnostic.message},
+            {QStringLiteral("severity"), diagnostic.severity}
+        });
+    }
+
+    QJsonArray bitFields;
+    for (const AnalysisBitField &field : analysis.bitFields) {
+        bitFields.append(bitFieldToJson(field));
+    }
+
+    return {
+        {QStringLiteral("index"), analysis.frameIndex},
+        {QStringLiteral("codec"), codecKindName(analysis.codecKind)},
+        {QStringLiteral("codec_name"), analysis.codecName},
+        {QStringLiteral("pts"), static_cast<double>(analysis.pts)},
+        {QStringLiteral("dts"), static_cast<double>(analysis.dts)},
+        {QStringLiteral("poc"), analysis.poc},
+        {QStringLiteral("frame_num"), analysis.frameNum},
+        {QStringLiteral("frame_type"), analysis.frameType},
+        {QStringLiteral("has_frame"), analysis.hasFrame},
+        {QStringLiteral("units"), units},
+        {QStringLiteral("parameter_sets"), parameterSets},
+        {QStringLiteral("regions"), regions},
+        {QStringLiteral("motion_vectors"), motionVectors},
+        {QStringLiteral("diagnostics"), diagnostics},
+        {QStringLiteral("bit_fields"), bitFields}
+    };
+}
+
+QJsonObject selectedFrameExportToJson(const StreamInfo &stream, const FrameAnalysis &analysis)
+{
+    const FrameSyntaxInfo syntaxInfo = h264SyntaxFromFrameAnalysis(analysis);
+    return {
+        {QStringLiteral("schema_version"), 2},
         {QStringLiteral("generator"), QCoreApplication::applicationName()},
         {QStringLiteral("generator_version"), QCoreApplication::applicationVersion()},
         {QStringLiteral("stream"), streamInfoToJson(stream)},
+        {QStringLiteral("frame_analysis"), frameAnalysisToJson(analysis)},
         {QStringLiteral("frame"), frameSyntaxToJson(syntaxInfo)}
     };
 }
 
-QJsonObject allFramesExportToJson(const StreamInfo &stream, const QVector<FrameSyntaxInfo> &frames)
+QJsonObject allFramesExportToJson(const StreamInfo &stream, const QVector<FrameAnalysis> &frames)
 {
     QJsonArray frameArray;
-    for (const FrameSyntaxInfo &frame : frames) {
-        if (frame.index >= 0) {
-            frameArray.append(frameSyntaxToJson(frame));
+    for (const FrameAnalysis &frame : frames) {
+        if (frame.frameIndex >= 0) {
+            QJsonObject frameObject = frameAnalysisToJson(frame);
+            frameObject.insert(QStringLiteral("h264"), frameSyntaxToJson(h264SyntaxFromFrameAnalysis(frame)));
+            frameArray.append(frameObject);
         }
     }
 
     return {
-        {QStringLiteral("schema_version"), 1},
+        {QStringLiteral("schema_version"), 2},
         {QStringLiteral("generator"), QCoreApplication::applicationName()},
         {QStringLiteral("generator_version"), QCoreApplication::applicationVersion()},
         {QStringLiteral("stream"), streamInfoToJson(stream)},
@@ -270,6 +381,7 @@ MainWindow::MainWindow(QWidget *parent)
     qRegisterMetaType<StreamInfo>("StreamInfo");
     qRegisterMetaType<DecodedVideoFramePtr>("DecodedVideoFramePtr");
     qRegisterMetaType<FrameSyntaxInfo>("FrameSyntaxInfo");
+    qRegisterMetaType<FrameAnalysis>("FrameAnalysis");
     qRegisterMetaType<FrameSeekCheckpoint>("FrameSeekCheckpoint");
 
     setWindowTitle(tr("H.264 Analyzer"));
@@ -480,11 +592,11 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_videoCanvas->setOverlayMessage(
         tr("%1\n\nDecoding video stream...")
             .arg(stream.fileName));
-    m_videoCanvas->setAnalysisOverlay(FrameSyntaxInfo {});
+    m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
     m_frameListView->clearFrames();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_frameCache.clear();
-    m_frameSyntaxByIndex.clear();
+    m_frameAnalysisByIndex.clear();
     m_seekCheckpoints.clear();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
@@ -686,7 +798,7 @@ void MainWindow::exportFrameSyntaxJson()
         return;
     }
 
-    const QJsonDocument document(selectedFrameExportToJson(m_document.streamInfo(), cached->syntaxInfo));
+    const QJsonDocument document(selectedFrameExportToJson(m_document.streamInfo(), cached->analysis));
     file.write(document.toJson(QJsonDocument::Indented));
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
@@ -695,7 +807,7 @@ void MainWindow::exportFrameSyntaxJson()
 
 void MainWindow::exportAllFrameSyntaxJson()
 {
-    if (m_frameSyntaxByIndex.isEmpty()) {
+    if (m_frameAnalysisByIndex.isEmpty()) {
         const QString message = tr("No decoded frame syntax is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
@@ -719,7 +831,7 @@ void MainWindow::exportAllFrameSyntaxJson()
         return;
     }
 
-    const QJsonDocument document(allFramesExportToJson(m_document.streamInfo(), m_frameSyntaxByIndex));
+    const QJsonDocument document(allFramesExportToJson(m_document.streamInfo(), m_frameAnalysisByIndex));
     file.write(document.toJson(QJsonDocument::Indented));
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
     m_logDock->appendLine(tr("[Info] Exported all decoded frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
@@ -728,7 +840,7 @@ void MainWindow::exportAllFrameSyntaxJson()
 
 void MainWindow::exportFrameListCsv()
 {
-    if (m_frameSyntaxByIndex.isEmpty()) {
+    if (m_frameAnalysisByIndex.isEmpty()) {
         const QString message = tr("No frame list is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
@@ -754,14 +866,14 @@ void MainWindow::exportFrameListCsv()
 
     QTextStream out(&file);
     out << "index,type,poc,frame_num\n";
-    for (const FrameSyntaxInfo &syntaxInfo : std::as_const(m_frameSyntaxByIndex)) {
-        if (syntaxInfo.index < 0) {
+    for (const FrameAnalysis &analysis : std::as_const(m_frameAnalysisByIndex)) {
+        if (analysis.frameIndex < 0) {
             continue;
         }
-        out << csvEscape(QString::number(syntaxInfo.index)) << ','
-            << csvEscape(syntaxInfo.frameType.isEmpty() ? QStringLiteral("-") : syntaxInfo.frameType) << ','
-            << csvEscape(syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-")) << ','
-            << csvEscape(syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-")) << '\n';
+        out << csvEscape(QString::number(analysis.frameIndex)) << ','
+            << csvEscape(analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType) << ','
+            << csvEscape(analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-")) << ','
+            << csvEscape(analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-")) << '\n';
     }
 
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
@@ -799,26 +911,26 @@ void MainWindow::exportScreenshot()
 
 void MainWindow::handleFrameReady(int frameIndex,
                                   const DecodedVideoFramePtr &frame,
-                                  const FrameSyntaxInfo &syntaxInfo)
+                                  const FrameAnalysis &analysis)
 {
     CachedFrame cached;
     cached.index = frameIndex;
     cached.frame = frame;
-    cached.syntaxInfo = syntaxInfo;
+    cached.analysis = analysis;
     m_frameCache.append(cached);
     while (m_frameCache.size() > MaxCachedFrames) {
         m_frameCache.removeFirst();
     }
 
     if (frameIndex >= 0) {
-        if (frameIndex >= m_frameSyntaxByIndex.size()) {
-            m_frameSyntaxByIndex.resize(frameIndex + 1);
+        if (frameIndex >= m_frameAnalysisByIndex.size()) {
+            m_frameAnalysisByIndex.resize(frameIndex + 1);
         }
-        m_frameSyntaxByIndex[frameIndex] = syntaxInfo;
+        m_frameAnalysisByIndex[frameIndex] = analysis;
     }
 
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
-    m_frameListView->addFrameSyntax(syntaxInfo);
+    m_frameListView->addFrameAnalysis(analysis);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
     updateExportActionState();
 }
@@ -865,9 +977,9 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
 
         m_currentFrameIndex = frameIndex;
         m_videoCanvas->setFrame(cached.frame);
-        m_videoCanvas->setAnalysisOverlay(cached.syntaxInfo);
+        m_videoCanvas->setAnalysisOverlay(cached.analysis);
         if (updatePropertyTree) {
-            m_propertyTreeView->showFrameSyntax(cached.syntaxInfo);
+            m_propertyTreeView->showFrameAnalysis(cached.analysis);
         }
         if (selectInList) {
             m_frameListView->selectFrameIndex(frameIndex);
@@ -957,7 +1069,7 @@ void MainWindow::updatePlaybackActionState()
 void MainWindow::updateExportActionState()
 {
     const bool hasCurrentFrame = currentCachedFrame() != nullptr;
-    const bool hasDecodedSyntax = !m_frameSyntaxByIndex.isEmpty();
+    const bool hasDecodedSyntax = !m_frameAnalysisByIndex.isEmpty();
 
     if (m_exportFrameSyntaxJsonAction != nullptr) {
         m_exportFrameSyntaxJsonAction->setEnabled(hasCurrentFrame);

@@ -37,19 +37,19 @@ void FrameListView::clearFrames()
     clear();
 }
 
-void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
+void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
 {
     if (topLevelItemCount() == 1 && topLevelItem(0)->data(0, FrameIndexRole).isNull()) {
         clear();
     }
 
-    const QString poc = syntaxInfo.poc >= 0 ? QString::number(syntaxInfo.poc) : QStringLiteral("-");
-    const QString frameNum = syntaxInfo.frameNum >= 0 ? QString::number(syntaxInfo.frameNum) : QStringLiteral("-");
-    const QString type = !syntaxInfo.frameType.isEmpty() ? syntaxInfo.frameType : QStringLiteral("-");
+    const QString poc = analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-");
+    const QString frameNum = analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-");
+    const QString type = !analysis.frameType.isEmpty() ? analysis.frameType : QStringLiteral("-");
 
-    if (syntaxInfo.index >= 0 && syntaxInfo.index < topLevelItemCount()) {
-        QTreeWidgetItem *existing = topLevelItem(syntaxInfo.index);
-        if (existing->data(0, FrameIndexRole).toInt() == syntaxInfo.index) {
+    if (analysis.frameIndex >= 0 && analysis.frameIndex < topLevelItemCount()) {
+        QTreeWidgetItem *existing = topLevelItem(analysis.frameIndex);
+        if (existing->data(0, FrameIndexRole).toInt() == analysis.frameIndex) {
             existing->setText(1, type);
             existing->setText(2, poc);
             existing->setText(3, frameNum);
@@ -59,7 +59,7 @@ void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
 
     for (int row = 0; row < topLevelItemCount(); ++row) {
         QTreeWidgetItem *existing = topLevelItem(row);
-        if (existing->data(0, FrameIndexRole).toInt() == syntaxInfo.index) {
+        if (existing->data(0, FrameIndexRole).toInt() == analysis.frameIndex) {
             existing->setText(1, type);
             existing->setText(2, poc);
             existing->setText(3, frameNum);
@@ -68,12 +68,12 @@ void FrameListView::addFrameSyntax(const FrameSyntaxInfo &syntaxInfo)
     }
 
     auto *item = new QTreeWidgetItem({
-        QString::number(syntaxInfo.index),
+        QString::number(analysis.frameIndex),
         type,
         poc,
         frameNum
     });
-    item->setData(0, FrameIndexRole, syntaxInfo.index);
+    item->setData(0, FrameIndexRole, analysis.frameIndex);
     addTopLevelItem(item);
 }
 

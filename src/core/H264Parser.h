@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/BitstreamParser.h"
+
 #include <QByteArray>
 #include <QHash>
 #include <QMetaType>
@@ -176,6 +178,8 @@ struct NaluInfo
 struct FrameSyntaxInfo
 {
     int index = -1;
+    CodecKind codecKind = CodecKind::Unknown;
+    QString codecName = QStringLiteral("Unknown");
     qint64 pts = 0;
     qint64 dts = 0;
     int poc = -1;
@@ -185,15 +189,26 @@ struct FrameSyntaxInfo
     QVector<SliceInfo> slices;
 };
 
-class H264Parser
+struct H264ParserState : public BitstreamParserState
+{
+    QHash<int, SpsInfo> spsById;
+    QHash<int, PpsInfo> ppsById;
+    int nalLengthSize = 4;
+};
+
+class H264Parser : public IBitstreamParser
 {
 public:
     H264Parser();
 
-    void reset();
-    void parseDecoderConfigurationRecord(const QByteArray &extraData);
+    CodecKind codecKind() const override;
+    void reset() override;
+    void parseDecoderConfigurationRecord(const QByteArray &extraData) override;
     void setParameterSets(const QHash<int, SpsInfo> &spsById, const QHash<int, PpsInfo> &ppsById);
-    FrameSyntaxInfo parsePacket(const QByteArray &packetData, qint64 pts, qint64 dts, int packetIndex);
+    FrameAnalysis parsePacket(const QByteArray &packetData, qint64 pts, qint64 dts, int packetIndex) override;
+    FrameSyntaxInfo parsePacketSyntax(const QByteArray &packetData, qint64 pts, qint64 dts, int packetIndex);
+    BitstreamParserStatePtr snapshotState() const override;
+    void restoreState(const BitstreamParserStatePtr &state) override;
 
     const QHash<int, SpsInfo> &spsMap() const;
     const QHash<int, PpsInfo> &ppsMap() const;
@@ -242,3 +257,6 @@ Q_DECLARE_METATYPE(MacroblockInfo)
 Q_DECLARE_METATYPE(SliceInfo)
 Q_DECLARE_METATYPE(NaluInfo)
 Q_DECLARE_METATYPE(FrameSyntaxInfo)
+
+FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo);
+FrameSyntaxInfo h264SyntaxFromFrameAnalysis(const FrameAnalysis &analysis);

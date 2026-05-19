@@ -60,9 +60,9 @@ void VideoCanvas::setFrame(const DecodedVideoFramePtr &frame)
     update();
 }
 
-void VideoCanvas::setAnalysisOverlay(const FrameSyntaxInfo &syntaxInfo)
+void VideoCanvas::setAnalysisOverlay(const FrameAnalysis &analysis)
 {
-    m_currentSyntaxInfo = syntaxInfo;
+    m_currentAnalysis = analysis;
     update();
 }
 
@@ -267,7 +267,7 @@ void VideoCanvas::paintTexture()
 
 void VideoCanvas::drawAnalysisOverlay()
 {
-    if (m_textureSize.isEmpty() || m_currentSyntaxInfo.slices.isEmpty()) {
+    if (m_textureSize.isEmpty()) {
         return;
     }
 
@@ -293,18 +293,15 @@ void VideoCanvas::drawQpHeatmap(QPainter &painter, const QRectF &videoRect)
     painter.setPen(Qt::NoPen);
     painter.setClipRect(videoRect);
 
-    for (const SliceInfo &slice : m_currentSyntaxInfo.slices) {
-        const int picWidthInMbs = slice.picWidthInMbs > 0
-            ? slice.picWidthInMbs
-            : std::max(1, (m_textureSize.width() + 15) / 16);
-
-        for (const MacroblockInfo &mb : slice.macroblocks) {
-            const QRectF mbRect = macroblockWidgetRect(mb.address, picWidthInMbs, videoRect);
-            if (!mbRect.isValid()) {
-                continue;
-            }
-            painter.fillRect(mbRect, qpHeatColor(mb.qp));
+    for (const AnalysisRegion &region : m_currentAnalysis.regions) {
+        if (region.kind != AnalysisRegionKind::Macroblock || region.qp < 0) {
+            continue;
         }
+        const QRectF regionRect = analysisRegionWidgetRect(region, videoRect);
+        if (!regionRect.isValid()) {
+            continue;
+        }
+        painter.fillRect(regionRect, qpHeatColor(region.qp));
     }
 
     painter.restore();
@@ -345,54 +342,43 @@ void VideoCanvas::drawMotionVectors(QPainter &painter, const QRectF &videoRect)
     painter.save();
     painter.setClipRect(videoRect);
 
-    for (const SliceInfo &slice : m_currentSyntaxInfo.slices) {
-        const int picWidthInMbs = slice.picWidthInMbs > 0
-            ? slice.picWidthInMbs
-            : std::max(1, (m_textureSize.width() + 15) / 16);
+    for (const AnalysisMotionVector &mv : m_currentAnalysis.motionVectors) {
+        const QColor vectorColor = mv.list == 1
+            ? QColor(255, 80, 220, 220)
+            : QColor(80, 220, 255, 220);
+        painter.setPen(QPen(vectorColor, 1.4));
+        painter.setBrush(vectorColor);
 
-        for (const MacroblockInfo &mb : slice.macroblocks) {
-            const int mbX = mb.address % picWidthInMbs;
-            const int mbY = mb.address / picWidthInMbs;
-            const QPointF currentCenter(mbX * 16.0 + 8.0, mbY * 16.0 + 8.0);
+        const QPointF currentCenter(mv.sourceX, mv.sourceY);
+        const QPointF referenceBase(
+            mv.referenceX >= 0 ? mv.referenceX + 8.0 : currentCenter.x(),
+            mv.referenceY >= 0 ? mv.referenceY + 8.0 : currentCenter.y());
 
-            for (const MotionVectorInfo &mv : mb.motionVectors) {
-                const QColor vectorColor = mv.list == 1
-                    ? QColor(255, 80, 220, 220)
-                    : QColor(80, 220, 255, 220);
-                painter.setPen(QPen(vectorColor, 1.4));
-                painter.setBrush(vectorColor);
+        const QPointF predictedPoint(
+            referenceBase.x() + mv.mvXQuarterPel / 4.0,
+            referenceBase.y() + mv.mvYQuarterPel / 4.0);
 
-                const QPointF referenceBase(
-                    mv.referenceX >= 0 ? mv.referenceX + 8.0 : currentCenter.x(),
-                    mv.referenceY >= 0 ? mv.referenceY + 8.0 : currentCenter.y());
-
-                const QPointF predictedPoint(
-                    referenceBase.x() + mv.mvXQuarterPel / 4.0,
-                    referenceBase.y() + mv.mvYQuarterPel / 4.0);
-
-                const QPointF start = mapVideoPointToWidget(currentCenter, videoRect);
-                const QPointF end = mapVideoPointToWidget(predictedPoint, videoRect);
-                const QLineF line(start, end);
-                if (line.length() < 1.0) {
-                    continue;
-                }
-
-                painter.drawLine(line);
-
-                const double angle = std::atan2(-(end.y() - start.y()), end.x() - start.x());
-                const qreal arrowSize = 7.0;
-                const QPointF arrowP1 = end - QPointF(std::cos(angle + Pi / 6.0) * arrowSize,
-                                                       -std::sin(angle + Pi / 6.0) * arrowSize);
-                const QPointF arrowP2 = end - QPointF(std::cos(angle - Pi / 6.0) * arrowSize,
-                                                       -std::sin(angle - Pi / 6.0) * arrowSize);
-                QPainterPath arrowHead;
-                arrowHead.moveTo(end);
-                arrowHead.lineTo(arrowP1);
-                arrowHead.lineTo(arrowP2);
-                arrowHead.closeSubpath();
-                painter.drawPath(arrowHead);
-            }
+        const QPointF start = mapVideoPointToWidget(currentCenter, videoRect);
+        const QPointF end = mapVideoPointToWidget(predictedPoint, videoRect);
+        const QLineF line(start, end);
+        if (line.length() < 1.0) {
+            continue;
         }
+
+        painter.drawLine(line);
+
+        const double angle = std::atan2(-(end.y() - start.y()), end.x() - start.x());
+        const qreal arrowSize = 7.0;
+        const QPointF arrowP1 = end - QPointF(std::cos(angle + Pi / 6.0) * arrowSize,
+                                               -std::sin(angle + Pi / 6.0) * arrowSize);
+        const QPointF arrowP2 = end - QPointF(std::cos(angle - Pi / 6.0) * arrowSize,
+                                               -std::sin(angle - Pi / 6.0) * arrowSize);
+        QPainterPath arrowHead;
+        arrowHead.moveTo(end);
+        arrowHead.lineTo(arrowP1);
+        arrowHead.lineTo(arrowP2);
+        arrowHead.closeSubpath();
+        painter.drawPath(arrowHead);
     }
 
     painter.restore();
@@ -452,18 +438,16 @@ QPointF VideoCanvas::mapVideoPointToWidget(const QPointF &videoPoint, const QRec
         videoRect.top() + videoPoint.y() / m_textureSize.height() * videoRect.height());
 }
 
-QRectF VideoCanvas::macroblockWidgetRect(int macroblockAddress, int picWidthInMbs, const QRectF &videoRect) const
+QRectF VideoCanvas::analysisRegionWidgetRect(const AnalysisRegion &region, const QRectF &videoRect) const
 {
-    if (macroblockAddress < 0 || picWidthInMbs <= 0 || m_textureSize.isEmpty()) {
+    if (region.address < 0 || region.width <= 0 || region.height <= 0 || m_textureSize.isEmpty()) {
         return {};
     }
 
-    const int mbX = macroblockAddress % picWidthInMbs;
-    const int mbY = macroblockAddress / picWidthInMbs;
-    const QPointF topLeft = mapVideoPointToWidget(QPointF(mbX * 16.0, mbY * 16.0), videoRect);
+    const QPointF topLeft = mapVideoPointToWidget(QPointF(region.x, region.y), videoRect);
     const QPointF bottomRight = mapVideoPointToWidget(
-        QPointF(std::min((mbX + 1) * 16, m_textureSize.width()),
-                std::min((mbY + 1) * 16, m_textureSize.height())),
+        QPointF(std::min(region.x + region.width, m_textureSize.width()),
+                std::min(region.y + region.height, m_textureSize.height())),
         videoRect);
     return QRectF(topLeft, bottomRight).normalized();
 }

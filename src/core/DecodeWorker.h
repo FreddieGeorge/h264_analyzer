@@ -32,9 +32,9 @@ public slots:
 signals:
     void streamOpened(const StreamInfo &streamInfo);
     void frameDecoded(const DecodedVideoFramePtr &frame);
-    void frameSyntaxDecoded(const FrameSyntaxInfo &syntaxInfo);
+    void frameAnalysisDecoded(const FrameAnalysis &analysis);
     void seekCheckpointReady(const FrameSeekCheckpoint &checkpoint);
-    void frameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameSyntaxInfo &syntaxInfo);
+    void frameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void logMessage(const QString &message);
     void errorOccurred(const QString &message);
     void finished();

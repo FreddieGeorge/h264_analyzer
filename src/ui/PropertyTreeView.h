@@ -12,6 +12,7 @@ public:
     explicit PropertyTreeView(QWidget *parent = nullptr);
 
     void showPlaceholder(const QString &message);
+    void showFrameAnalysis(const FrameAnalysis &analysis);
     void showFrameSyntax(const FrameSyntaxInfo &syntaxInfo);
 
 private:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/BitstreamParser.h"
 #include "core/H264Parser.h"
 #include "core/StreamDocument.h"
 
@@ -38,8 +39,8 @@ struct FrameSeekCheckpoint
     qint64 packetDts = AV_NOPTS_VALUE;
     bool keyframe = false;
     bool idr = false;
-    QHash<int, SpsInfo> spsById;
-    QHash<int, PpsInfo> ppsById;
+    CodecKind codecKind = CodecKind::Unknown;
+    BitstreamParserStatePtr parserState;
 };
 
 class FFmpegDecoder
@@ -58,6 +59,7 @@ public:
     bool seekToCheckpoint(const FrameSeekCheckpoint &checkpoint);
     AVFrame *decodeNextFrame();
     StreamInfo getStreamInfo() const;
+    FrameAnalysis lastFrameAnalysis() const;
     FrameSyntaxInfo lastFrameSyntaxInfo() const;
     FrameSeekCheckpoint lastFrameSeekCheckpoint() const;
     QString lastError() const;
@@ -67,12 +69,13 @@ public:
 
 private:
     void setError(const QString &message);
+    void createParserForCodec(AVCodecID codecId);
     static QString ffmpegErrorString(int errorCode);
     static double rationalToDouble(AVRational value);
 
     struct PendingFrameInfo
     {
-        FrameSyntaxInfo syntax;
+        FrameAnalysis analysis;
         FrameSeekCheckpoint checkpoint;
     };
 
@@ -85,9 +88,9 @@ private:
     int m_packetIndex = 0;
     bool m_draining = false;
     StreamInfo m_streamInfo;
-    H264Parser m_h264Parser;
+    std::unique_ptr<IBitstreamParser> m_parser;
     QVector<PendingFrameInfo> m_pendingFrames;
-    FrameSyntaxInfo m_lastFrameSyntax;
+    FrameAnalysis m_lastFrameAnalysis;
     FrameSeekCheckpoint m_lastFrameSeekCheckpoint;
     QString m_lastError;
 };
