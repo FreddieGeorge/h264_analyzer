@@ -183,6 +183,34 @@ QString sha256ForFile(const QString &filePath, QString *errorMessage)
     return QString::fromLatin1(hash.result().toHex());
 }
 
+int frameAnalysisQpValueCount(const FrameAnalysis &analysis, int *minQp = nullptr, int *maxQp = nullptr)
+{
+    int count = 0;
+    int localMin = 0;
+    int localMax = 0;
+    for (const AnalysisRegion &region : analysis.regions) {
+        if (region.kind != AnalysisRegionKind::Macroblock || region.qp < 0) {
+            continue;
+        }
+        if (count == 0) {
+            localMin = region.qp;
+            localMax = region.qp;
+        } else {
+            localMin = std::min(localMin, region.qp);
+            localMax = std::max(localMax, region.qp);
+        }
+        ++count;
+    }
+
+    if (minQp != nullptr) {
+        *minQp = localMin;
+    }
+    if (maxQp != nullptr) {
+        *maxQp = localMax;
+    }
+    return count;
+}
+
 QString safeInstallerFileName(QString fileName)
 {
     if (fileName.isEmpty()) {
@@ -296,6 +324,10 @@ void MainWindow::createDocks()
             m_videoCanvas, &VideoCanvas::setShowQpHeatmap);
     connect(m_showMotionVectorsAction, &QAction::toggled,
             m_videoCanvas, &VideoCanvas::setShowMotionVectors);
+    connect(m_showQpHeatmapAction, &QAction::toggled,
+            this, &MainWindow::updateCurrentOverlayStatusHint);
+    connect(m_showMotionVectorsAction, &QAction::toggled,
+            this, &MainWindow::updateCurrentOverlayStatusHint);
     m_videoCanvas->setShowGrid(m_showGridAction->isChecked());
     m_videoCanvas->setShowQpHeatmap(m_showQpHeatmapAction->isChecked());
     m_videoCanvas->setShowMotionVectors(m_showMotionVectorsAction->isChecked());
@@ -1223,6 +1255,7 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
         m_videoCanvas->setAnalysisOverlay(cached.analysis);
         if (updatePropertyTree) {
             m_propertyTreeView->showFrameAnalysis(cached.analysis);
+            updateOverlayStatusHint(cached.analysis);
         }
         if (selectInList) {
             m_frameListView->selectFrameIndex(frameIndex);
@@ -1359,6 +1392,62 @@ void MainWindow::updateFrameIndexDisplay()
     m_frameIndexLabel->setText(tr("Frame %1 / %2")
                                    .arg(m_currentFrameIndex + 1)
                                    .arg(m_latestFrameIndex + 1));
+}
+
+void MainWindow::updateCurrentOverlayStatusHint()
+{
+    const CachedFrame *cached = currentCachedFrame();
+    if (cached == nullptr) {
+        return;
+    }
+
+    updateOverlayStatusHint(cached->analysis);
+}
+
+void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
+{
+    if (m_showMotionVectorsAction != nullptr && m_showMotionVectorsAction->isChecked()) {
+        if (analysis.codecKind != CodecKind::H264) {
+            statusBar()->showMessage(tr("Motion vector analysis is not supported for this codec yet."), 5000);
+            return;
+        }
+
+        if (analysis.motionVectors.isEmpty()) {
+            statusBar()->showMessage(
+                tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors."),
+                5000);
+            return;
+        }
+
+        statusBar()->showMessage(tr("Motion vectors: %1 parsed").arg(analysis.motionVectors.size()), 3000);
+        return;
+    }
+
+    if (m_showQpHeatmapAction != nullptr && m_showQpHeatmapAction->isChecked()) {
+        int minQp = 0;
+        int maxQp = 0;
+        const int qpCount = frameAnalysisQpValueCount(analysis, &minQp, &maxQp);
+        if (qpCount == 0) {
+            statusBar()->showMessage(tr("QP heatmap has no parsed QP values for this frame."), 5000);
+            return;
+        }
+
+        if (minQp == maxQp) {
+            statusBar()->showMessage(
+                tr("QP heatmap: %1 values, QP %2 is constant across macroblock regions.")
+                    .arg(qpCount)
+                    .arg(minQp),
+                4000);
+            return;
+        }
+
+        statusBar()->showMessage(
+            tr("QP heatmap: %1 values, range %2 - %3.")
+                .arg(qpCount)
+                .arg(minQp)
+                .arg(maxQp),
+            4000);
+    }
 }
 
 QString MainWindow::defaultOpenDirectory() const

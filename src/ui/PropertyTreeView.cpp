@@ -3,9 +3,11 @@
 #include "core/H264FrameAnalysisAdapter.h"
 #include "core/H264Parser.h"
 
+#include <QObject>
 #include <QTreeWidgetItem>
 
 #include <algorithm>
+#include <optional>
 
 namespace
 {
@@ -19,6 +21,108 @@ QString boolValue(bool value)
 QString presentValue(bool value)
 {
     return value ? QStringLiteral("present") : QStringLiteral("not present");
+}
+
+bool supportsBitstreamAnalysis(const FrameAnalysis &analysis)
+{
+    return analysis.codecKind == CodecKind::H264;
+}
+
+int parsedMacroblockCount(const FrameAnalysis &analysis)
+{
+    int count = 0;
+    for (const AnalysisRegion &region : analysis.regions) {
+        if (region.kind == AnalysisRegionKind::Macroblock && region.parsed) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int macroblockRegionCount(const FrameAnalysis &analysis)
+{
+    int count = 0;
+    for (const AnalysisRegion &region : analysis.regions) {
+        if (region.kind == AnalysisRegionKind::Macroblock) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+struct QpSummary
+{
+    int count = 0;
+    int min = 0;
+    int max = 0;
+};
+
+std::optional<QpSummary> summarizeQpValues(const FrameAnalysis &analysis)
+{
+    QpSummary summary;
+    bool haveValue = false;
+    for (const AnalysisRegion &region : analysis.regions) {
+        if (region.kind != AnalysisRegionKind::Macroblock || region.qp < 0) {
+            continue;
+        }
+        if (!haveValue) {
+            summary.min = region.qp;
+            summary.max = region.qp;
+            haveValue = true;
+        } else {
+            summary.min = std::min(summary.min, region.qp);
+            summary.max = std::max(summary.max, region.qp);
+        }
+        ++summary.count;
+    }
+
+    if (!haveValue) {
+        return std::nullopt;
+    }
+    return summary;
+}
+
+QString qpAvailabilityText(const FrameAnalysis &analysis)
+{
+    const std::optional<QpSummary> summary = summarizeQpValues(analysis);
+    if (!summary.has_value()) {
+        return QStringLiteral("No parsed QP values for this frame.");
+    }
+
+    if (summary->min == summary->max) {
+        return QObject::tr("%1 QP values, QP %2 constant across macroblock regions")
+            .arg(summary->count)
+            .arg(summary->min);
+    }
+
+    return QObject::tr("%1 QP values, range %2 - %3")
+        .arg(summary->count)
+        .arg(summary->min)
+        .arg(summary->max);
+}
+
+QString motionVectorAvailabilityText(const FrameAnalysis &analysis)
+{
+    if (!supportsBitstreamAnalysis(analysis)) {
+        return QObject::tr("Motion vector analysis is not supported for this codec yet.");
+    }
+
+    if (analysis.motionVectors.isEmpty()) {
+        return QObject::tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors.");
+    }
+
+    return QObject::tr("%1 parsed motion vectors")
+        .arg(analysis.motionVectors.size());
+}
+
+QString gridAvailabilityText(const FrameAnalysis &analysis)
+{
+    if (analysis.regions.isEmpty()) {
+        return QObject::tr("Available from frame dimensions; no parsed macroblock regions for this frame.");
+    }
+
+    return QObject::tr("Available; %1 macroblock regions in analysis data.")
+        .arg(macroblockRegionCount(analysis));
 }
 }
 
@@ -49,6 +153,7 @@ void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
 
     auto *analysisRoot = new QTreeWidgetItem(this, {tr("FrameAnalysis"), codecKindName(analysis.codecKind)});
     addFrameAnalysisSummary(analysisRoot, analysis);
+    addOverlayAvailability(analysisRoot, analysis);
     addFrameAnalysisUnits(analysisRoot, analysis);
     addFrameAnalysisParameterSets(analysisRoot, analysis);
     addFrameAnalysisRegions(analysisRoot, analysis);
@@ -76,6 +181,23 @@ void PropertyTreeView::addFrameAnalysisSummary(QTreeWidgetItem *parent, const Fr
     addPair(summaryRoot, tr("motion_vectors"), QString::number(analysis.motionVectors.size()));
     addPair(summaryRoot, tr("diagnostics"), QString::number(analysis.diagnostics.size()));
     addPair(summaryRoot, tr("bit_fields"), QString::number(analysis.bitFields.size()));
+}
+
+void PropertyTreeView::addOverlayAvailability(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
+{
+    auto *overlayRoot = new QTreeWidgetItem(parent, {tr("Overlay Availability"), codecKindName(analysis.codecKind)});
+    addPair(overlayRoot, tr("bitstream analysis"),
+            supportsBitstreamAnalysis(analysis)
+                ? tr("H.264 supported")
+                : tr("not supported for this codec yet"));
+    addPair(overlayRoot, tr("macroblock grid"), gridAvailabilityText(analysis));
+    addPair(overlayRoot, tr("macroblock regions"), QString::number(macroblockRegionCount(analysis)));
+    addPair(overlayRoot, tr("fully parsed macroblocks"), tr("%1 / %2")
+        .arg(parsedMacroblockCount(analysis))
+        .arg(macroblockRegionCount(analysis)));
+    addPair(overlayRoot, tr("QP heatmap"), qpAvailabilityText(analysis));
+    addPair(overlayRoot, tr("motion vectors"), motionVectorAvailabilityText(analysis));
+    addPair(overlayRoot, tr("diagnostics"), QString::number(analysis.diagnostics.size()));
 }
 
 void PropertyTreeView::addFrameAnalysisUnits(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
@@ -142,11 +264,12 @@ void PropertyTreeView::addFrameAnalysisRegions(QTreeWidgetItem *parent, const Fr
 
 void PropertyTreeView::addFrameAnalysisMotionVectors(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
 {
+    auto *mvRoot = new QTreeWidgetItem(parent, {tr("Motion Vectors"), QString::number(analysis.motionVectors.size())});
     if (analysis.motionVectors.isEmpty()) {
+        addPair(mvRoot, tr("availability"), motionVectorAvailabilityText(analysis));
         return;
     }
 
-    auto *mvRoot = new QTreeWidgetItem(parent, {tr("Motion Vectors"), QString::number(analysis.motionVectors.size())});
     for (int i = 0; i < analysis.motionVectors.size(); ++i) {
         const AnalysisMotionVector &mv = analysis.motionVectors[i];
         auto *mvItem = new QTreeWidgetItem(mvRoot, {

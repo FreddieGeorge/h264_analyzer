@@ -84,6 +84,8 @@ private:
     void updatePlaybackActionState();
     void updateExportActionState();
     void updateFrameIndexDisplay();
+    void updateCurrentOverlayStatusHint();
+    void updateOverlayStatusHint(const FrameAnalysis &analysis);
     bool hasOpenStream() const;
     QString defaultOpenDirectory() const;
     QString defaultExportDirectory() const;

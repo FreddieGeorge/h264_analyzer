@@ -19,6 +19,7 @@ public:
 private:
     QTreeWidgetItem *addPair(QTreeWidgetItem *parent, const QString &field, const QString &value);
     void addFrameAnalysisSummary(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
+    void addOverlayAvailability(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
     void addFrameAnalysisUnits(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
     void addFrameAnalysisParameterSets(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
     void addFrameAnalysisRegions(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
