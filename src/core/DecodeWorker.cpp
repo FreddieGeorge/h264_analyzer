@@ -43,6 +43,29 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
                         .arg(streamInfo.height)
                         .arg(streamInfo.frameRate, 0, 'f', 3)
                         .arg(streamInfo.codecName, streamInfo.pixelFormatName));
+    emit logMessage(tr("[Info] Container streams discovered: %1").arg(streamInfo.streams.size()));
+    for (const MediaStreamInfo &mediaStream : streamInfo.streams) {
+        QString details;
+        if (mediaStream.mediaKind == MediaKind::Video) {
+            details = tr("%1x%2, %3 fps, pix_fmt=%4")
+                          .arg(mediaStream.width)
+                          .arg(mediaStream.height)
+                          .arg(mediaStream.frameRate, 0, 'f', 3)
+                          .arg(mediaStream.pixelFormatName.isEmpty() ? tr("unknown") : mediaStream.pixelFormatName);
+        } else if (mediaStream.mediaKind == MediaKind::Audio) {
+            details = tr("%1 Hz, %2 ch, sample_fmt=%3, layout=%4")
+                          .arg(mediaStream.sampleRate)
+                          .arg(mediaStream.channels)
+                          .arg(mediaStream.sampleFormatName.isEmpty() ? tr("unknown") : mediaStream.sampleFormatName)
+                          .arg(mediaStream.channelLayoutName.isEmpty() ? tr("unknown") : mediaStream.channelLayoutName);
+        }
+        emit logMessage(tr("[Info]   Stream #%1%2: %3, codec=%4%5")
+                            .arg(mediaStream.streamIndex)
+                            .arg(mediaStream.selected ? tr(" selected") : QString())
+                            .arg(mediaKindName(mediaStream.mediaKind))
+                            .arg(mediaStream.codecName.isEmpty() ? codecKindName(mediaStream.codecKind) : mediaStream.codecName)
+                            .arg(details.isEmpty() ? QString() : tr(", %1").arg(details)));
+    }
 
     const unsigned long frameDelayMs = streamInfo.frameRate > 0.0
         ? static_cast<unsigned long>(1000.0 / streamInfo.frameRate)
@@ -75,6 +98,12 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
     }
 
     bool firstEmittedFrame = true;
+    auto emitPendingAccessUnits = [&decoder, this]() {
+        const QVector<FrameAnalysis> analyses = decoder.takePendingAccessUnitAnalyses();
+        for (const FrameAnalysis &analysis : analyses) {
+            emit accessUnitAnalysisDecoded(analysis);
+        }
+    };
     while (!m_stopRequested.load()) {
         const bool emitThisFrame = frameIndex >= targetFrameIndex;
         if (emitThisFrame && !waitForPlaybackPermission()) {
@@ -82,6 +111,7 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
 
         AVFrame *frame = decoder.decodeNextFrame();
+        emitPendingAccessUnits();
         if (frame == nullptr) {
             if (!decoder.lastError().isEmpty()) {
                 emit errorOccurred(decoder.lastError());
@@ -92,13 +122,16 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         DecodedVideoFramePtr copy = FFmpegDecoder::copyFrame(frame);
         FrameAnalysis analysis = decoder.lastFrameAnalysis();
         analysis.frameIndex = frameIndex;
+        analysis.streamIndex = streamInfo.streamIndex;
+        analysis.mediaKind = streamInfo.mediaKind;
+        analysis.accessUnitKind = AccessUnitKind::VideoFrame;
         analysis.pts = copy ? copy->pts : analysis.pts;
         if (analysis.codecKind == CodecKind::Unknown) {
             analysis.codecKind = streamInfo.codecKind;
             analysis.codecName = streamInfo.codecName.isEmpty()
                 ? codecKindName(streamInfo.codecKind)
                 : streamInfo.codecName;
-            if (streamInfo.codecKind != CodecKind::H264) {
+            if (streamInfo.codecKind != CodecKind::H264 && streamInfo.codecKind != CodecKind::HEVC) {
                 analysis.diagnostics.append({
                     QStringLiteral("frame"),
                     QStringLiteral("codec_analysis_unsupported"),
@@ -121,6 +154,7 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
         }
         if (emitThisFrame && analysis.hasFrame) {
             emit frameAnalysisDecoded(analysis);
+            emit accessUnitAnalysisDecoded(analysis);
         }
 
         if (!emitThisFrame && targetFrameIndex > rebufferStartFrameIndex) {

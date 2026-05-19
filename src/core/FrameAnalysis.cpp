@@ -6,6 +6,8 @@ QString analysisUnitKindName(AnalysisUnitKind kind)
     case AnalysisUnitKind::Nalu: return QStringLiteral("NALU");
     case AnalysisUnitKind::Obu: return QStringLiteral("OBU");
     case AnalysisUnitKind::TileGroup: return QStringLiteral("tile_group");
+    case AnalysisUnitKind::AdtsFrame: return QStringLiteral("adts_frame");
+    case AnalysisUnitKind::Mp3Frame: return QStringLiteral("mp3_frame");
     case AnalysisUnitKind::Unknown:
     default:
         return QStringLiteral("unknown");

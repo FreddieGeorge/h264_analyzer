@@ -9,7 +9,9 @@ enum class CodecKind
     HEVC,
     AV1,
     VP9,
-    VVC
+    VVC,
+    MP3,
+    AAC
 };
 
 QString codecKindName(CodecKind codecKind);

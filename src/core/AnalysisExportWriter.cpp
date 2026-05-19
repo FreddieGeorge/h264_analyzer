@@ -157,18 +157,51 @@ QJsonObject bitFieldToJson(const AnalysisBitField &field)
 
 QJsonObject streamInfoToJson(const StreamInfo &stream)
 {
+    QJsonArray streams;
+    for (const MediaStreamInfo &mediaStream : stream.streams) {
+        streams.append(mediaStreamInfoToJson(mediaStream));
+    }
+
     return {
+        {QStringLiteral("media_kind"), mediaKindName(stream.mediaKind)},
+        {QStringLiteral("stream_index"), stream.streamIndex},
         {QStringLiteral("file_name"), stream.fileName},
         {QStringLiteral("absolute_file_path"), QDir::toNativeSeparators(stream.absoluteFilePath)},
         {QStringLiteral("size_bytes"), static_cast<double>(stream.sizeBytes)},
         {QStringLiteral("codec"), codecKindName(stream.codecKind)},
         {QStringLiteral("codec_name"), stream.codecName},
         {QStringLiteral("pixel_format"), stream.pixelFormatName},
+        {QStringLiteral("sample_format"), stream.sampleFormatName},
+        {QStringLiteral("channel_layout"), stream.channelLayoutName},
         {QStringLiteral("width"), stream.width},
         {QStringLiteral("height"), stream.height},
         {QStringLiteral("frame_rate"), stream.frameRate},
+        {QStringLiteral("sample_rate"), stream.sampleRate},
+        {QStringLiteral("channels"), stream.channels},
+        {QStringLiteral("streams"), streams},
         {QStringLiteral("duration_us"), static_cast<double>(stream.durationUs)},
         {QStringLiteral("bit_rate"), static_cast<double>(stream.bitRate)}
+    };
+}
+
+QJsonObject mediaStreamInfoToJson(const MediaStreamInfo &stream)
+{
+    return {
+        {QStringLiteral("stream_index"), stream.streamIndex},
+        {QStringLiteral("selected"), stream.selected},
+        {QStringLiteral("media_kind"), mediaKindName(stream.mediaKind)},
+        {QStringLiteral("codec"), codecKindName(stream.codecKind)},
+        {QStringLiteral("codec_name"), stream.codecName},
+        {QStringLiteral("pixel_format"), stream.pixelFormatName},
+        {QStringLiteral("sample_format"), stream.sampleFormatName},
+        {QStringLiteral("channel_layout"), stream.channelLayoutName},
+        {QStringLiteral("bit_rate"), static_cast<double>(stream.bitRate)},
+        {QStringLiteral("duration_us"), static_cast<double>(stream.durationUs)},
+        {QStringLiteral("width"), stream.width},
+        {QStringLiteral("height"), stream.height},
+        {QStringLiteral("frame_rate"), stream.frameRate},
+        {QStringLiteral("sample_rate"), stream.sampleRate},
+        {QStringLiteral("channels"), stream.channels}
     };
 }
 
@@ -281,6 +314,9 @@ QJsonObject frameAnalysisToJson(const FrameAnalysis &analysis)
 
     return {
         {QStringLiteral("index"), analysis.frameIndex},
+        {QStringLiteral("stream_index"), analysis.streamIndex},
+        {QStringLiteral("media_kind"), mediaKindName(analysis.mediaKind)},
+        {QStringLiteral("access_unit_kind"), accessUnitKindName(analysis.accessUnitKind)},
         {QStringLiteral("codec"), codecKindName(analysis.codecKind)},
         {QStringLiteral("codec_name"), analysis.codecName},
         {QStringLiteral("pts"), static_cast<double>(analysis.pts)},
@@ -303,15 +339,17 @@ QJsonObject selectedFrameExportToJson(const StreamInfo &stream,
                                       const QString &generator,
                                       const QString &generatorVersion)
 {
-    const FrameSyntaxInfo syntaxInfo = h264SyntaxFromFrameAnalysis(analysis);
-    return {
-        {QStringLiteral("schema_version"), 2},
+    QJsonObject result {
+        {QStringLiteral("schema_version"), 3},
         {QStringLiteral("generator"), generator},
         {QStringLiteral("generator_version"), generatorVersion},
         {QStringLiteral("stream"), streamInfoToJson(stream)},
-        {QStringLiteral("frame_analysis"), frameAnalysisToJson(analysis)},
-        {QStringLiteral("frame"), h264FrameSyntaxToJson(syntaxInfo)}
+        {QStringLiteral("frame_analysis"), frameAnalysisToJson(analysis)}
     };
+    if (analysis.codecKind == CodecKind::H264) {
+        result.insert(QStringLiteral("frame"), h264FrameSyntaxToJson(h264SyntaxFromFrameAnalysis(analysis)));
+    }
+    return result;
 }
 
 QJsonObject allFramesExportToJson(const StreamInfo &stream,
@@ -323,13 +361,15 @@ QJsonObject allFramesExportToJson(const StreamInfo &stream,
     for (const FrameAnalysis &frame : frames) {
         if (frame.frameIndex >= 0) {
             QJsonObject frameObject = frameAnalysisToJson(frame);
-            frameObject.insert(QStringLiteral("h264"), h264FrameSyntaxToJson(h264SyntaxFromFrameAnalysis(frame)));
+            if (frame.codecKind == CodecKind::H264) {
+                frameObject.insert(QStringLiteral("h264"), h264FrameSyntaxToJson(h264SyntaxFromFrameAnalysis(frame)));
+            }
             frameArray.append(frameObject);
         }
     }
 
     return {
-        {QStringLiteral("schema_version"), 2},
+        {QStringLiteral("schema_version"), 3},
         {QStringLiteral("generator"), generator},
         {QStringLiteral("generator_version"), generatorVersion},
         {QStringLiteral("stream"), streamInfoToJson(stream)},

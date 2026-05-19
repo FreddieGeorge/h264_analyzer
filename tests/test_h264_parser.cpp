@@ -1,4 +1,5 @@
 #include "core/AnalysisExportWriter.h"
+#include "core/AacAdtsParser.h"
 #include "core/H264FrameAnalysisAdapter.h"
 #include "core/H264Parser.h"
 
@@ -593,24 +594,70 @@ void testFrameAnalysisExportSchemaFixture()
     StreamInfo stream;
     stream.fileName = QStringLiteral("fixture.264");
     stream.absoluteFilePath = QStringLiteral("D:/fixtures/fixture.264");
+    stream.mediaKind = MediaKind::Video;
+    stream.streamIndex = 0;
     stream.codecName = QStringLiteral("h264");
     stream.pixelFormatName = QStringLiteral("yuv420p");
     stream.width = 16;
     stream.height = 16;
     stream.frameRate = 30.0;
+    stream.streams.append({
+        0,
+        MediaKind::Video,
+        CodecKind::H264,
+        QStringLiteral("h264"),
+        QStringLiteral("yuv420p"),
+        QString {},
+        QString {},
+        0,
+        0,
+        16,
+        16,
+        30.0,
+        0,
+        0,
+        true
+    });
+    stream.streams.append({
+        1,
+        MediaKind::Audio,
+        CodecKind::AAC,
+        QStringLiteral("aac"),
+        QString {},
+        QStringLiteral("fltp"),
+        QStringLiteral("stereo"),
+        0,
+        0,
+        0,
+        0,
+        0.0,
+        48000,
+        2,
+        false
+    });
     stream.isValid = true;
 
     const QJsonObject selected = selectedFrameExportToJson(stream,
                                                           analysis,
                                                           QStringLiteral("test-generator"),
                                                           QStringLiteral("1.0"));
-    require(selected.value(QStringLiteral("schema_version")).toInt() == 2, "selected export schema version");
+    require(selected.value(QStringLiteral("schema_version")).toInt() == 3, "selected export schema version");
     require(selected.value(QStringLiteral("generator")).toString() == QStringLiteral("test-generator"),
             "selected export generator");
+    const QJsonArray streams = selected.value(QStringLiteral("stream")).toObject().value(QStringLiteral("streams")).toArray();
+    require(streams.size() == 2, "selected export stream discovery list");
+    require(streams[1].toObject().value(QStringLiteral("media_kind")).toString() == QStringLiteral("audio"),
+            "selected export audio stream media kind");
+    require(streams[1].toObject().value(QStringLiteral("sample_rate")).toInt() == 48000,
+            "selected export audio stream sample rate");
     require(selected.contains(QStringLiteral("frame_analysis")), "selected export has frame_analysis");
     require(selected.contains(QStringLiteral("frame")), "selected export keeps legacy frame details");
 
     const QJsonObject frameAnalysis = selected.value(QStringLiteral("frame_analysis")).toObject();
+    require(frameAnalysis.value(QStringLiteral("media_kind")).toString() == QStringLiteral("video"),
+            "frame_analysis media kind");
+    require(frameAnalysis.value(QStringLiteral("access_unit_kind")).toString() == QStringLiteral("video_frame"),
+            "frame_analysis access unit kind");
     require(frameAnalysis.value(QStringLiteral("has_frame")).toBool(), "frame_analysis has_frame");
     require(!frameAnalysis.value(QStringLiteral("units")).toArray().isEmpty(), "frame_analysis units");
     require(!frameAnalysis.value(QStringLiteral("regions")).toArray().isEmpty(), "frame_analysis regions");
@@ -627,6 +674,81 @@ void testFrameAnalysisExportSchemaFixture()
     const QJsonArray frames = batch.value(QStringLiteral("frames")).toArray();
     require(frames.size() == 1, "batch export skips invalid frame entries");
     require(frames.first().toObject().contains(QStringLiteral("h264")), "batch export keeps h264 details");
+}
+
+QByteArray makeAacLc44100StereoHeaderOnlyFrame()
+{
+    QByteArray packet;
+    packet.append(char(0xff));
+    packet.append(char(0xf1));
+    packet.append(char(0x50));
+    packet.append(char(0x80));
+    packet.append(char(0x00));
+    packet.append(char(0xff));
+    packet.append(char(0xfc));
+    return packet;
+}
+
+void testAudioFrameAnalysisExportSchemaFixture()
+{
+    AacAdtsParser parser;
+    FrameAnalysis analysis = parser.parsePacket(makeAacLc44100StereoHeaderOnlyFrame(), 21, 19, 2);
+    analysis.streamIndex = 1;
+
+    StreamInfo stream;
+    stream.fileName = QStringLiteral("fixture-audio.mp4");
+    stream.absoluteFilePath = QStringLiteral("D:/fixtures/fixture-audio.mp4");
+    stream.mediaKind = MediaKind::Video;
+    stream.streamIndex = 0;
+    stream.codecName = QStringLiteral("h264");
+    stream.streams.append({
+        1,
+        MediaKind::Audio,
+        CodecKind::AAC,
+        QStringLiteral("aac"),
+        QString {},
+        QStringLiteral("fltp"),
+        QStringLiteral("stereo"),
+        0,
+        0,
+        0,
+        0,
+        0.0,
+        44100,
+        2,
+        false
+    });
+    stream.isValid = true;
+
+    const QJsonObject selected = selectedFrameExportToJson(stream,
+                                                          analysis,
+                                                          QStringLiteral("test-generator"),
+                                                          QStringLiteral("1.0"));
+    require(selected.value(QStringLiteral("schema_version")).toInt() == 3, "audio selected export schema version");
+    require(selected.contains(QStringLiteral("frame_analysis")), "audio selected export has frame_analysis");
+    require(!selected.contains(QStringLiteral("frame")), "audio selected export does not invent legacy h264 frame");
+
+    const QJsonObject frameAnalysis = selected.value(QStringLiteral("frame_analysis")).toObject();
+    require(frameAnalysis.value(QStringLiteral("media_kind")).toString() == QStringLiteral("audio"),
+            "audio frame_analysis media kind");
+    require(frameAnalysis.value(QStringLiteral("access_unit_kind")).toString() == QStringLiteral("audio_frame"),
+            "audio frame_analysis access unit kind");
+    require(frameAnalysis.value(QStringLiteral("codec")).toString() == QStringLiteral("AAC"),
+            "audio frame_analysis codec");
+    require(frameAnalysis.value(QStringLiteral("units")).toArray().first().toObject().value(QStringLiteral("kind")).toString()
+                == QStringLiteral("adts_frame"),
+            "audio frame_analysis adts unit");
+    require(!frameAnalysis.value(QStringLiteral("bit_fields")).toArray().isEmpty(),
+            "audio frame_analysis bit fields");
+
+    const QJsonObject batch = allFramesExportToJson(stream,
+                                                   QVector<FrameAnalysis> {analysis},
+                                                   QStringLiteral("test-generator"),
+                                                   QStringLiteral("1.0"));
+    const QJsonObject batchFrame = batch.value(QStringLiteral("frames")).toArray().first().toObject();
+    require(batchFrame.value(QStringLiteral("media_kind")).toString() == QStringLiteral("audio"),
+            "audio batch media kind");
+    require(!batchFrame.contains(QStringLiteral("h264")), "audio batch does not include h264 block");
 }
 
 void testCavlcPResidualContinuesToMotionVectorFixture()
@@ -706,6 +828,7 @@ int main()
     testCavlcBSliceBiMotionVectorFixture();
     testFrameAnalysisMirrorsH264SyntaxFixture();
     testFrameAnalysisExportSchemaFixture();
+    testAudioFrameAnalysisExportSchemaFixture();
     testCavlcPResidualContinuesToMotionVectorFixture();
     testUnsupportedCabacFixtureReportsDiagnostic();
     testTruncatedPSliceDataReportsDiagnostic();

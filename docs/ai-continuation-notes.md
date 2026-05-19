@@ -30,6 +30,8 @@ Implemented capabilities:
   syntax parsing.
 - Codec-neutral bitstream parser interface:
   - `CodecKind`
+  - `MediaKind`
+  - `AccessUnitKind`
   - `IBitstreamParser`
   - `FrameAnalysis`
   - parser state snapshots for checkpoint resume
@@ -37,6 +39,28 @@ Implemented capabilities:
 - H.264 analysis is adapted into codec-neutral `FrameAnalysis` through
   `H264FrameAnalysisAdapter`, while retaining rich H.264 structs as
   codec-specific details.
+- `StreamInfo` and `FrameAnalysis` now carry media/access-unit fields
+  (`mediaKind`, `streamIndex`, `accessUnitKind`) plus placeholder audio stream
+  metadata. Current decoding is still video-only, but the export/property-tree
+  model no longer assumes that every future access unit must be a video frame.
+- `FFmpegDecoder` discovers all container streams and stores them in
+  `StreamInfo::streams`, including basic video/audio metadata. It still selects
+  the best video stream for decoding by default.
+- HEVC/H.265 has a parser skeleton wired into `FFmpegDecoder`: it identifies
+  Annex B or length-prefixed NAL units, reports VPS/SPS/PPS parameter-set units,
+  marks VCL access units as frames, and emits graceful unsupported diagnostics
+  for deeper slice syntax.
+- AAC ADTS and MP3 have audio parser skeletons for access-unit level analysis.
+  AAC parses the 7-byte ADTS header; MP3 parses the 4-byte MPEG audio frame
+  header. Both emit codec-neutral bit fields, mark valid packets as
+  `MediaKind::Audio` / `AccessUnitKind::AudioFrame`, and report structured
+  malformed-header diagnostics.
+- `FFmpegDecoder` keeps video decoding as the selected playback path, but it
+  now parses discovered AAC/MP3 audio packets opportunistically while reading
+  container packets for video. `DecodeWorker` emits those audio
+  `FrameAnalysis` records separately, and `MainWindow` lists them in
+  `FrameListView` without routing them through `VideoCanvas` or old-frame
+  rebuffering.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
@@ -72,10 +96,15 @@ Implemented capabilities:
   A decoder generation guard ignores stale queued frame/seek callbacks from an
   older worker after a new rebuffer decode starts.
 - Export features:
-  - selected frame JSON with schema/version, stream metadata, codec-neutral
-    `frame_analysis`, and H.264 codec-specific details
-  - batch JSON export for all decoded frame analysis
-  - frame list CSV from internal `FrameAnalysis` data
+  - selected access-unit JSON with schema/version, stream metadata, generic
+    `frame_analysis`, and H.264 codec-specific details only for H.264 frames
+  - batch JSON export for all decoded video/audio access-unit analysis
+  - JSON schema v3 includes `media_kind`, `stream_index`, and
+    `access_unit_kind` fields so future audio or multi-stream analysis can be
+    represented without overloading video-only fields.
+  - stream metadata export includes the discovered container stream list and
+    selected stream marker.
+  - access-unit list CSV from internal `FrameAnalysis` data
   - screenshot including visible overlays
 - UI settings persisted with `QSettings`:
   - window geometry
@@ -149,8 +178,8 @@ Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. Use the portable fold
 
 Recommended next direction for the next AI/coding session:
 
-1. First verify the `v0.1.7` GitHub release artifacts and upgrade path. Install
-   or upgrade from `v0.1.6`, confirm that the install root keeps only the
+1. First verify the `v0.1.8` GitHub release artifacts and upgrade path. Install
+   or upgrade from `v0.1.7`, confirm that the install root keeps only the
    launcher and support files, and confirm that Qt/FFmpeg/MSYS2 DLLs live under
    `runtime/`.
 2. Broaden old-frame seek/rebuffer validation. Explicit cancellation, status-bar
@@ -161,10 +190,13 @@ Recommended next direction for the next AI/coding session:
 3. Continue H.264 correctness work before adding a full new codec. Prefer
    residual coefficient details, broader P/B sub-macroblock fixtures,
    B_Direct/B_8x8 support, and richer diagnostics over CABAC.
-4. Start Stage 3 only after the seek/rebuffer path is comfortable: add a
+4. Expand the audio stream workflow on top of the AAC/MP3 skeletons: explicit
+   stream selection, better packet/access-unit filtering, and deeper codec
+   details. Keep this path separate from `VideoCanvas` and `DecodedVideoFrame`.
+5. Start Stage 3 only after the seek/rebuffer path is comfortable: add a
    bitstream hex dock and connect existing syntax field bit offsets to
    selection/highlighting.
-5. Use a thin HEVC/unknown-codec parser skeleton later to prove that the
+6. Use a thin HEVC/unknown-codec parser skeleton later to prove that the
    codec-neutral `FrameAnalysis` UI/export path degrades gracefully, but do not
    start a large HEVC parser before the H.264 parser is more trusted.
 
@@ -258,6 +290,59 @@ Acceptance focus:
 - Unsupported streams should remain usable.
 - QP heatmap should become genuinely macroblock-level across entire supported frames.
 - Motion vector overlay should avoid drawing guessed data as if it were fully parsed.
+
+### 2A. Multi-Codec And Audio Foundation
+
+Current foundation:
+
+- `MediaTypes.*` defines `MediaKind` and `AccessUnitKind`.
+- `StreamInfo` carries `mediaKind`, `streamIndex`, and placeholder audio
+  metadata (`sampleRate`, `channels`, `sampleFormatName`,
+  `channelLayoutName`).
+- `StreamInfo::streams` records all discovered container streams with basic
+  video/audio metadata and a `selected` marker for the stream currently decoded.
+- `FrameAnalysis` carries `mediaKind`, `streamIndex`, and `accessUnitKind`.
+- Export schema v3 writes stream/access-unit media fields, and
+  `PropertyTreeView` shows them in the summary.
+- `AacAdtsParser` validates the audio access-unit extension path by emitting
+  AAC ADTS header bit fields, an `adts_frame` analysis unit, and structured
+  diagnostics without requiring decoded audio samples.
+- `Mp3FrameParser` follows the same pattern for MPEG audio frame headers,
+  emitting an `mp3_frame` analysis unit plus bitrate/sample-rate/channel-mode
+  header fields.
+- `FrameListView` now displays video and audio access units together. Selecting
+  an audio access unit updates `PropertyTreeView` and JSON export state, but it
+  does not trigger video seek/rebuffer.
+
+Current limitation:
+
+- `FFmpegDecoder` discovers all streams but still selects only
+  `AVMEDIA_TYPE_VIDEO`, owns a single `m_videoStreamIndex`, and emits
+  `DecodedVideoFramePtr`. Audio parser work should not be bolted onto
+  `VideoCanvas` or `DecodedVideoFrame`.
+- Audio parsing is opportunistic during video packet reading. There is still no
+  explicit stream selector, no audio-only playback/analysis mode, and no deep
+  AAC raw_data_block or MP3 side-info parsing.
+
+Recommended next step:
+
+- Add a thin `MediaDecoder`/stream-selection layer or split the current
+  `FFmpegDecoder` video path from packet/access-unit parsing. Use the existing
+  AAC/MP3 skeletons as the first audio proofs for explicit stream selection and
+  better filtering before adding deep audio syntax.
+- For deeper HEVC work, extend the existing skeleton from NALU/VPS/SPS/PPS/VCL
+  detection into SPS dimensions, slice headers, and CTU regions. For AV1, start
+  with OBUs and superblock regions; for VP9, start with frame headers and
+  superblock regions.
+
+Suggested files:
+
+- `src/core/MediaTypes.*`
+- `src/core/StreamDocument.*`
+- `src/core/FrameAnalysis.*`
+- `src/core/AnalysisExportWriter.*`
+- future `src/core/AacParser.*`
+- `src/core/HevcParser.*`
 
 ### 3. Test Fixtures And Regression Coverage
 
@@ -432,7 +517,9 @@ Use focused commits. Good examples:
 ```text
 Add packaged Windows layout smoke validation
 Add repeated old-frame rebuffer UI smoke coverage
+Add AAC parser skeleton for audio access units
 Expose H264 residual coefficient details
+Expand HEVC skeleton with CTU regions
 Expand H264 P8x8 sub-macroblock fixtures
 Parse H264 B_Direct motion vectors
 Parse H264 B_8x8 sub-macroblock motion vectors

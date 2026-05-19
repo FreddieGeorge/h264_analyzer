@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(ZStreamEye VERSION 0.1.7 LANGUAGES CXX)
+project(ZStreamEye VERSION 0.1.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -67,11 +67,19 @@ set(ZSTREAMEYE_SOURCES
     src/core/AnalysisExportWriter.cpp
     src/core/BitstreamParser.h
     src/core/BitstreamParser.cpp
+    src/core/AacAdtsParser.h
+    src/core/AacAdtsParser.cpp
+    src/core/Mp3FrameParser.h
+    src/core/Mp3FrameParser.cpp
     src/core/CodecKind.h
     src/core/FrameAnalysis.h
     src/core/FrameAnalysis.cpp
+    src/core/MediaTypes.h
+    src/core/MediaTypes.cpp
     src/core/H264FrameAnalysisAdapter.h
     src/core/H264FrameAnalysisAdapter.cpp
+    src/core/HevcParser.h
+    src/core/HevcParser.cpp
     src/core/RebufferState.h
     src/core/DecodeWorker.h
     src/core/DecodeWorker.cpp
@@ -147,11 +155,19 @@ if(BUILD_TESTING)
         src/core/AnalysisExportWriter.cpp
         src/core/BitstreamParser.h
         src/core/BitstreamParser.cpp
+        src/core/AacAdtsParser.h
+        src/core/AacAdtsParser.cpp
+        src/core/Mp3FrameParser.h
+        src/core/Mp3FrameParser.cpp
         src/core/CodecKind.h
         src/core/FrameAnalysis.h
         src/core/FrameAnalysis.cpp
+        src/core/MediaTypes.h
+        src/core/MediaTypes.cpp
         src/core/H264FrameAnalysisAdapter.h
         src/core/H264FrameAnalysisAdapter.cpp
+        src/core/HevcParser.h
+        src/core/HevcParser.cpp
         src/core/H264Parser.h
         src/core/H264Parser.cpp
     )
@@ -163,6 +179,57 @@ if(BUILD_TESTING)
     )
     target_compile_features(ZStreamEyeParserTests PRIVATE cxx_std_17)
     add_test(NAME ZStreamEyeParserTests COMMAND ZStreamEyeParserTests)
+
+    add_executable(ZStreamEyeHevcParserTests
+        tests/test_hevc_parser.cpp
+        src/core/BitstreamParser.h
+        src/core/BitstreamParser.cpp
+        src/core/CodecKind.h
+        src/core/FrameAnalysis.h
+        src/core/FrameAnalysis.cpp
+        src/core/MediaTypes.h
+        src/core/MediaTypes.cpp
+        src/core/HevcParser.h
+        src/core/HevcParser.cpp
+    )
+    target_include_directories(ZStreamEyeHevcParserTests PRIVATE src)
+    target_link_libraries(ZStreamEyeHevcParserTests PRIVATE Qt6::Core)
+    target_compile_features(ZStreamEyeHevcParserTests PRIVATE cxx_std_17)
+    add_test(NAME ZStreamEyeHevcParserTests COMMAND ZStreamEyeHevcParserTests)
+
+    add_executable(ZStreamEyeAacAdtsParserTests
+        tests/test_aac_adts_parser.cpp
+        src/core/BitstreamParser.h
+        src/core/BitstreamParser.cpp
+        src/core/AacAdtsParser.h
+        src/core/AacAdtsParser.cpp
+        src/core/CodecKind.h
+        src/core/FrameAnalysis.h
+        src/core/FrameAnalysis.cpp
+        src/core/MediaTypes.h
+        src/core/MediaTypes.cpp
+    )
+    target_include_directories(ZStreamEyeAacAdtsParserTests PRIVATE src)
+    target_link_libraries(ZStreamEyeAacAdtsParserTests PRIVATE Qt6::Core)
+    target_compile_features(ZStreamEyeAacAdtsParserTests PRIVATE cxx_std_17)
+    add_test(NAME ZStreamEyeAacAdtsParserTests COMMAND ZStreamEyeAacAdtsParserTests)
+
+    add_executable(ZStreamEyeMp3FrameParserTests
+        tests/test_mp3_frame_parser.cpp
+        src/core/BitstreamParser.h
+        src/core/BitstreamParser.cpp
+        src/core/Mp3FrameParser.h
+        src/core/Mp3FrameParser.cpp
+        src/core/CodecKind.h
+        src/core/FrameAnalysis.h
+        src/core/FrameAnalysis.cpp
+        src/core/MediaTypes.h
+        src/core/MediaTypes.cpp
+    )
+    target_include_directories(ZStreamEyeMp3FrameParserTests PRIVATE src)
+    target_link_libraries(ZStreamEyeMp3FrameParserTests PRIVATE Qt6::Core)
+    target_compile_features(ZStreamEyeMp3FrameParserTests PRIVATE cxx_std_17)
+    add_test(NAME ZStreamEyeMp3FrameParserTests COMMAND ZStreamEyeMp3FrameParserTests)
 
     add_executable(ZStreamEyeRebufferStateTests
         tests/test_rebuffer_state.cpp

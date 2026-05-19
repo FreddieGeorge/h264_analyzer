@@ -398,6 +398,22 @@ void MainWindow::createDocks()
     m_propertyTreeView = new PropertyTreeView;
     connect(m_frameListView, &FrameListView::frameSelected,
             this, &MainWindow::handleFrameListSelection);
+    connect(m_frameListView, &FrameListView::accessUnitSelected,
+            this, [this](const FrameAnalysis &analysis) {
+                if (analysis.accessUnitKind == AccessUnitKind::VideoFrame) {
+                    return;
+                }
+                m_currentAnalysis = analysis;
+                m_hasCurrentAnalysis = true;
+                m_propertyTreeView->showFrameAnalysis(analysis);
+                updateExportActionState();
+                statusBar()->showMessage(
+                    tr("Selected %1 access unit %2 on stream %3")
+                        .arg(mediaKindName(analysis.mediaKind))
+                        .arg(analysis.frameIndex)
+                        .arg(analysis.streamIndex),
+                    2000);
+            });
     m_propertyDock = new QDockWidget(tr("PropertyTreeView"), this);
     m_propertyDock->setObjectName(QStringLiteral("PropertyDock"));
     m_propertyDock->setWidget(m_propertyTreeView);
@@ -520,10 +536,12 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
+    m_accessUnitAnalyses.clear();
     m_seekCheckpoints.clear();
     m_rebufferState.reset();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
+    m_hasCurrentAnalysis = false;
     m_preserveFrameListScroll = false;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
@@ -564,7 +582,7 @@ void MainWindow::startDecoder(const QString &filePath,
                                           .arg(streamInfo.height)
                                           .arg(streamInfo.frameRate, 0, 'f', 3)
                                           .arg(streamInfo.pixelFormatName);
-        if (streamInfo.codecKind != CodecKind::H264) {
+        if (streamInfo.codecKind != CodecKind::H264 && streamInfo.codecKind != CodecKind::HEVC) {
             const QString unsupportedMessage =
                 tr("%1\n\nPlayback is available, but bitstream syntax analysis is not implemented for this codec yet.")
                     .arg(streamSummary);
@@ -593,6 +611,13 @@ void MainWindow::startDecoder(const QString &filePath,
             this, [this, generation](int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis) {
                 if (generation == m_decoderGeneration) {
                     handleFrameReady(frameIndex, frame, analysis);
+                }
+            },
+            Qt::QueuedConnection);
+    connect(m_decodeWorker, &DecodeWorker::accessUnitAnalysisDecoded,
+            this, [this, generation](const FrameAnalysis &analysis) {
+                if (generation == m_decoderGeneration) {
+                    handleAccessUnitAnalysis(analysis);
                 }
             },
             Qt::QueuedConnection);
@@ -757,9 +782,11 @@ void MainWindow::replayFromBeginning()
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
+    m_accessUnitAnalyses.clear();
     m_rebufferState.reset();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
+    m_hasCurrentAnalysis = false;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
     updateExportActionState();
@@ -772,15 +799,19 @@ void MainWindow::replayFromBeginning()
 
 void MainWindow::exportFrameSyntaxJson()
 {
-    const CachedFrame *cached = currentCachedFrame();
-    if (cached == nullptr) {
-        const QString message = tr("No cached selected frame is available to export.");
+    if (!m_hasCurrentAnalysis) {
+        const QString message = tr("No selected access unit is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
         return;
     }
 
-    const QString defaultName = QStringLiteral("frame-%1-syntax.json").arg(cached->index, 5, 10, QLatin1Char('0'));
+    const QString defaultPrefix = m_currentAnalysis.accessUnitKind == AccessUnitKind::AudioFrame
+        ? QStringLiteral("audio-access-unit")
+        : QStringLiteral("frame");
+    const QString defaultName = QStringLiteral("%1-%2-syntax.json")
+                                    .arg(defaultPrefix)
+                                    .arg(m_currentAnalysis.frameIndex, 5, 10, QLatin1Char('0'));
     const QString filePath = QFileDialog::getSaveFileName(
         this,
         tr("Export Frame Syntax JSON"),
@@ -799,19 +830,19 @@ void MainWindow::exportFrameSyntaxJson()
     }
 
     const QJsonDocument document(selectedFrameExportToJson(m_document.streamInfo(),
-                                                           cached->analysis,
+                                                           m_currentAnalysis,
                                                            QCoreApplication::applicationName(),
                                                            QCoreApplication::applicationVersion()));
     file.write(document.toJson(QJsonDocument::Indented));
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
-    m_logDock->appendLine(tr("[Info] Exported frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
-    statusBar()->showMessage(tr("Exported frame syntax JSON"), 3000);
+    m_logDock->appendLine(tr("[Info] Exported access-unit syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported access-unit syntax JSON"), 3000);
 }
 
 void MainWindow::exportAllFrameSyntaxJson()
 {
-    if (m_frameAnalysisByIndex.isEmpty()) {
-        const QString message = tr("No decoded frame syntax is available to export.");
+    if (m_accessUnitAnalyses.isEmpty()) {
+        const QString message = tr("No decoded access-unit syntax is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
         return;
@@ -819,8 +850,8 @@ void MainWindow::exportAllFrameSyntaxJson()
 
     const QString filePath = QFileDialog::getSaveFileName(
         this,
-        tr("Export All Decoded Frame Syntax JSON"),
-        QDir(defaultExportDirectory()).filePath(QStringLiteral("decoded-frame-syntax.json")),
+        tr("Export All Decoded Access Unit Syntax JSON"),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("decoded-access-unit-syntax.json")),
         tr("JSON Files (*.json);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -835,19 +866,19 @@ void MainWindow::exportAllFrameSyntaxJson()
     }
 
     const QJsonDocument document(allFramesExportToJson(m_document.streamInfo(),
-                                                       m_frameAnalysisByIndex,
+                                                       m_accessUnitAnalyses,
                                                        QCoreApplication::applicationName(),
                                                        QCoreApplication::applicationVersion()));
     file.write(document.toJson(QJsonDocument::Indented));
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
-    m_logDock->appendLine(tr("[Info] Exported all decoded frame syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
-    statusBar()->showMessage(tr("Exported decoded frame syntax JSON"), 3000);
+    m_logDock->appendLine(tr("[Info] Exported all decoded access-unit syntax JSON: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported decoded access-unit syntax JSON"), 3000);
 }
 
 void MainWindow::exportFrameListCsv()
 {
-    if (m_frameAnalysisByIndex.isEmpty()) {
-        const QString message = tr("No frame list is available to export.");
+    if (m_accessUnitAnalyses.isEmpty()) {
+        const QString message = tr("No access-unit list is available to export.");
         statusBar()->showMessage(message, 5000);
         m_logDock->appendLine(tr("[Warning] %1").arg(message));
         return;
@@ -855,8 +886,8 @@ void MainWindow::exportFrameListCsv()
 
     const QString filePath = QFileDialog::getSaveFileName(
         this,
-        tr("Export Frame List CSV"),
-        QDir(defaultExportDirectory()).filePath(QStringLiteral("frame-list.csv")),
+        tr("Export Access Unit List CSV"),
+        QDir(defaultExportDirectory()).filePath(QStringLiteral("access-unit-list.csv")),
         tr("CSV Files (*.csv);;All Files (*)"));
     if (filePath.isEmpty()) {
         return;
@@ -871,20 +902,25 @@ void MainWindow::exportFrameListCsv()
     }
 
     QTextStream out(&file);
-    out << "index,type,poc,frame_num\n";
-    for (const FrameAnalysis &analysis : std::as_const(m_frameAnalysisByIndex)) {
+    out << "index,stream_index,media_kind,access_unit_kind,type,pts,dts,poc,frame_num\n";
+    for (const FrameAnalysis &analysis : std::as_const(m_accessUnitAnalyses)) {
         if (analysis.frameIndex < 0) {
             continue;
         }
         out << csvEscape(QString::number(analysis.frameIndex)) << ','
+            << csvEscape(QString::number(analysis.streamIndex)) << ','
+            << csvEscape(mediaKindName(analysis.mediaKind)) << ','
+            << csvEscape(accessUnitKindName(analysis.accessUnitKind)) << ','
             << csvEscape(analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType) << ','
+            << csvEscape(QString::number(analysis.pts)) << ','
+            << csvEscape(QString::number(analysis.dts)) << ','
             << csvEscape(analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-")) << ','
             << csvEscape(analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-")) << '\n';
     }
 
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
-    m_logDock->appendLine(tr("[Info] Exported frame list CSV: %1").arg(QDir::toNativeSeparators(filePath)));
-    statusBar()->showMessage(tr("Exported frame list CSV"), 3000);
+    m_logDock->appendLine(tr("[Info] Exported access-unit list CSV: %1").arg(QDir::toNativeSeparators(filePath)));
+    statusBar()->showMessage(tr("Exported access-unit list CSV"), 3000);
 }
 
 void MainWindow::exportScreenshot()
@@ -1288,18 +1324,46 @@ void MainWindow::handleFrameReady(int frameIndex,
         m_frameCache.removeFirst();
     }
 
-    if (frameIndex >= 0) {
-        if (frameIndex >= m_frameAnalysisByIndex.size()) {
-            m_frameAnalysisByIndex.resize(frameIndex + 1);
-        }
-        m_frameAnalysisByIndex[frameIndex] = analysis;
-    }
-
     m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
-    m_frameListView->addFrameAnalysis(analysis);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
     if (m_rebufferState.complete(m_decoderGeneration, frameIndex)) {
         statusBar()->showMessage(tr("Buffered frame %1").arg(frameIndex + 1), 2000);
+    }
+    updateExportActionState();
+}
+
+void MainWindow::handleAccessUnitAnalysis(const FrameAnalysis &analysis)
+{
+    if (analysis.frameIndex < 0) {
+        return;
+    }
+
+    if (analysis.accessUnitKind == AccessUnitKind::VideoFrame) {
+        if (analysis.frameIndex >= m_frameAnalysisByIndex.size()) {
+            m_frameAnalysisByIndex.resize(analysis.frameIndex + 1);
+        }
+        m_frameAnalysisByIndex[analysis.frameIndex] = analysis;
+    }
+
+    bool replaced = false;
+    for (FrameAnalysis &existing : m_accessUnitAnalyses) {
+        if (existing.frameIndex == analysis.frameIndex
+            && existing.streamIndex == analysis.streamIndex
+            && existing.mediaKind == analysis.mediaKind
+            && existing.accessUnitKind == analysis.accessUnitKind) {
+            existing = analysis;
+            replaced = true;
+            break;
+        }
+    }
+    if (!replaced) {
+        m_accessUnitAnalyses.append(analysis);
+    }
+    m_frameListView->addFrameAnalysis(analysis);
+    if (analysis.accessUnitKind != AccessUnitKind::VideoFrame && !m_hasCurrentAnalysis) {
+        m_currentAnalysis = analysis;
+        m_hasCurrentAnalysis = true;
+        m_propertyTreeView->showFrameAnalysis(analysis);
     }
     updateExportActionState();
 }
@@ -1366,6 +1430,8 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
         }
 
         m_currentFrameIndex = frameIndex;
+        m_currentAnalysis = cached.analysis;
+        m_hasCurrentAnalysis = true;
         m_videoCanvas->setFrame(cached.frame);
         m_videoCanvas->setAnalysisOverlay(cached.analysis);
         if (updatePropertyTree) {
@@ -1487,10 +1553,10 @@ void MainWindow::updatePlaybackActionState()
 void MainWindow::updateExportActionState()
 {
     const bool hasCurrentFrame = currentCachedFrame() != nullptr;
-    const bool hasDecodedSyntax = !m_frameAnalysisByIndex.isEmpty();
+    const bool hasDecodedSyntax = !m_accessUnitAnalyses.isEmpty();
 
     if (m_exportFrameSyntaxJsonAction != nullptr) {
-        m_exportFrameSyntaxJsonAction->setEnabled(hasCurrentFrame);
+        m_exportFrameSyntaxJsonAction->setEnabled(m_hasCurrentAnalysis);
     }
     if (m_exportScreenshotAction != nullptr) {
         m_exportScreenshotAction->setEnabled(hasCurrentFrame);

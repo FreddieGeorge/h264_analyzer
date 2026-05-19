@@ -12,10 +12,19 @@ The project currently supports video loading/decoding, controllable playback, H.
 
 - Open local H.264/video files through `File -> Open` or drag and drop.
 - Decode video streams in a background thread with FFmpeg.
+- Discover container streams, including basic video/audio metadata, while still
+  decoding the best video stream by default.
 - Play, pause, stop, and step frame-by-frame.
 - Rebuffer evicted frames from indexed keyframe/IDR seek checkpoints when available.
 - Render decoded frames through `QOpenGLWidget`.
 - Route bitstream parsing through a codec-neutral parser interface so additional codecs can be added without coupling them to `FFmpegDecoder`.
+- Provide an HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
+  VCL access units, and graceful unsupported slice diagnostics.
+- Provide an AAC ADTS parser skeleton for audio access units, including header
+  bit fields and graceful diagnostics for malformed packets.
+- Provide an MP3 frame-header parser skeleton for MPEG audio frame access units.
+- List parsed audio access units from discovered AAC/MP3 audio streams alongside
+  video frames, and show their generic fields in the property tree.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
@@ -27,8 +36,9 @@ The project currently supports video loading/decoding, controllable playback, H.
   - parsed P-slice motion vectors
 - Toggle grid/QP/MV overlays and adjust overlay opacity.
 - Persist window layout, dock positions, overlay toggles, opacity, and recent open/export directories.
-- Export selected frame syntax JSON, frame list CSV, and screenshots with overlays.
-- Export all decoded frame syntax JSON with schema/version and stream metadata.
+- Export selected access-unit syntax JSON, access-unit list CSV, screenshots
+  with overlays, and all decoded access-unit syntax JSON with schema/version
+  and stream metadata.
 - Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
 - Check GitHub Releases for updates from `Help -> Check for Updates`.
 
@@ -146,13 +156,13 @@ Create a Windows installer after the portable package has been generated:
 
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
-.\scripts\package-windows-installer.ps1 -Version "0.1.7"
+.\scripts\package-windows-installer.ps1 -Version "0.1.8"
 ```
 
 Output:
 
 ```text
-dist/ZStreamEye-0.1.7-windows-ucrt64-setup.exe
+dist/ZStreamEye-0.1.8-windows-ucrt64-setup.exe
 ```
 
 The installer is built with Inno Setup 6 and installs the same self-contained
@@ -230,7 +240,13 @@ Run:
 Key modules:
 
 - `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`; owns codec-specific bitstream parsers through `IBitstreamParser`.
+- `MediaTypes`: media/access-unit identifiers used to keep future video and
+  audio analysis paths from being forced into video-only fields.
 - `BitstreamParser`: codec-neutral parser interface and codec kind identifiers.
+- `AacAdtsParser`: thin audio access-unit skeleton for ADTS header fields and
+  diagnostics.
+- `Mp3FrameParser`: thin audio access-unit skeleton for MPEG audio frame
+  headers, bitrate/sample-rate fields, and malformed-header diagnostics.
 - `DecodeWorker`: runs decoding on a background `QThread`.
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
 - `VideoCanvas`: renders video frames and analysis overlays.
@@ -244,8 +260,10 @@ Recommended next work:
    already in place.
 3. Expand parser coverage beyond the focused CAVLC P_8x8/P_8x8ref0 and
    non-direct B-slice fixtures; keep B_Direct/B_8x8/CABAC diagnostics precise.
-4. Expose richer residual coefficient details and broaden macroblock support.
-5. Add a bitstream hex dock linked to existing syntax field bit offsets.
+4. Add explicit stream selection and richer packet/access-unit browsing on top
+   of the AAC/MP3 skeletons; keep audio analysis separate from `VideoCanvas`.
+5. Expose richer residual coefficient details and broaden macroblock support.
+6. Add a bitstream hex dock linked to existing syntax field bit offsets.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

@@ -9,6 +9,7 @@
 #include <QVector>
 
 QJsonObject streamInfoToJson(const StreamInfo &stream);
+QJsonObject mediaStreamInfoToJson(const MediaStreamInfo &stream);
 QJsonObject h264FrameSyntaxToJson(const FrameSyntaxInfo &syntaxInfo);
 QJsonObject frameAnalysisToJson(const FrameAnalysis &analysis);
 QJsonObject selectedFrameExportToJson(const StreamInfo &stream,

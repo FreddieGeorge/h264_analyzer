@@ -4,6 +4,8 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
 {
     FrameAnalysis analysis;
     analysis.frameIndex = syntaxInfo.index;
+    analysis.mediaKind = MediaKind::Video;
+    analysis.accessUnitKind = AccessUnitKind::VideoFrame;
     analysis.codecKind = syntaxInfo.codecKind;
     analysis.codecName = syntaxInfo.codecName;
     analysis.pts = syntaxInfo.pts;

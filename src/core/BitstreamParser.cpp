@@ -8,6 +8,8 @@ QString codecKindName(CodecKind codecKind)
     case CodecKind::AV1: return QStringLiteral("AV1");
     case CodecKind::VP9: return QStringLiteral("VP9");
     case CodecKind::VVC: return QStringLiteral("VVC/H.266");
+    case CodecKind::MP3: return QStringLiteral("MP3");
+    case CodecKind::AAC: return QStringLiteral("AAC");
     case CodecKind::Unknown:
     default:
         return QStringLiteral("Unknown");

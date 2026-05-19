@@ -11,9 +11,19 @@ The current project already has:
 - A codec-neutral parser interface (`IBitstreamParser`, `CodecKind`).
 - A codec-neutral `FrameAnalysis` model used by decoder handoff, overlays,
   property tree summary sections, and JSON export.
+- Media/access-unit identifiers (`MediaKind`, `AccessUnitKind`) carried by
+  `StreamInfo` and `FrameAnalysis`, with JSON schema v3 fields for future
+  video/audio stream analysis.
 - A direct H.264 parser (`H264Parser`) for Annex B and AVCC packets.
 - A H.264-to-`FrameAnalysis` adapter that keeps rich H.264 syntax details
   nested as codec-specific data.
+- A wired HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
+  VCL access units, and unsupported slice diagnostics through the generic
+  `FrameAnalysis` path.
+- An AAC ADTS parser skeleton that emits audio access-unit metadata, ADTS
+  header bit fields, and structured malformed-packet diagnostics.
+- An MP3 frame-header parser skeleton plus generic audio access-unit list,
+  property-tree display, and JSON export coverage for audio `FrameAnalysis`.
 - H.264 SPS/PPS/Slice Header parsing.
 - Partial CAVLC macroblock parsing, residual block counting, QP, P-slice L0 MV overlay, focused P_8x8/P_8x8ref0 sub-macroblock MV coverage, and focused non-direct B-slice L0/L1/Bi MV parsing.
 - Property-tree/status-bar explanations for overlay availability, including QP
@@ -29,8 +39,9 @@ Do not chase StreamEye by adding isolated UI buttons. Build depth first:
 2. Extract codec-neutral analysis models.
 3. Add bit/hex synchronization and statistics.
 4. Add quality comparison.
-5. Add HEVC and more codecs.
-6. Add automation, reports, and product hardening.
+5. Deepen HEVC and add more codecs.
+6. Add explicit audio stream selection and deeper access-unit analysis.
+7. Add automation, reports, and product hardening.
 
 ## Stage 1: Deepen H.264 Correctness
 

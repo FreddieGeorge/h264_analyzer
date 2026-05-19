@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/CodecKind.h"
+#include "core/MediaTypes.h"
 
 #include <QMetaType>
 #include <QString>
@@ -12,7 +13,9 @@ enum class AnalysisUnitKind
     Unknown,
     Nalu,
     Obu,
-    TileGroup
+    TileGroup,
+    AdtsFrame,
+    Mp3Frame
 };
 
 enum class AnalysisRegionKind
@@ -89,6 +92,9 @@ struct AnalysisMotionVector
 struct FrameAnalysis
 {
     int frameIndex = -1;
+    int streamIndex = -1;
+    MediaKind mediaKind = MediaKind::Video;
+    AccessUnitKind accessUnitKind = AccessUnitKind::VideoFrame;
     CodecKind codecKind = CodecKind::Unknown;
     QString codecName = QStringLiteral("Unknown");
     qint64 pts = 0;

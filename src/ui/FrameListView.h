@@ -18,6 +18,7 @@ public:
 
 signals:
     void frameSelected(int frameIndex);
+    void accessUnitSelected(const FrameAnalysis &analysis);
 
 private:
     void handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);

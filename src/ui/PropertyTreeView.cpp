@@ -29,7 +29,7 @@ QString presentValue(bool value)
 
 bool supportsBitstreamAnalysis(const FrameAnalysis &analysis)
 {
-    return analysis.codecKind == CodecKind::H264;
+    return analysis.codecKind == CodecKind::H264 || analysis.codecKind == CodecKind::HEVC;
 }
 
 int parsedMacroblockCount(const FrameAnalysis &analysis)
@@ -204,7 +204,9 @@ void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
 
     auto *analysisRoot = new QTreeWidgetItem(this, {tr("FrameAnalysis"), codecKindName(analysis.codecKind)});
     addFrameAnalysisSummary(analysisRoot, analysis);
-    addOverlayAvailability(analysisRoot, analysis);
+    if (analysis.mediaKind == MediaKind::Video) {
+        addOverlayAvailability(analysisRoot, analysis);
+    }
     addFrameAnalysisUnits(analysisRoot, analysis);
     addFrameAnalysisParameterSets(analysisRoot, analysis);
     addFrameAnalysisRegions(analysisRoot, analysis);
@@ -220,6 +222,9 @@ void PropertyTreeView::addFrameAnalysisSummary(QTreeWidgetItem *parent, const Fr
 {
     auto *summaryRoot = new QTreeWidgetItem(parent, {tr("Summary"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType});
     addPair(summaryRoot, tr("frame_index"), QString::number(analysis.frameIndex));
+    addPair(summaryRoot, tr("stream_index"), QString::number(analysis.streamIndex));
+    addPair(summaryRoot, tr("media_kind"), mediaKindName(analysis.mediaKind));
+    addPair(summaryRoot, tr("access_unit_kind"), accessUnitKindName(analysis.accessUnitKind));
     addPair(summaryRoot, tr("frame_type"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType);
     addPair(summaryRoot, tr("has_frame"), boolValue(analysis.hasFrame));
     addPair(summaryRoot, tr("pts"), QString::number(analysis.pts));
@@ -239,7 +244,7 @@ void PropertyTreeView::addOverlayAvailability(QTreeWidgetItem *parent, const Fra
     auto *overlayRoot = new QTreeWidgetItem(parent, {tr("Overlay Availability"), codecKindName(analysis.codecKind)});
     addPair(overlayRoot, tr("bitstream analysis"),
             supportsBitstreamAnalysis(analysis)
-                ? tr("H.264 supported")
+                ? tr("%1 supported").arg(codecKindName(analysis.codecKind))
                 : tr("not supported for this codec yet"));
     addPair(overlayRoot, tr("macroblock grid"), gridAvailabilityText(analysis));
     addPair(overlayRoot, tr("macroblock regions"), QString::number(macroblockRegionCount(analysis)));

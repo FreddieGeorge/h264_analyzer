@@ -11,6 +11,7 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -60,6 +61,7 @@ public:
     AVFrame *decodeNextFrame();
     StreamInfo getStreamInfo() const;
     FrameAnalysis lastFrameAnalysis() const;
+    QVector<FrameAnalysis> takePendingAccessUnitAnalyses();
     FrameSyntaxInfo lastFrameSyntaxInfo() const;
     FrameSeekCheckpoint lastFrameSeekCheckpoint() const;
     QString lastError() const;
@@ -79,6 +81,14 @@ private:
         FrameSeekCheckpoint checkpoint;
     };
 
+    struct StreamPacketParser
+    {
+        int streamIndex = -1;
+        MediaKind mediaKind = MediaKind::Unknown;
+        int packetIndex = 0;
+        std::unique_ptr<IBitstreamParser> parser;
+    };
+
     AVFormatContext *m_formatContext = nullptr;
     AVCodecContext *m_codecContext = nullptr;
     AVPacket *m_packet = nullptr;
@@ -89,6 +99,8 @@ private:
     bool m_draining = false;
     StreamInfo m_streamInfo;
     std::unique_ptr<IBitstreamParser> m_parser;
+    std::vector<StreamPacketParser> m_packetParsers;
+    QVector<FrameAnalysis> m_pendingAccessUnitAnalyses;
     QVector<PendingFrameInfo> m_pendingFrames;
     FrameAnalysis m_lastFrameAnalysis;
     FrameSeekCheckpoint m_lastFrameSeekCheckpoint;

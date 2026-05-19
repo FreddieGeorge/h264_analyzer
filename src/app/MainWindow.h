@@ -75,6 +75,7 @@ private:
                                   const QString &installerFileName,
                                   const QString &tagName);
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
+    void handleAccessUnitAnalysis(const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
     void handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex);
     void handleFrameListSelection(int frameIndex);
@@ -128,11 +129,14 @@ private:
     QString m_lastExportDirectory;
     QVector<CachedFrame> m_frameCache;
     QVector<FrameAnalysis> m_frameAnalysisByIndex;
+    QVector<FrameAnalysis> m_accessUnitAnalyses;
     QVector<FrameSeekCheckpoint> m_seekCheckpoints;
+    FrameAnalysis m_currentAnalysis;
     int m_decoderGeneration = 0;
     RebufferState m_rebufferState;
     int m_currentFrameIndex = -1;
     int m_latestFrameIndex = -1;
+    bool m_hasCurrentAnalysis = false;
     bool m_playbackPaused = false;
     bool m_preserveFrameListScroll = false;
 };
