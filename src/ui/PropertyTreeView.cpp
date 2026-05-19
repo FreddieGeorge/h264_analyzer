@@ -82,6 +82,16 @@ std::optional<QpSummary> summarizeQpValues(const FrameAnalysis &analysis)
     return summary;
 }
 
+bool hasDiagnosticCode(const FrameAnalysis &analysis, const QString &code)
+{
+    for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QString qpAvailabilityText(const FrameAnalysis &analysis)
 {
     const std::optional<QpSummary> summary = summarizeQpValues(analysis);
@@ -90,12 +100,12 @@ QString qpAvailabilityText(const FrameAnalysis &analysis)
     }
 
     if (summary->min == summary->max) {
-        return QObject::tr("%1 QP values, QP %2 constant across macroblock regions")
+        return QObject::tr("%1 QP values, QP %2 constant across macroblock regions. The heatmap may appear as a flat color.")
             .arg(summary->count)
             .arg(summary->min);
     }
 
-    return QObject::tr("%1 QP values, range %2 - %3")
+    return QObject::tr("%1 QP values, range %2 - %3. Lower QP is greener; higher QP is redder.")
         .arg(summary->count)
         .arg(summary->min)
         .arg(summary->max);
@@ -107,12 +117,32 @@ QString motionVectorAvailabilityText(const FrameAnalysis &analysis)
         return QObject::tr("Motion vector analysis is not supported for this codec yet.");
     }
 
-    if (analysis.motionVectors.isEmpty()) {
-        return QObject::tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors.");
+    if (!analysis.motionVectors.isEmpty()) {
+        return QObject::tr("%1 parsed motion vectors")
+            .arg(analysis.motionVectors.size());
     }
 
-    return QObject::tr("%1 parsed motion vectors")
-        .arg(analysis.motionVectors.size());
+    if (analysis.frameType == QStringLiteral("I")) {
+        return QObject::tr("No motion vectors are expected for this I-frame.");
+    }
+
+    if (analysis.frameType == QStringLiteral("B") || hasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
+        return QObject::tr("B-slice motion vector parsing is not implemented yet.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("cabac_unsupported"))) {
+        return QObject::tr("CABAC macroblock and motion vector parsing is not implemented yet.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))) {
+        return QObject::tr("P_8x8 sub-macroblock motion vector parsing is not implemented yet.");
+    }
+
+    if (hasDiagnosticCode(analysis, QStringLiteral("interlaced_or_fmo_unsupported"))) {
+        return QObject::tr("Interlaced/MBAFF or FMO motion vector parsing is not implemented yet.");
+    }
+
+    return QObject::tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors.");
 }
 
 QString gridAvailabilityText(const FrameAnalysis &analysis)

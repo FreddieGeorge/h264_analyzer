@@ -34,6 +34,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QObject>
 #include <QProcess>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -209,6 +210,50 @@ int frameAnalysisQpValueCount(const FrameAnalysis &analysis, int *minQp = nullpt
         *maxQp = localMax;
     }
     return count;
+}
+
+bool frameAnalysisHasDiagnosticCode(const FrameAnalysis &analysis, const QString &code)
+{
+    for (const AnalysisDiagnostic &diagnostic : analysis.diagnostics) {
+        if (diagnostic.code == code) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString motionVectorStatusText(const FrameAnalysis &analysis)
+{
+    if (analysis.codecKind != CodecKind::H264) {
+        return QObject::tr("Motion vector analysis is not supported for this codec yet.");
+    }
+
+    if (!analysis.motionVectors.isEmpty()) {
+        return QObject::tr("Motion vectors: %1 parsed").arg(analysis.motionVectors.size());
+    }
+
+    if (analysis.frameType == QStringLiteral("I")) {
+        return QObject::tr("No motion vectors are expected for this I-frame.");
+    }
+
+    if (analysis.frameType == QStringLiteral("B")
+        || frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("b_slice_macroblock_unsupported"))) {
+        return QObject::tr("B-slice motion vector parsing is not implemented yet.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("cabac_unsupported"))) {
+        return QObject::tr("CABAC macroblock and motion vector parsing is not implemented yet.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("p8x8_sub_macroblock_unsupported"))) {
+        return QObject::tr("P_8x8 sub-macroblock motion vector parsing is not implemented yet.");
+    }
+
+    if (frameAnalysisHasDiagnosticCode(analysis, QStringLiteral("interlaced_or_fmo_unsupported"))) {
+        return QObject::tr("Interlaced/MBAFF or FMO motion vector parsing is not implemented yet.");
+    }
+
+    return QObject::tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors.");
 }
 
 QString safeInstallerFileName(QString fileName)
@@ -1407,19 +1452,8 @@ void MainWindow::updateCurrentOverlayStatusHint()
 void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
 {
     if (m_showMotionVectorsAction != nullptr && m_showMotionVectorsAction->isChecked()) {
-        if (analysis.codecKind != CodecKind::H264) {
-            statusBar()->showMessage(tr("Motion vector analysis is not supported for this codec yet."), 5000);
-            return;
-        }
-
-        if (analysis.motionVectors.isEmpty()) {
-            statusBar()->showMessage(
-                tr("No supported motion vectors were parsed for this frame. Current parser mainly exposes H.264 P-slice L0 vectors."),
-                5000);
-            return;
-        }
-
-        statusBar()->showMessage(tr("Motion vectors: %1 parsed").arg(analysis.motionVectors.size()), 3000);
+        statusBar()->showMessage(motionVectorStatusText(analysis),
+                                 analysis.motionVectors.isEmpty() ? 5000 : 3000);
         return;
     }
 
@@ -1434,7 +1468,7 @@ void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
 
         if (minQp == maxQp) {
             statusBar()->showMessage(
-                tr("QP heatmap: %1 values, QP %2 is constant across macroblock regions.")
+                tr("QP heatmap: %1 values, QP %2 is constant; a flat color is expected.")
                     .arg(qpCount)
                     .arg(minQp),
                 4000);
@@ -1442,7 +1476,7 @@ void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
         }
 
         statusBar()->showMessage(
-            tr("QP heatmap: %1 values, range %2 - %3.")
+            tr("QP heatmap: %1 values, range %2 - %3. Lower QP is greener; higher QP is redder.")
                 .arg(qpCount)
                 .arg(minQp)
                 .arg(maxQp),
