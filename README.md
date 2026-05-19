@@ -133,6 +133,25 @@ The portable package includes:
 
 End users only need to unzip the package and run `H264Analyzer.exe`.
 
+## Windows Installer
+
+Create a Windows installer after the portable package has been generated:
+
+```powershell
+.\scripts\deploy-windows-msys2.ps1
+.\scripts\package-windows-installer.ps1 -Version "0.1.0"
+```
+
+Output:
+
+```text
+dist/H264Analyzer-0.1.0-windows-ucrt64-setup.exe
+```
+
+The installer is built with Inno Setup 6 and installs the same self-contained
+Qt, FFmpeg, and MSYS2 UCRT64 runtime files as the portable package. GitHub
+release builds publish both the portable `.zip` and the installer `.exe`.
+
 For more details, see [docs/windows-deployment.md](docs/windows-deployment.md).
 
 ## macOS

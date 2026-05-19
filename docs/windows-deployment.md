@@ -20,3 +20,22 @@
 - MSYS2 UCRT64/GCC 运行时 DLL
 
 不要把 `build-msys2-ucrt/H264Analyzer.exe` 单独发给用户；它依赖本机 `C:\msys64\ucrt64\bin` 中的 DLL。
+
+## Windows Installer
+
+The installer uses the same portable folder as its source. Install Inno Setup 6
+locally, then run:
+
+```powershell
+.\scripts\deploy-windows-msys2.ps1
+.\scripts\package-windows-installer.ps1 -Version "0.1.0"
+```
+
+Output:
+
+- `dist/H264Analyzer-0.1.0-windows-ucrt64-setup.exe`
+
+The GitHub release workflow installs Inno Setup and uploads both:
+
+- `H264Analyzer-<version>-windows-ucrt64.zip`
+- `H264Analyzer-<version>-windows-ucrt64-setup.exe`
