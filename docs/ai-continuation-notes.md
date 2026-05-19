@@ -52,6 +52,22 @@ Implemented capabilities:
   - macroblock QP heatmap
   - P-slice L0 motion vectors
   - overlay opacity control
+- Overlay availability is now explained outside the OpenGL canvas:
+  - `PropertyTreeView` has an `Overlay Availability` section with macroblock
+    region counts, fully parsed macroblock counts, QP range/constant notes,
+    motion-vector availability, and diagnostics counts.
+  - QP heatmap notes explain flat-color frames when QP is constant, and range
+    frames when QP varies.
+  - Motion-vector notes distinguish I-frames, B-slice unsupported parsing,
+    CABAC unsupported parsing, P_8x8 unsupported parsing, and MBAFF/FMO
+    unsupported parsing where diagnostics are available.
+  - Status bar hints mirror the current QP/MV overlay state using short text.
+- `PropertyTreeView` supports word-wrapped values and a right-click copy menu
+  for cell, row, or row-with-children text.
+- Frame list selection now avoids forcing selected old/rebuffered frames to
+  the middle of `FrameListView` during paused/manual navigation where possible.
+  A decoder generation guard ignores stale queued frame/seek callbacks from an
+  older worker after a new rebuffer decode starts.
 - Export features:
   - selected frame JSON with schema/version, stream metadata, codec-neutral
     `frame_analysis`, and H.264 codec-specific details
@@ -132,10 +148,10 @@ Recommended next direction for the next AI/coding session:
    or upgrade from `v0.1.6`, confirm that the install root keeps only the
    launcher and support files, and confirm that Qt/FFmpeg/MSYS2 DLLs live under
    `runtime/`.
-2. Then improve the old-frame seek/rebuffer experience. Add cancellation for
-   stale checkpoint rebuffer requests, add visible progress, and keep the
-   behavior stable for both raw Annex B `.264` files and containers such as
-   `.mp4`/`.mkv`.
+2. Improve the old-frame seek/rebuffer experience. Add explicit cancellation for
+   stale checkpoint rebuffer requests, visible progress, and stress tests for
+   repeated FrameListView clicks while rebuffering. Keep behavior stable for
+   both raw Annex B `.264` files and containers such as `.mp4`/`.mkv`.
 3. Continue H.264 correctness work before adding a full new codec. Prefer
    residual coefficient details, P_8x8/sub-macroblock parsing fixtures, and
    B-slice motion-vector diagnostics/support over CABAC.
@@ -164,12 +180,19 @@ Implemented:
   always restarting from frame 0.
 - Carries SPS/PPS parser state in checkpoints so syntax parsing can resume after
   a seek.
+- FrameListView selection synchronization now has a no-scroll mode used during
+  paused/manual selection and rebuffer completion.
+- MainWindow tracks decoder generations so stale queued callbacks from an older
+  worker are ignored after a newer decode/rebuffer starts.
 
 Recommended remaining improvement:
 
 - Add cancellation if the user clicks another frame while a checkpoint rebuffer
-  is already in progress.
+  is already in progress; the current generation guard ignores stale callbacks
+  but does not stop wasted decode work early.
 - Add visible progress reporting during long checkpoint rebuffer seeks.
+- Add regression or manual smoke coverage for repeated old-frame clicks while a
+  checkpoint rebuffer is already running.
 - Add more real stream smoke tests for raw Annex B `.264` files and containers.
 - Keep UI behavior unchanged: selecting an old frame should show buffering, then land on that frame and pause.
 - Be careful: H.264 raw `.264` streams may not have container timestamps or seek indexes, so Annex B byte offsets and IDR detection matter.
@@ -299,8 +322,10 @@ Suggested files:
 Recommended improvement:
 
 - Add a real timeline/seek bar separate from the frame list.
-- Add visible buffering state during rebuffer seek.
-- Add overlay legend for QP heatmap and MV colors.
+- Add visible buffering progress during rebuffer seek.
+- Add non-canvas overlay legends or property/status hints for any future
+  visualization modes. Avoid drawing text in `VideoCanvas` until the Windows
+  OpenGL/QPainter text rendering issue is understood.
 - Add option to cap MV drawing density for high-resolution clips.
 
 Implemented:
@@ -312,6 +337,11 @@ Implemented:
   - overlay toggles
   - opacity
   - last open/export directories
+- `PropertyTreeView` `Overlay Availability` summary, wrapped long values, and
+  right-click copy menu.
+- Status bar QP/MV availability hints.
+- Avoidance of OpenGL canvas text for overlay analysis hints to prevent garbled
+  text on some Windows deployments.
 
 Suggested files:
 
@@ -372,8 +402,9 @@ Use focused commits. Good examples:
 Add packaged Windows layout smoke validation
 Cancel stale checkpoint rebuffer requests
 Show progress while buffering old frames
-Expose H264 residual coefficient details
+Add repeated old-frame rebuffer smoke coverage
 Add H264 P8x8 parser fixtures
+Expose H264 residual coefficient details
 Parse H264 P8x8 sub-macroblock motion vectors
 Add bitstream hex dock skeleton
 Link property fields to bit offsets

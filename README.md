@@ -18,6 +18,8 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Route bitstream parsing through a codec-neutral parser interface so additional codecs can be added without coupling them to `FFmpegDecoder`.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
+- Show overlay availability in the property tree, including QP range/constant
+  notes and motion-vector support diagnostics for the current frame.
 - Show frame list information such as frame type, POC, and `frame_num`.
 - Overlay analysis data on the video canvas:
   - 16x16 macroblock grid
@@ -35,6 +37,9 @@ Current limitations:
 - CAVLC residual parsing consumes and counts residual blocks so macroblock parsing can continue, but individual coefficient values are not yet exposed in the UI/export model.
 - CABAC, B-slice motion vectors, MBAFF/FMO, and sub-macroblock motion vectors are reported as unsupported or partially parsed.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
+- OpenGL canvas text is intentionally avoided for analysis hints because some
+  Windows/OpenGL deployments render QPainter text incorrectly; use the property
+  tree and status bar for analysis explanations.
 
 ## Project Structure
 
@@ -234,9 +239,11 @@ Key modules:
 Recommended next work:
 
 1. Smoke-test the latest Windows installer/portable release and upgrade path.
-2. Add cancellation/progress reporting for long checkpoint rebuffer seeks.
-3. Expose richer residual coefficient details and broaden macroblock support.
-4. Add P_8x8 / P_8x8ref0 parser fixtures and sub-macroblock parsing.
+2. Add cancellation/progress reporting for long checkpoint rebuffer seeks and
+   verify repeated FrameListView clicks do not queue stale decode work.
+3. Add P_8x8 / P_8x8ref0 parser fixtures before implementing sub-macroblock
+   motion vector parsing.
+4. Expose richer residual coefficient details and broaden macroblock support.
 5. Add a bitstream hex dock linked to existing syntax field bit offsets.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).

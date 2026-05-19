@@ -16,6 +16,8 @@ The current project already has:
   nested as codec-specific data.
 - H.264 SPS/PPS/Slice Header parsing.
 - Partial CAVLC macroblock parsing, residual block counting, QP, and P-slice L0 MV overlay.
+- Property-tree/status-bar explanations for overlay availability, including QP
+  constant/range notes and motion-vector unsupported reasons.
 - Seek checkpoints for rebuffering from keyframe/IDR positions.
 - JSON/CSV/screenshot exports, persisted UI settings, Windows CI, and release workflow.
 
@@ -50,6 +52,9 @@ Current status:
 
 - Common CAVLC I/P macroblocks, QP, residual block/coefficient counts, and
   P-slice L0 motion vectors are partially parsed.
+- The UI now distinguishes available overlay data from unsupported or missing
+  analysis data through `PropertyTreeView` and status bar hints rather than
+  canvas text.
 - Unsupported CABAC has regression coverage and reports structured diagnostics.
 - Truncated slice headers have regression coverage and report
   `slice_header_truncated` without inventing macroblock data.
@@ -63,7 +68,8 @@ Current status:
 Acceptance criteria:
 
 - QP heatmap uses parsed macroblock data for supported streams.
-- MV overlay distinguishes parsed vectors from unavailable/unsupported data.
+- MV overlay distinguishes parsed vectors from unavailable/unsupported data in
+  user-visible property/status summaries.
 - Unsupported syntax produces structured diagnostics, not generic notes.
 - Regression fixtures cover I/P/B, P_8x8, CABAC unsupported/supported, and truncation.
 
@@ -357,16 +363,17 @@ Suggested files:
 ## Suggested Next Commit Order
 
 The project has already completed most of the codec-neutral `FrameAnalysis`
-migration, so the next work should emphasize release confidence, seek/rebuffer
-polish, and H.264 trustworthiness before starting a full HEVC parser. Good
-focused commits:
+migration and basic overlay explainability, so the next work should emphasize
+release confidence, seek/rebuffer cancellation/progress, and H.264
+trustworthiness before starting a full HEVC parser. Good focused commits:
 
 ```text
 Add packaged Windows layout smoke validation
 Cancel stale checkpoint rebuffer requests
 Show progress while buffering old frames
-Expose H264 residual coefficient details
+Add repeated old-frame rebuffer smoke coverage
 Add H264 P8x8 parser fixtures
+Expose H264 residual coefficient details
 Parse H264 P8x8 sub-macroblock motion vectors
 Add bitstream hex dock skeleton
 Link property fields to bit offsets
