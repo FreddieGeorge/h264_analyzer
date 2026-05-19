@@ -1,6 +1,7 @@
 param(
     [string]$BuildDir = "build-msys2-ucrt",
     [string]$DistDir = "dist/H264Analyzer-windows-ucrt64",
+    [string]$MsysRoot = "",
     [switch]$NoZip
 )
 
@@ -9,12 +10,36 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $buildPath = Join-Path $repoRoot $BuildDir
 $distPath = Join-Path $repoRoot $DistDir
-$msysRoot = "C:\msys64"
+
+function Resolve-MsysRoot {
+    param([string]$ExplicitRoot)
+
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitRoot)) {
+        $candidates += $ExplicitRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:MSYS2_LOCATION)) {
+        $candidates += $env:MSYS2_LOCATION
+    }
+    $candidates += "C:\msys64"
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        $bashCandidate = Join-Path $candidate "usr\bin\bash.exe"
+        if (Test-Path $bashCandidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
+    throw "MSYS2 root not found. Tried: $($candidates -join ', ')"
+}
+
+$msysRoot = Resolve-MsysRoot $MsysRoot
 $ucrtBin = Join-Path $msysRoot "ucrt64\bin"
 $bash = Join-Path $msysRoot "usr\bin\bash.exe"
 $objdump = Join-Path $ucrtBin "objdump.exe"
-$repoRootMsys = (& $bash -lc "cygpath -u '$repoRoot'").Trim()
-$buildPathMsys = (& $bash -lc "cygpath -u '$buildPath'").Trim()
 
 function Assert-ToolExists {
     param([string]$Path)
@@ -105,7 +130,10 @@ $windeployqt = Resolve-FirstExistingTool -Paths @(
 Assert-ToolExists $objdump
 Assert-PathUnderRepo $distPath
 
+$repoRootMsys = (& $bash -lc "cygpath -u '$repoRoot'").Trim()
+$buildPathMsys = (& $bash -lc "cygpath -u '$buildPath'").Trim()
 $env:PATH = "$ucrtBin;$env:PATH"
+Write-Host "Using MSYS2 root: $msysRoot"
 Write-Host "Using windeployqt: $windeployqt"
 
 Write-Host "Building project..."
