@@ -1,5 +1,6 @@
 #include "ui/PropertyTreeView.h"
 
+#include "core/H264FrameAnalysisAdapter.h"
 #include "core/H264Parser.h"
 
 #include <QTreeWidgetItem>

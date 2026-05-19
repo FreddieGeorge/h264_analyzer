@@ -1,5 +1,7 @@
 #include "core/FFmpegDecoder.h"
 
+#include "core/H264FrameAnalysisAdapter.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>

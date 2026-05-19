@@ -70,6 +70,8 @@ add_executable(H264Analyzer
     src/core/CodecKind.h
     src/core/FrameAnalysis.h
     src/core/FrameAnalysis.cpp
+    src/core/H264FrameAnalysisAdapter.h
+    src/core/H264FrameAnalysisAdapter.cpp
     src/core/DecodeWorker.h
     src/core/DecodeWorker.cpp
     src/core/FFmpegDecoder.h
@@ -124,6 +126,8 @@ if(BUILD_TESTING)
         src/core/CodecKind.h
         src/core/FrameAnalysis.h
         src/core/FrameAnalysis.cpp
+        src/core/H264FrameAnalysisAdapter.h
+        src/core/H264FrameAnalysisAdapter.cpp
         src/core/H264Parser.h
         src/core/H264Parser.cpp
     )

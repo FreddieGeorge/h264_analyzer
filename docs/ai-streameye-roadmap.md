@@ -9,7 +9,11 @@ The current project already has:
 - Qt 6 desktop UI with frame list, property tree, log dock, and OpenGL canvas.
 - FFmpeg background decoding through `DecodeWorker`.
 - A codec-neutral parser interface (`IBitstreamParser`, `CodecKind`).
+- A codec-neutral `FrameAnalysis` model used by decoder handoff, overlays,
+  property tree summary sections, and JSON export.
 - A direct H.264 parser (`H264Parser`) for Annex B and AVCC packets.
+- A H.264-to-`FrameAnalysis` adapter that keeps rich H.264 syntax details
+  nested as codec-specific data.
 - H.264 SPS/PPS/Slice Header parsing.
 - Partial CAVLC macroblock parsing, residual block counting, QP, and P-slice L0 MV overlay.
 - Seek checkpoints for rebuffering from keyframe/IDR positions.
@@ -62,6 +66,25 @@ Suggested files:
 Goal:
 
 - Stop forcing all analysis through H.264-shaped `NaluInfo`, `SliceInfo`, and `MacroblockInfo`.
+
+Current status:
+
+- Mostly complete for the H.264 path.
+- `IBitstreamParser::parsePacket()` returns `FrameAnalysis`.
+- `FFmpegDecoder` and `DecodeWorker` hand off `FrameAnalysis` without needing
+  H.264 UI payload types.
+- `VideoCanvas`, `FrameListView`, JSON export, and the top-level property tree
+  consume codec-neutral fields.
+- H.264-specific details are retained under codec-specific data and rendered
+  below `Codec Details`.
+- Export JSON schema v2 includes a stable `frame_analysis` section while
+  preserving H.264 details for compatibility.
+
+Remaining polish:
+
+- Continue shrinking direct H.264 includes outside codec-specific UI/export code.
+- Add a non-H.264 parser skeleton once the next codec work begins, to verify
+  that the generic UI/export path degrades gracefully.
 
 Main tasks:
 

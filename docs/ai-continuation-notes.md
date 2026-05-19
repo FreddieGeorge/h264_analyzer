@@ -31,8 +31,12 @@ Implemented capabilities:
 - Codec-neutral bitstream parser interface:
   - `CodecKind`
   - `IBitstreamParser`
+  - `FrameAnalysis`
   - parser state snapshots for checkpoint resume
   - `FFmpegDecoder` no longer owns `H264Parser` directly
+- H.264 analysis is adapted into codec-neutral `FrameAnalysis` through
+  `H264FrameAnalysisAdapter`, while retaining rich H.264 structs as
+  codec-specific details.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
@@ -49,9 +53,10 @@ Implemented capabilities:
   - P-slice L0 motion vectors
   - overlay opacity control
 - Export features:
-  - selected frame syntax JSON with schema/version and stream metadata
-  - batch JSON export for all decoded frame syntax
-  - frame list CSV from an internal syntax model
+  - selected frame JSON with schema/version, stream metadata, codec-neutral
+    `frame_analysis`, and H.264 codec-specific details
+  - batch JSON export for all decoded frame analysis
+  - frame list CSV from internal `FrameAnalysis` data
   - screenshot including visible overlays
 - UI settings persisted with `QSettings`:
   - window geometry
@@ -335,9 +340,12 @@ Most important files:
 
 ```text
 src/app/MainWindow.*
+src/core/AnalysisExportWriter.*
 src/core/DecodeWorker.*
 src/core/FFmpegDecoder.*
 src/core/BitstreamParser.*
+src/core/FrameAnalysis.*
+src/core/H264FrameAnalysisAdapter.*
 src/core/H264Parser.*
 src/ui/VideoCanvas.*
 src/ui/FrameListView.*

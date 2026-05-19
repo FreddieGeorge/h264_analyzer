@@ -1,4 +1,5 @@
 #include "core/AnalysisExportWriter.h"
+#include "core/H264FrameAnalysisAdapter.h"
 #include "core/H264Parser.h"
 
 #include <QByteArray>

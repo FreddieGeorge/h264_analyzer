@@ -257,6 +257,3 @@ Q_DECLARE_METATYPE(MacroblockInfo)
 Q_DECLARE_METATYPE(SliceInfo)
 Q_DECLARE_METATYPE(NaluInfo)
 Q_DECLARE_METATYPE(FrameSyntaxInfo)
-
-FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo);
-FrameSyntaxInfo h264SyntaxFromFrameAnalysis(const FrameAnalysis &analysis);

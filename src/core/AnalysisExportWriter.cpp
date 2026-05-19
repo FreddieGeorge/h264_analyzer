@@ -1,5 +1,7 @@
 #include "core/AnalysisExportWriter.h"
 
+#include "core/H264FrameAnalysisAdapter.h"
+
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
