@@ -34,6 +34,16 @@ QString packetBitRangesText(const QVector<AnalysisBitRange> &ranges)
     return parts.join(QStringLiteral(", "));
 }
 
+std::optional<SyntaxFieldInfo> findSyntaxField(const QVector<SyntaxFieldInfo> &fields, const QString &name)
+{
+    for (const SyntaxFieldInfo &field : fields) {
+        if (field.name == name) {
+            return field;
+        }
+    }
+    return std::nullopt;
+}
+
 QString boolValue(bool value)
 {
     return value ? QStringLiteral("1") : QStringLiteral("0");
@@ -231,7 +241,9 @@ void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
     addFrameAnalysisRegions(analysisRoot, analysis);
     addFrameAnalysisMotionVectors(analysisRoot, analysis);
     addFrameAnalysisDiagnostics(analysisRoot, analysis);
-    addFrameAnalysisBitFields(analysisRoot, analysis);
+    if (analysis.codecKind != CodecKind::H264) {
+        addFrameAnalysisBitFields(analysisRoot, analysis);
+    }
     addCodecSpecificDetails(analysisRoot, analysis);
     analysisRoot->setExpanded(true);
     expandToDepth(1);
@@ -369,6 +381,9 @@ void PropertyTreeView::addFrameAnalysisParameterSets(QTreeWidgetItem *parent, co
     for (const AnalysisParameterSet &parameterSet : analysis.parameterSets) {
         auto *setItem = new QTreeWidgetItem(setsRoot, {parameterSet.kind, QString::number(parameterSet.id)});
         addPair(setItem, tr("summary"), parameterSet.summary);
+        if (analysis.codecKind == CodecKind::H264) {
+            continue;
+        }
         addPair(setItem, tr("bit_fields"), QString::number(parameterSet.bitFields.size()));
         for (const AnalysisBitField &field : parameterSet.bitFields) {
             auto *fieldItem = new QTreeWidgetItem(setItem, {field.name, field.value});
@@ -479,28 +494,39 @@ void PropertyTreeView::addCodecSpecificDetails(QTreeWidgetItem *parent, const Fr
 
 void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntaxInfo &syntaxInfo)
 {
-    auto addSyntaxFields = [this](QTreeWidgetItem *fieldParent, const QVector<SyntaxFieldInfo> &fields) {
-        if (fields.isEmpty()) {
+    auto attachSyntaxField = [](QTreeWidgetItem *item,
+                                const QVector<SyntaxFieldInfo> &fields,
+                                const QString &name) {
+        if (item == nullptr) {
             return;
         }
-
-        auto *fieldsRoot = new QTreeWidgetItem(fieldParent, {tr("Bit positions"), QString::number(fields.size())});
-        for (const SyntaxFieldInfo &field : fields) {
-            const QString value = tr("%1 (bit %2, len %3)")
-                .arg(field.value)
-                .arg(field.bitOffset)
-                .arg(field.bitLength);
-            QTreeWidgetItem *fieldItem = addPair(fieldsRoot, field.name, value);
-            fieldItem->setData(0, BitFieldRole, QVariant::fromValue(AnalysisBitField {
-                QString {},
-                field.name,
-                field.bitOffset,
-                field.bitLength,
-                field.value,
-                QStringLiteral("rbsp"),
-                field.packetBitRanges
-            }));
+        const std::optional<SyntaxFieldInfo> field = findSyntaxField(fields, name);
+        if (!field.has_value()) {
+            return;
         }
+        item->setData(0, BitFieldRole, QVariant::fromValue(AnalysisBitField {
+            QString {},
+            field->name,
+            field->bitOffset,
+            field->bitLength,
+            field->value,
+            QStringLiteral("rbsp"),
+            field->packetBitRanges
+        }));
+    };
+
+    auto addSyntaxPair = [this, &attachSyntaxField](QTreeWidgetItem *parentItem,
+                                                    const QVector<SyntaxFieldInfo> &fields,
+                                                    const QString &name,
+                                                    const QString &value) {
+        QTreeWidgetItem *item = addPair(parentItem, name, value);
+        attachSyntaxField(item, fields, name);
+        return item;
+    };
+
+    auto addSyntaxFields = [this](QTreeWidgetItem *fieldParent, const QVector<SyntaxFieldInfo> &fields) {
+        Q_UNUSED(fieldParent);
+        Q_UNUSED(fields);
     };
 
     auto *frameRoot = new QTreeWidgetItem(parent, {tr("Frame"), QString::number(syntaxInfo.index)});
@@ -536,16 +562,16 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
 
         if (nalu.sps.valid) {
             auto *spsItem = new QTreeWidgetItem(naluItem, {tr("SPS"), QString::number(nalu.sps.seqParameterSetId)});
-            addPair(spsItem, tr("profile_idc"), QString::number(nalu.sps.profileIdc));
+            addSyntaxPair(spsItem, nalu.sps.fields, QStringLiteral("profile_idc"), QString::number(nalu.sps.profileIdc));
             auto *constraintsItem = new QTreeWidgetItem(spsItem, {tr("constraint flags"), QString()});
-            addPair(constraintsItem, tr("constraint_set0_flag"), boolValue(nalu.sps.constraintSet0Flag));
-            addPair(constraintsItem, tr("constraint_set1_flag"), boolValue(nalu.sps.constraintSet1Flag));
-            addPair(constraintsItem, tr("constraint_set2_flag"), boolValue(nalu.sps.constraintSet2Flag));
-            addPair(constraintsItem, tr("constraint_set3_flag"), boolValue(nalu.sps.constraintSet3Flag));
-            addPair(constraintsItem, tr("constraint_set4_flag"), boolValue(nalu.sps.constraintSet4Flag));
-            addPair(constraintsItem, tr("constraint_set5_flag"), boolValue(nalu.sps.constraintSet5Flag));
-            addPair(constraintsItem, tr("reserved_zero_2bits"), QString::number(nalu.sps.reservedZero2Bits));
-            addPair(spsItem, tr("level_idc"), QString::number(nalu.sps.levelIdc));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set0_flag"), boolValue(nalu.sps.constraintSet0Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set1_flag"), boolValue(nalu.sps.constraintSet1Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set2_flag"), boolValue(nalu.sps.constraintSet2Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set3_flag"), boolValue(nalu.sps.constraintSet3Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set4_flag"), boolValue(nalu.sps.constraintSet4Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("constraint_set5_flag"), boolValue(nalu.sps.constraintSet5Flag));
+            addSyntaxPair(constraintsItem, nalu.sps.fields, QStringLiteral("reserved_zero_2bits"), QString::number(nalu.sps.reservedZero2Bits));
+            addSyntaxPair(spsItem, nalu.sps.fields, QStringLiteral("level_idc"), QString::number(nalu.sps.levelIdc));
             addPair(spsItem, tr("width"), QString::number(nalu.sps.width));
             addPair(spsItem, tr("height"), QString::number(nalu.sps.height));
             addPair(spsItem, tr("pic_order_cnt_type"), QString::number(nalu.sps.picOrderCntType));
@@ -584,16 +610,16 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
 
         if (nalu.pps.valid) {
             auto *ppsItem = new QTreeWidgetItem(naluItem, {tr("PPS"), QString::number(nalu.pps.picParameterSetId)});
-            addPair(ppsItem, tr("seq_parameter_set_id"), QString::number(nalu.pps.seqParameterSetId));
-            addPair(ppsItem, tr("entropy_coding_mode_flag"), boolValue(nalu.pps.entropyCodingModeFlag));
-            addPair(ppsItem, tr("weighted_pred_flag"), boolValue(nalu.pps.weightedPredFlag));
-            addPair(ppsItem, tr("weighted_bipred_idc"), QString::number(nalu.pps.weightedBipredIdc));
-            addPair(ppsItem, tr("transform_8x8_mode_flag"), boolValue(nalu.pps.transform8x8ModeFlag));
-            addPair(ppsItem, tr("pic_init_qp_minus26"), QString::number(nalu.pps.picInitQpMinus26));
-            addPair(ppsItem, tr("deblocking_filter_control_present_flag"), boolValue(nalu.pps.deblockingFilterControlPresentFlag));
-            addPair(ppsItem, tr("constrained_intra_pred_flag"), boolValue(nalu.pps.constrainedIntraPredFlag));
-            addPair(ppsItem, tr("redundant_pic_cnt_present_flag"), boolValue(nalu.pps.redundantPicCntPresentFlag));
-            addPair(ppsItem, tr("second_chroma_qp_index_offset"), QString::number(nalu.pps.secondChromaQpIndexOffset));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("seq_parameter_set_id"), QString::number(nalu.pps.seqParameterSetId));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("entropy_coding_mode_flag"), boolValue(nalu.pps.entropyCodingModeFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("weighted_pred_flag"), boolValue(nalu.pps.weightedPredFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("weighted_bipred_idc"), QString::number(nalu.pps.weightedBipredIdc));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("transform_8x8_mode_flag"), boolValue(nalu.pps.transform8x8ModeFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("pic_init_qp_minus26"), QString::number(nalu.pps.picInitQpMinus26));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("deblocking_filter_control_present_flag"), boolValue(nalu.pps.deblockingFilterControlPresentFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("constrained_intra_pred_flag"), boolValue(nalu.pps.constrainedIntraPredFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("redundant_pic_cnt_present_flag"), boolValue(nalu.pps.redundantPicCntPresentFlag));
+            addSyntaxPair(ppsItem, nalu.pps.fields, QStringLiteral("second_chroma_qp_index_offset"), QString::number(nalu.pps.secondChromaQpIndexOffset));
             addSyntaxFields(ppsItem, nalu.pps.fields);
         }
     }
@@ -605,22 +631,22 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
             tr("Slice %1").arg(i),
             slice.sliceTypeName
         });
-        addPair(sliceItem, tr("first_mb_in_slice"), QString::number(slice.firstMbInSlice));
-        addPair(sliceItem, tr("slice_type"), QString::number(slice.sliceType));
-        addPair(sliceItem, tr("pic_parameter_set_id"), QString::number(slice.picParameterSetId));
-        addPair(sliceItem, tr("frame_num"), QString::number(slice.frameNum));
-        addPair(sliceItem, tr("field_pic_flag"), boolValue(slice.fieldPicFlag));
-        addPair(sliceItem, tr("bottom_field_flag"), boolValue(slice.bottomFieldFlag));
-        addPair(sliceItem, tr("idr_pic_id"), slice.idrPicId >= 0 ? QString::number(slice.idrPicId) : QStringLiteral("-"));
-        addPair(sliceItem, tr("pic_order_cnt_lsb"), slice.picOrderCntLsb >= 0 ? QString::number(slice.picOrderCntLsb) : QStringLiteral("-"));
-        addPair(sliceItem, tr("direct_spatial_mv_pred_flag"), boolValue(slice.directSpatialMvPredFlag));
-        addPair(sliceItem, tr("num_ref_idx_active_override_flag"), boolValue(slice.numRefIdxActiveOverrideFlag));
-        addPair(sliceItem, tr("num_ref_idx_l0_active_minus1"), QString::number(slice.numRefIdxL0ActiveMinus1));
-        addPair(sliceItem, tr("num_ref_idx_l1_active_minus1"), QString::number(slice.numRefIdxL1ActiveMinus1));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("first_mb_in_slice"), QString::number(slice.firstMbInSlice));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("slice_type"), QString::number(slice.sliceType));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("pic_parameter_set_id"), QString::number(slice.picParameterSetId));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("frame_num"), QString::number(slice.frameNum));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("field_pic_flag"), boolValue(slice.fieldPicFlag));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("bottom_field_flag"), boolValue(slice.bottomFieldFlag));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("idr_pic_id"), slice.idrPicId >= 0 ? QString::number(slice.idrPicId) : QStringLiteral("-"));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("pic_order_cnt_lsb"), slice.picOrderCntLsb >= 0 ? QString::number(slice.picOrderCntLsb) : QStringLiteral("-"));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("direct_spatial_mv_pred_flag"), boolValue(slice.directSpatialMvPredFlag));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("num_ref_idx_active_override_flag"), boolValue(slice.numRefIdxActiveOverrideFlag));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("num_ref_idx_l0_active_minus1"), QString::number(slice.numRefIdxL0ActiveMinus1));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("num_ref_idx_l1_active_minus1"), QString::number(slice.numRefIdxL1ActiveMinus1));
         addPair(sliceItem, tr("ref_pic_list_modification"), slice.refPicListModificationSummary.isEmpty() ? QStringLiteral("-") : slice.refPicListModificationSummary);
         addPair(sliceItem, tr("pred_weight_table"), slice.predWeightTablePresent ? slice.predWeightTableSummary : presentValue(false));
         addPair(sliceItem, tr("dec_ref_pic_marking"), slice.decRefPicMarkingPresent ? slice.decRefPicMarkingSummary : presentValue(false));
-        addPair(sliceItem, tr("slice_qp_delta"), QString::number(slice.sliceQpDelta));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("slice_qp_delta"), QString::number(slice.sliceQpDelta));
         addPair(sliceItem, tr("derived QP"), QString::number(slice.derivedQp));
         addPair(sliceItem, tr("macroblocks_parsed"), boolValue(slice.macroblocksParsed));
         if (!slice.diagnostics.isEmpty()) {
@@ -653,10 +679,11 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
             addPair(mbItem, tr("parsed"), boolValue(mb.parsed));
             addPair(mbItem, tr("skipped"), boolValue(mb.skipped));
             addPair(mbItem, tr("prediction mode"), mb.predictionMode.isEmpty() ? QStringLiteral("-") : mb.predictionMode);
-            addPair(mbItem, tr("coded_block_pattern"), mb.codedBlockPattern >= 0 ? QString::number(mb.codedBlockPattern) : QStringLiteral("-"));
+            addSyntaxPair(mbItem, mb.fields, QStringLiteral("mb_type"), mb.mbType);
+            addSyntaxPair(mbItem, mb.fields, QStringLiteral("coded_block_pattern"), mb.codedBlockPattern >= 0 ? QString::number(mb.codedBlockPattern) : QStringLiteral("-"));
             addPair(mbItem, tr("coded_block_pattern_luma"), mb.codedBlockPatternLuma >= 0 ? QString::number(mb.codedBlockPatternLuma) : QStringLiteral("-"));
             addPair(mbItem, tr("coded_block_pattern_chroma"), mb.codedBlockPatternChroma >= 0 ? QString::number(mb.codedBlockPatternChroma) : QStringLiteral("-"));
-            addPair(mbItem, tr("mb_qp_delta"), QString::number(mb.mbQpDelta));
+            addSyntaxPair(mbItem, mb.fields, QStringLiteral("mb_qp_delta"), QString::number(mb.mbQpDelta));
             addPair(mbItem, tr("QP"), QString::number(mb.qp));
             addPair(mbItem, tr("residual parsed"), boolValue(mb.residualParsed));
             addPair(mbItem, tr("residual blocks"), QString::number(mb.residualBlockCount));
