@@ -26,6 +26,9 @@ The current project already has:
 - A wired HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
   VCL access units, and unsupported slice diagnostics through the generic
   `FrameAnalysis` path.
+- HEVC `Type` labels in the access-unit list are coarse today: `IRAP` for
+  intra random access points and `VCL` for other video-coding-layer access
+  units. Full I/P/B-style labels belong with future HEVC slice-header work.
 - An AAC ADTS parser skeleton that emits audio access-unit metadata, ADTS
   header bit fields, and structured malformed-packet diagnostics.
 - An MP3 frame-header parser skeleton plus generic audio access-unit list,
@@ -231,7 +234,8 @@ Goal:
 
 Main tasks:
 
-- Add frame type distribution.
+- Extend the existing `AnalysisStats` / `StatsDock` foundation with frame type
+  distribution charts.
 - Add QP distribution and QP-over-time chart.
 - Add bitrate per frame and instant bitrate chart.
 - Add macroblock/CTU/superblock type distribution.
@@ -247,8 +251,8 @@ Acceptance criteria:
 
 Suggested files:
 
-- New `src/core/AnalysisStats.*`
-- New `src/ui/StatsDock.*`
+- `src/core/analysis/AnalysisStats.*`
+- `src/ui/StatsDock.*`
 - `src/app/MainWindow.*`
 - `src/core/decode/DecodeWorker.*`
 
@@ -306,6 +310,8 @@ Main tasks:
 Acceptance criteria:
 
 - HEVC streams decode and show basic frame/syntax info.
+- HEVC access-unit `Type` values progress from coarse `IRAP` / `VCL` labels to
+  slice-header-derived frame-type labels where the syntax supports it.
 - CTU-level grid/QP overlay works for supported streams.
 - H.264 behavior remains unchanged.
 

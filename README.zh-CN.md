@@ -17,7 +17,7 @@ ZStreamEye 是一个跨平台桌面 H.264 码流分析工具，基于 C++17、Qt
 - 从索引的关键帧/IDR 检查点重新缓冲被驱逐的帧（如果可用）。
 - 通过 `QOpenGLWidget` 渲染解码帧。
 - 通过编解码器中性的解析器接口路由码流解析，以便添加额外的编解码器而无需与 `FFmpegDecoder` 耦合。
-- 提供 HEVC/H.265 解析器骨架，用于识别 NAL 单元、VPS/SPS/PPS、VCL 访问单元，并提供优雅的不支持切片诊断。
+- 提供 HEVC/H.265 解析器骨架，用于识别 NAL 单元、VPS/SPS/PPS、VCL 访问单元，并提供优雅的不支持切片诊断。当前 HEVC 帧列表里的 `Type` 仍是粗粒度标签：`IRAP` 表示 IDR/CRA/BLA 等随机访问点，`VCL` 表示尚未深入解析 slice type 的视频编码层访问单元。
 - 提供 AAC ADTS 解析器骨架，用于音频访问单元，包括头部位字段和畸形包的优雅诊断。
 - 提供 MP3 帧头解析器骨架，用于 MPEG 音频帧访问单元。
 - 在帧列表中显示从发现的 AAC/MP3 音频流解析的音频访问单元，并在属性树中显示其通用字段。
@@ -56,6 +56,7 @@ ZStreamEye/
 |   |   +-- CMakeLists.txt
 |   +-- core/
 |   |   +-- CMakeLists.txt
+|   |   +-- analysis/
 |   |   +-- decode/
 |   |   +-- export/
 |   |   +-- model/
@@ -147,6 +148,8 @@ C:\msys64\usr\bin\bash.exe -lc "export PATH=/ucrt64/bin:/usr/bin:$PATH; cd /d/De
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
 ```
+
+部署脚本会自行配置并构建专用发布目录 `build-deploy-msys2-ucrt`，再收集运行时 DLL；它不依赖开发用的 `build-msys2-ucrt` 目录。
 
 如果当前 PowerShell 禁止执行脚本，可以只对当前进程绕过策略：
 

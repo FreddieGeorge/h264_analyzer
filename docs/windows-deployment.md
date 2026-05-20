@@ -6,6 +6,15 @@
 .\scripts\deploy-windows-msys2.ps1
 ```
 
+The deployment script owns a dedicated CMake build directory:
+
+```text
+build-deploy-msys2-ucrt/
+```
+
+It configures this directory before building the portable package, so it does
+not depend on a developer/debug build directory such as `build-msys2-ucrt/`.
+
 输出：
 
 - `dist/ZStreamEye-windows-ucrt64/`
@@ -19,7 +28,7 @@
 - FFmpeg DLL，例如 `avcodec-62.dll`
 - MSYS2 UCRT64/GCC 运行时 DLL
 
-不要把 `build-msys2-ucrt/ZStreamEye.exe` 单独发给用户；它依赖本机 `C:\msys64\ucrt64\bin` 中的 DLL。发布包会把运行时 DLL 和插件统一放在 `runtime\` 目录下。
+不要把任何 build 目录中的 `ZStreamEye.exe` 单独发给用户；它依赖本机 `C:\msys64\ucrt64\bin` 中的 DLL。发布包会把运行时 DLL 和插件统一放在 `runtime\` 目录下。
 
 ## Windows Installer
 

@@ -7,7 +7,10 @@
 #include "ui/FrameListView.h"
 #include "ui/LogDock.h"
 #include "ui/PropertyTreeView.h"
+#include "ui/StatsDock.h"
 #include "ui/VideoCanvas.h"
+
+#include "core/analysis/AnalysisStats.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -36,6 +39,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QThread>
+#include <QTimer>
 #include <QToolBar>
 #include <QSlider>
 #include <QTreeWidgetItem>
@@ -193,6 +197,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     createActions();
     createDocks();
+    m_statsUpdateTimer = new QTimer(this);
+    m_statsUpdateTimer->setSingleShot(true);
+    m_statsUpdateTimer->setInterval(100);
+    connect(m_statsUpdateTimer, &QTimer::timeout,
+            this, &MainWindow::updateStatsDock);
     connect(m_exportController, &ExportController::exportDirectoryChanged,
             this, [this](const QString &directory) {
                 m_lastExportDirectory = directory;
@@ -336,6 +345,14 @@ void MainWindow::createDocks()
     m_propertyDock->setWidget(m_propertyTreeView);
     addDockWidget(Qt::RightDockWidgetArea, m_propertyDock);
 
+    m_statsDock = new StatsDock;
+    m_statsDockWidget = new QDockWidget(tr("Analysis Stats"), this);
+    m_statsDockWidget->setObjectName(QStringLiteral("StatsDockWidget"));
+    m_statsDockWidget->setWidget(m_statsDock);
+    addDockWidget(Qt::RightDockWidgetArea, m_statsDockWidget);
+    tabifyDockWidget(m_propertyDock, m_statsDockWidget);
+    m_propertyDock->raise();
+
     m_hexView = new BitstreamHexView;
     m_hexDock = new QDockWidget(tr("Bitstream Hex"), this);
     m_hexDock->setObjectName(QStringLiteral("BitstreamHexDock"));
@@ -376,6 +393,7 @@ void MainWindow::createMenus()
     m_docksMenu->addAction(m_frameDock->toggleViewAction());
     m_docksMenu->addAction(m_hexDock->toggleViewAction());
     m_docksMenu->addAction(m_propertyDock->toggleViewAction());
+    m_docksMenu->addAction(m_statsDockWidget->toggleViewAction());
     m_docksMenu->addAction(m_logDockWidget->toggleViewAction());
     viewMenu->addSeparator();
     viewMenu->addAction(m_showGridAction);
@@ -503,6 +521,7 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
     m_accessUnitAnalyses.clear();
+    updateStatsDock();
     m_seekCheckpoints.clear();
     m_rebufferState.reset();
     m_currentFrameIndex = -1;
@@ -750,6 +769,7 @@ void MainWindow::replayFromBeginning()
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
     m_accessUnitAnalyses.clear();
+    updateStatsDock();
     m_rebufferState.reset();
     m_currentFrameIndex = -1;
     m_latestFrameIndex = -1;
@@ -875,6 +895,7 @@ void MainWindow::handleAccessUnitAnalysis(const FrameAnalysis &analysis)
     if (!replaced) {
         m_accessUnitAnalyses.append(analysis);
     }
+    scheduleStatsDockUpdate();
     m_frameListView->addFrameAnalysis(analysis);
     if (analysis.accessUnitKind != AccessUnitKind::VideoFrame && !m_hasCurrentAnalysis) {
         m_currentAnalysis = analysis;
@@ -1105,6 +1126,29 @@ void MainWindow::updateFrameIndexDisplay()
     m_frameIndexLabel->setText(tr("Frame %1 / %2")
                                    .arg(m_currentFrameIndex + 1)
                                    .arg(m_latestFrameIndex + 1));
+}
+
+void MainWindow::scheduleStatsDockUpdate()
+{
+    if (m_statsUpdateTimer == nullptr) {
+        updateStatsDock();
+        return;
+    }
+    m_statsUpdateTimer->start();
+}
+
+void MainWindow::updateStatsDock()
+{
+    if (m_statsDock == nullptr) {
+        return;
+    }
+
+    if (m_accessUnitAnalyses.isEmpty()) {
+        m_statsDock->showPlaceholder(tr("Open a stream to populate analysis statistics."));
+        return;
+    }
+
+    m_statsDock->setStats(calculateAnalysisStats(m_accessUnitAnalyses));
 }
 
 void MainWindow::updateCurrentOverlayStatusHint()

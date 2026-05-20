@@ -18,6 +18,7 @@ class QLabel;
 class QMenu;
 class QSlider;
 class QThread;
+class QTimer;
 
 class DecodeWorker;
 class BitstreamHexView;
@@ -25,6 +26,7 @@ class ExportController;
 class FrameListView;
 class LogDock;
 class PropertyTreeView;
+class StatsDock;
 class UpdateChecker;
 class VideoCanvas;
 
@@ -86,6 +88,8 @@ private:
     void updatePlaybackActionState();
     void updateExportActionState();
     void updateFrameIndexDisplay();
+    void scheduleStatsDockUpdate();
+    void updateStatsDock();
     void updateCurrentOverlayStatusHint();
     void updateOverlayStatusHint(const FrameAnalysis &analysis);
     void resetAccessUnitFilters();
@@ -111,6 +115,7 @@ private:
     QAction *m_showMotionVectorsAction = nullptr;
     QSlider *m_overlayOpacitySlider = nullptr;
     QLabel *m_frameIndexLabel = nullptr;
+    QTimer *m_statsUpdateTimer = nullptr;
     QComboBox *m_streamSelector = nullptr;
     QComboBox *m_accessUnitFilterSelector = nullptr;
     QMenu *m_docksMenu = nullptr;
@@ -118,11 +123,13 @@ private:
     QDockWidget *m_frameDock = nullptr;
     QDockWidget *m_hexDock = nullptr;
     QDockWidget *m_propertyDock = nullptr;
+    QDockWidget *m_statsDockWidget = nullptr;
     QDockWidget *m_logDockWidget = nullptr;
 
     FrameListView *m_frameListView = nullptr;
     BitstreamHexView *m_hexView = nullptr;
     PropertyTreeView *m_propertyTreeView = nullptr;
+    StatsDock *m_statsDock = nullptr;
     LogDock *m_logDock = nullptr;
     VideoCanvas *m_videoCanvas = nullptr;
 

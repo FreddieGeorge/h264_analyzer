@@ -20,6 +20,10 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Route bitstream parsing through a codec-neutral parser interface so additional codecs can be added without coupling them to `FFmpegDecoder`.
 - Provide an HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
   VCL access units, and graceful unsupported slice diagnostics.
+  HEVC frame-list `Type` values are currently coarse parser labels: `IRAP`
+  means an intra random access point such as IDR/CRA/BLA, while `VCL` means a
+  video-coding-layer access unit whose detailed slice type has not yet been
+  parsed.
 - Provide an AAC ADTS parser skeleton for audio access units, including header
   bit fields and graceful diagnostics for malformed packets.
 - Provide an MP3 frame-header parser skeleton for MPEG audio frame access units.
@@ -31,6 +35,9 @@ The project currently supports video loading/decoding, controllable playback, H.
   hex/bit views can trace fields back to packet evidence.
 - Show a read-only bitstream hex dock for the selected access unit's packet
   bytes, with byte-range highlighting driven by syntax bit-field selection.
+- Show an analysis statistics dock with access-unit counts, frame-type counts,
+  macroblock/QP summaries, motion-vector magnitude summaries, and diagnostic
+  counts derived from internal `FrameAnalysis` data.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
@@ -51,6 +58,9 @@ The project currently supports video loading/decoding, controllable playback, H.
 Current limitations:
 
 - CAVLC residual parsing consumes and counts residual blocks so macroblock parsing can continue, but individual coefficient values are not yet exposed in the UI/export model.
+- HEVC frame types are currently reported as coarse `IRAP` / `VCL` labels from
+  NAL-unit classification. Full I/P/B-style HEVC slice typing requires deeper
+  HEVC slice-header parsing.
 - CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 - OpenGL canvas text is intentionally avoided for analysis hints because some
@@ -68,6 +78,7 @@ ZStreamEye/
 |   |   +-- CMakeLists.txt
 |   +-- core/
 |   |   +-- CMakeLists.txt
+|   |   +-- analysis/
 |   |   +-- decode/
 |   |   +-- export/
 |   |   +-- model/
@@ -93,6 +104,7 @@ Folder responsibilities:
 
 - `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, and workflow wiring.
 - `src/core/model`: stream metadata, media types, frame analysis data, and document state.
+- `src/core/analysis`: codec-neutral aggregation and statistics over parsed access units.
 - `src/core/parser`: codec-neutral parser interface plus audio and video parser modules.
 - `src/core/util`: codec-neutral low-level helpers for bit reading, bytestreams, and RBSP/packet bit-range mapping.
 - `src/core/decode`: FFmpeg decoder wrapper and decode worker.
@@ -159,6 +171,10 @@ Create a portable package:
 ```powershell
 .\scripts\deploy-windows-msys2.ps1
 ```
+
+The deployment script configures and builds its own release directory,
+`build-deploy-msys2-ucrt`, before collecting runtime DLLs. It does not depend
+on the development `build-msys2-ucrt` directory.
 
 Output:
 
@@ -289,6 +305,9 @@ Key modules:
   macroblock syntax fields. H.264 summary rows in `PropertyTreeView` drive
   hex selection directly, so users do not need to open a separate bit-position
   sub-tree for common fields.
+- `AnalysisStats` and `StatsDock`: aggregate `FrameAnalysis` records into
+  codec-neutral stream summaries for access units, frame types, macroblocks,
+  QP, motion vectors, and diagnostics.
 
 Recommended next work:
 
@@ -302,10 +321,12 @@ Recommended next work:
    audio analysis separate from `VideoCanvas`. The current stream selector
    filters the decoded access-unit list; it does not yet switch the FFmpeg
    playback stream or provide audio-only analysis.
-5. Expand the bitstream hex dock with graphical sub-byte decoration and broader
+5. Expand the statistics dock with histograms/charts and exportable aggregate
+   summaries, keeping aggregation in `src/core/analysis`.
+6. Expand the bitstream hex dock with graphical sub-byte decoration and broader
    offset normalization for macroblock fields and container/elementary-stream
    wrappers.
-6. Expose richer residual coefficient details and broaden macroblock support.
+7. Expose richer residual coefficient details and broaden macroblock support.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

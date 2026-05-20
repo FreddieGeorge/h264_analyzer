@@ -53,6 +53,10 @@ Implemented capabilities:
   Annex B or length-prefixed NAL units, reports VPS/SPS/PPS parameter-set units,
   marks VCL access units as frames, and emits graceful unsupported diagnostics
   for deeper slice syntax.
+  Current HEVC `frameType` values are intentionally coarse: `IRAP` for intra
+  random access point NAL types such as IDR/CRA/BLA, and `VCL` for other VCL
+  access units. Do not treat them as full I/P/B slice types until HEVC
+  slice-header parsing is implemented.
 - AAC ADTS and MP3 have audio parser skeletons for access-unit level analysis.
   AAC parses the 7-byte ADTS header; MP3 parses the 4-byte MPEG audio frame
   header. Both emit codec-neutral bit fields, mark valid packets as
@@ -81,6 +85,13 @@ Implemented capabilities:
   opens a small selection menu. It does not yet provide graphical sub-byte
   decoration or full offset normalization for macroblock fields/container
   wrappers.
+- `AnalysisStats` aggregates decoded `FrameAnalysis` access units in
+  `src/core/analysis`. `StatsDock` shows the current stream summary in the
+  right dock area: access-unit media counts, decoded frame count, frame-type
+  counts, macroblock parsed/skipped counts, QP min/max/average, motion-vector
+  magnitude summaries, and diagnostic counts. `MainWindow` refreshes the dock
+  from `m_accessUnitAnalyses`, so it stays codec-neutral and does not scrape
+  UI text.
 - `AnalysisBitField` now carries `offsetBasis`. AAC/MP3 header fields are
   packet-relative. H.264 SPS/PPS/slice fields are currently RBSP-relative
   because they come from the post-NAL-header, emulation-prevention-stripped
@@ -167,7 +178,8 @@ Implemented capabilities:
   - output under `dist/ZStreamEye-windows-ucrt64`
   - zip at `dist/ZStreamEye-windows-ucrt64.zip`
 - CTest coverage includes direct util tests for `BitReader`, `ByteStream`, and
-  `Rbsp`, plus parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
+  `Rbsp`, direct analysis-stat tests for `AnalysisStats`, plus parser tests for
+  Exp-Golomb, Annex B, AVCC, and SPS dimensions.
 - Tiny checked-in parser fixtures under `tests/fixtures/` plus synthetic
   bit-writer fixtures for Annex B, AVCC, CAVLC I/P macroblocks, P-slice motion
   vectors, P_8x8/P_8x8ref0 sub-macroblock motion vectors, focused B_Bi
@@ -208,7 +220,10 @@ Create portable package:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-windows-msys2.ps1
 ```
 
-Do not distribute `build-msys2-ucrt/ZStreamEye.exe` alone. Use the portable folder or zip in `dist/`.
+The deployment script configures and builds its own release directory,
+`build-deploy-msys2-ucrt`, before collecting runtime DLLs. Do not distribute a
+`ZStreamEye.exe` directly from any build directory. Use the portable folder or
+zip in `dist/`.
 
 ## Important Rules
 
@@ -391,9 +406,9 @@ Recommended next step:
   skeletons as the first audio proofs for actual stream switching or
   audio-only analysis before adding deep audio syntax.
 - For deeper HEVC work, extend the existing skeleton from NALU/VPS/SPS/PPS/VCL
-  detection into SPS dimensions, slice headers, and CTU regions. For AV1, start
-  with OBUs and superblock regions; for VP9, start with frame headers and
-  superblock regions.
+  detection into SPS dimensions, slice headers, I/P/B-style slice type display,
+  and CTU regions. For AV1, start with OBUs and superblock regions; for VP9,
+  start with frame headers and superblock regions.
 
 Suggested files:
 
@@ -566,7 +581,7 @@ Suggested files:
 - Add search/filter in property tree.
 - Add bitstream hex view synchronized with syntax fields.
 - Add per-field bit offset navigation.
-- Add chart view for QP distribution and frame-type distribution.
+- Expand `StatsDock` with chart views for QP distribution and frame-type distribution.
 - Add JSON import/replay mode for previously exported analysis.
 - Add command-line analysis mode for CI or batch use.
 
@@ -585,7 +600,7 @@ Parse H264 B_Direct motion vectors
 Parse H264 B_8x8 sub-macroblock motion vectors
 Add bitstream hex dock skeleton
 Link property fields to bit offsets
-Add QP and frame-type statistics dock
+Add statistics histograms and exportable aggregate summaries
 Add HEVC parser skeleton with graceful unsupported UI
 ```
 
@@ -600,6 +615,7 @@ src/core/decode/DecodeWorker.*
 src/core/decode/FFmpegDecoder.*
 src/core/parser/BitstreamParser.*
 src/core/model/FrameAnalysis.*
+src/core/analysis/AnalysisStats.*
 src/core/parser/video/h264/H264FrameAnalysisAdapter.*
 src/core/parser/video/h264/H264*.cpp
 src/core/parser/video/hevc/HevcParser.*
@@ -607,7 +623,9 @@ src/core/util/*
 src/ui/VideoCanvas.*
 src/ui/FrameListView.*
 src/ui/PropertyTreeView.*
+src/ui/StatsDock.*
 tests/test_h264_parser.cpp
+tests/test_analysis_stats.cpp
 scripts/deploy-windows-msys2.ps1
 .github/workflows/windows-msys2.yml
 ```

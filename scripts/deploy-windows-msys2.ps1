@@ -1,5 +1,6 @@
 param(
-    [string]$BuildDir = "build-msys2-ucrt",
+    [string]$BuildDir = "build-deploy-msys2-ucrt",
+    [string]$BuildType = "Release",
     [string]$DistDir = "dist/ZStreamEye-windows-ucrt64",
     [string]$MsysRoot = "",
     [switch]$NoZip
@@ -129,6 +130,7 @@ $windeployqt = Resolve-FirstExistingTool -Paths @(
     (Join-Path $ucrtBin "windeployqt.exe")
 ) -CandidatePattern "windeployqt*.exe"
 Assert-ToolExists $objdump
+Assert-PathUnderRepo $buildPath
 Assert-PathUnderRepo $distPath
 
 $repoRootMsys = (& $bash -lc "cygpath -u '$repoRoot'").Trim()
@@ -136,9 +138,19 @@ $buildPathMsys = (& $bash -lc "cygpath -u '$buildPath'").Trim()
 $env:PATH = "$ucrtBin;$env:PATH"
 Write-Host "Using MSYS2 root: $msysRoot"
 Write-Host "Using windeployqt: $windeployqt"
+Write-Host "Using build directory: $buildPath"
+
+Write-Host "Configuring project..."
+& $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd '$repoRootMsys' && cmake -S . -B '$buildPathMsys' -G Ninja -DCMAKE_BUILD_TYPE='$BuildType' -DCMAKE_PREFIX_PATH=/ucrt64 -DBUILD_TESTING=OFF"
+if ($LASTEXITCODE -ne 0) {
+    throw "CMake configure failed with exit code $LASTEXITCODE"
+}
 
 Write-Host "Building project..."
 & $bash -lc "export PATH=/ucrt64/bin:/usr/bin:`$PATH; cd '$repoRootMsys' && cmake --build '$buildPathMsys'"
+if ($LASTEXITCODE -ne 0) {
+    throw "CMake build failed with exit code $LASTEXITCODE"
+}
 
 $launcherExe = Join-Path $buildPath "ZStreamEye.exe"
 $appExe = Join-Path $buildPath "ZStreamEyeApp.exe"

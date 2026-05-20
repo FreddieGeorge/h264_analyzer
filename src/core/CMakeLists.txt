@@ -1,4 +1,6 @@
 set(ZSTREAMEYE_CORE_SOURCES
+    analysis/AnalysisStats.h
+    analysis/AnalysisStats.cpp
     buffering/RebufferState.h
     decode/DecodeWorker.h
     decode/DecodeWorker.cpp

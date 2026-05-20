@@ -14,6 +14,8 @@ set(ZSTREAMEYE_APP_SOURCES
     ../ui/LogDock.cpp
     ../ui/PropertyTreeView.h
     ../ui/PropertyTreeView.cpp
+    ../ui/StatsDock.h
+    ../ui/StatsDock.cpp
     ../ui/VideoCanvas.h
     ../ui/VideoCanvas.cpp
     ../../resources/app.qrc
