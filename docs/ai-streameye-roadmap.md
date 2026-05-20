@@ -189,7 +189,10 @@ Current status:
   H.264 SPS/PPS/slice header fields plus selected macroblock syntax fields now
   carry normalized packet bit ranges via an EBSP/RBSP mapping table. Remaining
   work is graphical sub-byte decoration and broader coverage for residual
-  syntax fields and container vs elementary-stream wrappers.
+  syntax fields and container vs elementary-stream wrappers. H.264 summary rows
+  in `PropertyTreeView` are the primary click targets for hex navigation; do
+  not require users to expand separate bit-position rows for common syntax
+  fields.
 
 Main tasks:
 

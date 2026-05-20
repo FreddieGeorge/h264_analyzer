@@ -86,6 +86,12 @@ Implemented capabilities:
   EBSP/RBSP mapping table. The hex dock uses those packet bit ranges for
   accurate raw packet highlighting, including fields split by
   emulation-prevention bytes.
+- H.264 `PropertyTreeView` summary rows now carry bit-field roles directly for
+  common SPS/PPS/slice-header/macroblock fields. Users should be able to click
+  rows such as `slice_type`, `frame_num`, `pic_order_cnt_lsb`, `mb_type`,
+  `coded_block_pattern`, and `mb_qp_delta` directly to drive hex highlighting;
+  avoid reintroducing a separate visible `Bit positions` subtree for normal
+  H.264 navigation.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:

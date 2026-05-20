@@ -264,7 +264,9 @@ Key modules:
   when the user clicks a hex byte. Bit fields carry an `offset_basis`; packet
   byte highlighting follows packet-relative fields directly and uses normalized
   packet bit ranges for H.264 RBSP-relative SPS/PPS/slice header and selected
-  macroblock syntax fields.
+  macroblock syntax fields. H.264 summary rows in `PropertyTreeView` drive
+  hex selection directly, so users do not need to open a separate bit-position
+  sub-tree for common fields.
 
 Recommended next work:
 
