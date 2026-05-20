@@ -1,4 +1,6 @@
-#include "core/parser/hevc/HevcParser.h"
+#include "core/parser/video/hevc/HevcParser.h"
+
+#include "core/util/ByteStream.h"
 
 #include <algorithm>
 
@@ -143,7 +145,7 @@ QVector<HevcParser::Nalu> HevcParser::splitAnnexBNalus(const QByteArray &packetD
     QVector<Nalu> nalus;
     qsizetype offset = 0;
     while (offset < packetData.size()) {
-        qsizetype startCodeSize = startCodeSizeAt(packetData, offset);
+        qsizetype startCodeSize = annexBStartCodeSizeAt(packetData, offset);
         if (startCodeSize == 0) {
             ++offset;
             continue;
@@ -151,7 +153,7 @@ QVector<HevcParser::Nalu> HevcParser::splitAnnexBNalus(const QByteArray &packetD
 
         const qsizetype naluStart = offset + startCodeSize;
         qsizetype nextStart = naluStart;
-        while (nextStart < packetData.size() && startCodeSizeAt(packetData, nextStart) == 0) {
+        while (nextStart < packetData.size() && annexBStartCodeSizeAt(packetData, nextStart) == 0) {
             ++nextStart;
         }
 
@@ -192,45 +194,6 @@ QVector<HevcParser::Nalu> HevcParser::splitLengthPrefixedNalus(
         offset = naluStart + naluSize;
     }
     return nalus;
-}
-
-bool HevcParser::hasAnnexBStartCode(const QByteArray &data)
-{
-    const qsizetype scanLimit = std::min<qsizetype>(data.size(), 64);
-    for (qsizetype i = 0; i < scanLimit; ++i) {
-        if (startCodeSizeAt(data, i) != 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-qsizetype HevcParser::startCodeSizeAt(const QByteArray &data, qsizetype offset)
-{
-    if (offset + 3 <= data.size()
-        && data[offset] == 0
-        && data[offset + 1] == 0
-        && data[offset + 2] == 1) {
-        return 3;
-    }
-
-    if (offset + 4 <= data.size()
-        && data[offset] == 0
-        && data[offset + 1] == 0
-        && data[offset + 2] == 0
-        && data[offset + 3] == 1) {
-        return 4;
-    }
-    return 0;
-}
-
-int HevcParser::readBigEndianLength(const uint8_t *data, int size)
-{
-    int value = 0;
-    for (int i = 0; i < size; ++i) {
-        value = (value << 8) | data[i];
-    }
-    return value;
 }
 
 int HevcParser::naluTypeFromHeader(const QByteArray &data, qsizetype offset, qsizetype size)

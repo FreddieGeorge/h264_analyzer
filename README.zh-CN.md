@@ -61,8 +61,10 @@ ZStreamEye/
 |   |   +-- model/
 |   |   +-- parser/
 |   |   |   +-- audio/
-|   |   |   +-- h264/
-|   |   |   +-- hevc/
+|   |   |   +-- video/
+|   |   |   |   +-- h264/
+|   |   |   |   +-- hevc/
+|   |   +-- util/
 |   |   +-- buffering/
 |   +-- platform/
 |   |   +-- windows/
@@ -79,7 +81,8 @@ ZStreamEye/
 
 - `src/app`：应用程序窗口、菜单、工具栏、面板布局、文件打开、导出/更新控制器和工作流连接。
 - `src/core/model`：流元数据、媒体类型、帧分析数据和文档状态。
-- `src/core/parser`：编解码器中性解析器接口，以及 H.264、HEVC、AAC ADTS 和 MP3 解析器。
+- `src/core/parser`：编解码器中性解析器接口，以及 audio/video 解析器模块。
+- `src/core/util`：编解码器中性的底层工具，如位读取、字节流和 RBSP/包位范围映射。
 - `src/core/decode`：FFmpeg 解码器包装器和解码工作器。
 - `src/core/export`：分析结果导出序列化。
 - `src/core/buffering`：缓冲和 seek 重新缓冲状态辅助逻辑。

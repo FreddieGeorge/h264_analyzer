@@ -1,4 +1,4 @@
-#include "core/parser/h264/H264FrameAnalysisAdapter.h"
+#include "core/parser/video/h264/H264FrameAnalysisAdapter.h"
 
 FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
 {

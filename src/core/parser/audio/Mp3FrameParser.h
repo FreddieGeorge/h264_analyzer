@@ -21,7 +21,6 @@ public:
     static int bitrateKbpsForIndex(int versionId, int layer, int bitrateIndex);
 
 private:
-    static int readBits(const QByteArray &data, int bitOffset, int bitCount, bool *ok);
     static void appendField(FrameAnalysis &analysis,
                             const QString &name,
                             int bitOffset,

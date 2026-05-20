@@ -36,6 +36,9 @@ Implemented capabilities:
   - `FrameAnalysis`
   - parser state snapshots for checkpoint resume
   - `FFmpegDecoder` no longer owns `H264Parser` directly
+- Parser implementations are organized by media kind: audio parsers under
+  `src/core/parser/audio`, video parsers under `src/core/parser/video`, and
+  codec-neutral low-level helpers under `src/core/util`.
 - H.264 analysis is adapted into codec-neutral `FrameAnalysis` through
   `H264FrameAnalysisAdapter`, while retaining rich H.264 structs as
   codec-specific details.
@@ -93,6 +96,22 @@ Implemented capabilities:
   avoid reintroducing a separate visible `Bit positions` subtree for normal
   H.264 navigation.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
+- H.264 parser implementation is split by syntax responsibility:
+  - `src/core/parser/video/h264/H264Parser.cpp`: packet/NALU dispatch, decoder
+    configuration parsing, parser state snapshots, SPS/PPS cache management,
+    and top-level H.264 naming/mapping helpers.
+  - `src/core/parser/video/h264/H264ParameterSetParser.cpp`: SPS/PPS/VUI parsing.
+  - `src/core/parser/video/h264/H264SliceHeaderParser.cpp`: slice header parsing,
+    reference-list modification summaries, prediction-weight-table summaries,
+    and decoded-reference-picture-marking summaries.
+  - `src/core/parser/video/h264/H264MacroblockParser.cpp`: `slice_data`, macroblock,
+    focused CAVLC residual counting, QP, and motion-vector parsing.
+- Codec-neutral parser utilities now live under `src/core/util`:
+  - `BitReader.*`: bit reading plus Exp-Golomb helpers and fixed-offset
+    `readBitsAt()` for audio headers.
+  - `ByteStream.*`: Annex B start-code helpers and big-endian length reading.
+  - `Rbsp.*`: EBSP-to-RBSP conversion and RBSP-to-packet bit-range mapping for
+    hex highlighting.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
   - macroblock address
@@ -147,7 +166,8 @@ Implemented capabilities:
   - `scripts/deploy-windows-msys2.ps1`
   - output under `dist/ZStreamEye-windows-ucrt64`
   - zip at `dist/ZStreamEye-windows-ucrt64.zip`
-- CTest parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
+- CTest coverage includes direct util tests for `BitReader`, `ByteStream`, and
+  `Rbsp`, plus parser tests for Exp-Golomb, Annex B, AVCC, and SPS dimensions.
 - Tiny checked-in parser fixtures under `tests/fixtures/` plus synthetic
   bit-writer fixtures for Annex B, AVCC, CAVLC I/P macroblocks, P-slice motion
   vectors, P_8x8/P_8x8ref0 sub-macroblock motion vectors, focused B_Bi
@@ -285,10 +305,10 @@ Manual smoke path for the current rebuffer behavior:
 
 Suggested files:
 
-- `src/core/FFmpegDecoder.*`
-- `src/core/DecodeWorker.*`
+- `src/core/decode/FFmpegDecoder.*`
+- `src/core/decode/DecodeWorker.*`
 - `src/app/MainWindow.*`
-- `src/core/H264Parser.*`
+- `src/core/parser/video/h264/H264*.cpp`
 
 ### 2. Parser Correctness And Coverage
 
@@ -377,12 +397,12 @@ Recommended next step:
 
 Suggested files:
 
-- `src/core/MediaTypes.*`
-- `src/core/StreamDocument.*`
-- `src/core/FrameAnalysis.*`
-- `src/core/AnalysisExportWriter.*`
-- future `src/core/AacParser.*`
-- `src/core/HevcParser.*`
+- `src/core/model/MediaTypes.*`
+- `src/core/model/StreamDocument.*`
+- `src/core/model/FrameAnalysis.*`
+- `src/core/export/AnalysisExportWriter.*`
+- future `src/core/parser/audio/AacParser.*`
+- `src/core/parser/video/hevc/HevcParser.*`
 
 ### 3. Test Fixtures And Regression Coverage
 
@@ -446,7 +466,7 @@ Suggested files:
 - `src/app/MainWindow.*`
 - `src/ui/FrameListView.*`
 - `src/ui/PropertyTreeView.*`
-- `src/core/DecodeWorker.*`
+- `src/core/decode/DecodeWorker.*`
 
 ### 5. Export Quality
 
@@ -575,13 +595,15 @@ Most important files:
 
 ```text
 src/app/MainWindow.*
-src/core/AnalysisExportWriter.*
-src/core/DecodeWorker.*
-src/core/FFmpegDecoder.*
-src/core/BitstreamParser.*
-src/core/FrameAnalysis.*
-src/core/H264FrameAnalysisAdapter.*
-src/core/H264Parser.*
+src/core/export/AnalysisExportWriter.*
+src/core/decode/DecodeWorker.*
+src/core/decode/FFmpegDecoder.*
+src/core/parser/BitstreamParser.*
+src/core/model/FrameAnalysis.*
+src/core/parser/video/h264/H264FrameAnalysisAdapter.*
+src/core/parser/video/h264/H264*.cpp
+src/core/parser/video/hevc/HevcParser.*
+src/core/util/*
 src/ui/VideoCanvas.*
 src/ui/FrameListView.*
 src/ui/PropertyTreeView.*

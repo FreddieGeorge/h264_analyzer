@@ -38,9 +38,6 @@ private:
     QVector<Nalu> splitAnnexBNalus(const QByteArray &packetData) const;
     QVector<Nalu> splitLengthPrefixedNalus(const QByteArray &packetData, QVector<AnalysisDiagnostic> *diagnostics) const;
 
-    static bool hasAnnexBStartCode(const QByteArray &data);
-    static qsizetype startCodeSizeAt(const QByteArray &data, qsizetype offset);
-    static int readBigEndianLength(const uint8_t *data, int size);
     static int naluTypeFromHeader(const QByteArray &data, qsizetype offset, qsizetype size);
     static bool isVclNaluType(int nalUnitType);
 

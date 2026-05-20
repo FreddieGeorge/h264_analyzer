@@ -1,5 +1,7 @@
 #include "core/parser/audio/Mp3FrameParser.h"
 
+#include "core/util/BitReader.h"
+
 #include <QString>
 
 namespace
@@ -73,7 +75,7 @@ FrameAnalysis Mp3FrameParser::parsePacket(const QByteArray &packetData, qint64 p
     }
 
     bool ok = true;
-    const int syncword = readBits(packetData, 0, 11, &ok);
+    const int syncword = BitReader::readBitsAt(packetData, 0, 11, &ok);
     appendField(analysis, QStringLiteral("syncword"), 0, 11, QStringLiteral("0x%1").arg(syncword, 3, 16, QLatin1Char('0')));
     if (!ok || syncword != 0x07ff) {
         analysis.diagnostics.append({
@@ -85,18 +87,18 @@ FrameAnalysis Mp3FrameParser::parsePacket(const QByteArray &packetData, qint64 p
         return analysis;
     }
 
-    const int versionId = readBits(packetData, 11, 2, &ok);
-    const int layer = readBits(packetData, 13, 2, &ok);
-    const int protectionAbsent = readBits(packetData, 15, 1, &ok);
-    const int bitrateIndex = readBits(packetData, 16, 4, &ok);
-    const int samplingFrequencyIndex = readBits(packetData, 20, 2, &ok);
-    const int padding = readBits(packetData, 22, 1, &ok);
-    const int privateBit = readBits(packetData, 23, 1, &ok);
-    const int channelMode = readBits(packetData, 24, 2, &ok);
-    const int modeExtension = readBits(packetData, 26, 2, &ok);
-    const int copyright = readBits(packetData, 28, 1, &ok);
-    const int original = readBits(packetData, 29, 1, &ok);
-    const int emphasis = readBits(packetData, 30, 2, &ok);
+    const int versionId = BitReader::readBitsAt(packetData, 11, 2, &ok);
+    const int layer = BitReader::readBitsAt(packetData, 13, 2, &ok);
+    const int protectionAbsent = BitReader::readBitsAt(packetData, 15, 1, &ok);
+    const int bitrateIndex = BitReader::readBitsAt(packetData, 16, 4, &ok);
+    const int samplingFrequencyIndex = BitReader::readBitsAt(packetData, 20, 2, &ok);
+    const int padding = BitReader::readBitsAt(packetData, 22, 1, &ok);
+    const int privateBit = BitReader::readBitsAt(packetData, 23, 1, &ok);
+    const int channelMode = BitReader::readBitsAt(packetData, 24, 2, &ok);
+    const int modeExtension = BitReader::readBitsAt(packetData, 26, 2, &ok);
+    const int copyright = BitReader::readBitsAt(packetData, 28, 1, &ok);
+    const int original = BitReader::readBitsAt(packetData, 29, 1, &ok);
+    const int emphasis = BitReader::readBitsAt(packetData, 30, 2, &ok);
     const int bitrateKbps = bitrateKbpsForIndex(versionId, layer, bitrateIndex);
     const int sampleRate = sampleRateForIndex(versionId, samplingFrequencyIndex);
     const int frameLength = estimatedFrameLength(versionId, layer, bitrateKbps, sampleRate, padding);
@@ -274,23 +276,6 @@ int Mp3FrameParser::bitrateKbpsForIndex(int versionId, int layer, int bitrateInd
         }
     }
     return 0;
-}
-
-int Mp3FrameParser::readBits(const QByteArray &data, int bitOffset, int bitCount, bool *ok)
-{
-    int value = 0;
-    for (int i = 0; i < bitCount; ++i) {
-        const int bit = bitOffset + i;
-        if (bit < 0 || bit / 8 >= data.size()) {
-            if (ok != nullptr) {
-                *ok = false;
-            }
-            return value;
-        }
-        const int bitInByte = 7 - (bit % 8);
-        value = (value << 1) | ((static_cast<unsigned char>(data.at(bit / 8)) >> bitInByte) & 0x01);
-    }
-    return value;
 }
 
 void Mp3FrameParser::appendField(FrameAnalysis &analysis,

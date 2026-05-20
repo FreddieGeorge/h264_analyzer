@@ -20,7 +20,6 @@ public:
     static int sampleRateForIndex(int samplingFrequencyIndex);
 
 private:
-    static int readBits(const QByteArray &data, int bitOffset, int bitCount, bool *ok);
     static void appendField(FrameAnalysis &analysis,
                             const QString &name,
                             int bitOffset,

@@ -1,7 +1,7 @@
 #include "core/export/AnalysisExportWriter.h"
 #include "core/parser/audio/AacAdtsParser.h"
-#include "core/parser/h264/H264FrameAnalysisAdapter.h"
-#include "core/parser/h264/H264Parser.h"
+#include "core/parser/video/h264/H264FrameAnalysisAdapter.h"
+#include "core/parser/video/h264/H264Parser.h"
 
 #include <QByteArray>
 #include <QFile>

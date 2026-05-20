@@ -1,8 +1,8 @@
 #include "core/decode/FFmpegDecoder.h"
 
 #include "core/parser/audio/AacAdtsParser.h"
-#include "core/parser/h264/H264FrameAnalysisAdapter.h"
-#include "core/parser/hevc/HevcParser.h"
+#include "core/parser/video/h264/H264FrameAnalysisAdapter.h"
+#include "core/parser/video/hevc/HevcParser.h"
 #include "core/parser/audio/Mp3FrameParser.h"
 
 #include <QDir>

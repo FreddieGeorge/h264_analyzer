@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/model/FrameAnalysis.h"
-#include "core/parser/h264/H264Parser.h"
+#include "core/parser/video/h264/H264Parser.h"
 #include "core/model/StreamDocument.h"
 
 #include <QJsonObject>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/parser/BitstreamParser.h"
+#include "core/util/BitReader.h"
 
 #include <QByteArray>
 #include <QHash>
@@ -222,8 +223,6 @@ public:
     static QString sliceTypeName(int sliceType);
 
 private:
-    class BitReader;
-
     QVector<NaluInfo> splitNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics);
     QVector<NaluInfo> splitAnnexBNalus(const QByteArray &packetData);
     QVector<NaluInfo> splitLengthPrefixedNalus(const QByteArray &packetData, QVector<ParserDiagnosticInfo> *diagnostics);
@@ -233,11 +232,6 @@ private:
     SliceInfo parseSliceHeader(const QByteArray &rbsp, int nalUnitType, int nalRefIdc) const;
     void parseSliceData(BitReader &reader, SliceInfo &slice, const PpsInfo &pps, const SpsInfo &sps) const;
 
-    static QByteArray rbspFromEbsp(const uint8_t *data, qsizetype size);
-    static bool hasAnnexBStartCode(const QByteArray &data);
-    static qsizetype startCodeSizeAt(const QByteArray &data, qsizetype offset);
-    static int readBigEndianLength(const uint8_t *data, int size);
-    static void skipScalingList(BitReader &reader, int sizeOfScalingList);
     static int codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType);
     static QString intraMbTypeName(int mbType);
     static QString pMbTypeName(int mbType);

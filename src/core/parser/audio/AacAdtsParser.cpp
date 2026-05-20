@@ -1,5 +1,7 @@
 #include "core/parser/audio/AacAdtsParser.h"
 
+#include "core/util/BitReader.h"
+
 #include <QString>
 
 AacAdtsParser::AacAdtsParser() = default;
@@ -40,7 +42,7 @@ FrameAnalysis AacAdtsParser::parsePacket(const QByteArray &packetData, qint64 pt
     }
 
     bool ok = true;
-    const int syncword = readBits(packetData, 0, 12, &ok);
+    const int syncword = BitReader::readBitsAt(packetData, 0, 12, &ok);
     appendField(analysis, QStringLiteral("syncword"), 0, 12, QStringLiteral("0x%1").arg(syncword, 3, 16, QLatin1Char('0')));
     if (!ok || syncword != 0x0fff) {
         analysis.diagnostics.append({
@@ -52,20 +54,20 @@ FrameAnalysis AacAdtsParser::parsePacket(const QByteArray &packetData, qint64 pt
         return analysis;
     }
 
-    const int id = readBits(packetData, 12, 1, &ok);
-    const int layer = readBits(packetData, 13, 2, &ok);
-    const int protectionAbsent = readBits(packetData, 15, 1, &ok);
-    const int profile = readBits(packetData, 16, 2, &ok);
-    const int samplingFrequencyIndex = readBits(packetData, 18, 4, &ok);
-    const int privateBit = readBits(packetData, 22, 1, &ok);
-    const int channelConfiguration = readBits(packetData, 23, 3, &ok);
-    const int originalCopy = readBits(packetData, 26, 1, &ok);
-    const int home = readBits(packetData, 27, 1, &ok);
-    const int copyrightIdBit = readBits(packetData, 28, 1, &ok);
-    const int copyrightIdStart = readBits(packetData, 29, 1, &ok);
-    const int frameLength = readBits(packetData, 30, 13, &ok);
-    const int bufferFullness = readBits(packetData, 43, 11, &ok);
-    const int rawDataBlocksMinus1 = readBits(packetData, 54, 2, &ok);
+    const int id = BitReader::readBitsAt(packetData, 12, 1, &ok);
+    const int layer = BitReader::readBitsAt(packetData, 13, 2, &ok);
+    const int protectionAbsent = BitReader::readBitsAt(packetData, 15, 1, &ok);
+    const int profile = BitReader::readBitsAt(packetData, 16, 2, &ok);
+    const int samplingFrequencyIndex = BitReader::readBitsAt(packetData, 18, 4, &ok);
+    const int privateBit = BitReader::readBitsAt(packetData, 22, 1, &ok);
+    const int channelConfiguration = BitReader::readBitsAt(packetData, 23, 3, &ok);
+    const int originalCopy = BitReader::readBitsAt(packetData, 26, 1, &ok);
+    const int home = BitReader::readBitsAt(packetData, 27, 1, &ok);
+    const int copyrightIdBit = BitReader::readBitsAt(packetData, 28, 1, &ok);
+    const int copyrightIdStart = BitReader::readBitsAt(packetData, 29, 1, &ok);
+    const int frameLength = BitReader::readBitsAt(packetData, 30, 13, &ok);
+    const int bufferFullness = BitReader::readBitsAt(packetData, 43, 11, &ok);
+    const int rawDataBlocksMinus1 = BitReader::readBitsAt(packetData, 54, 2, &ok);
 
     appendField(analysis, QStringLiteral("id"), 12, 1, QString::number(id));
     appendField(analysis, QStringLiteral("layer"), 13, 2, QString::number(layer));
@@ -167,23 +169,6 @@ int AacAdtsParser::sampleRateForIndex(int samplingFrequencyIndex)
         return 0;
     }
     return sampleRates[samplingFrequencyIndex];
-}
-
-int AacAdtsParser::readBits(const QByteArray &data, int bitOffset, int bitCount, bool *ok)
-{
-    int value = 0;
-    for (int i = 0; i < bitCount; ++i) {
-        const int bit = bitOffset + i;
-        if (bit < 0 || bit / 8 >= data.size()) {
-            if (ok != nullptr) {
-                *ok = false;
-            }
-            return value;
-        }
-        const int bitInByte = 7 - (bit % 8);
-        value = (value << 1) | ((static_cast<unsigned char>(data.at(bit / 8)) >> bitInByte) & 0x01);
-    }
-    return value;
 }
 
 void AacAdtsParser::appendField(FrameAnalysis &analysis,

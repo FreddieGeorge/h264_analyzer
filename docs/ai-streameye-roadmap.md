@@ -17,6 +17,12 @@ The current project already has:
 - A direct H.264 parser (`H264Parser`) for Annex B and AVCC packets.
 - A H.264-to-`FrameAnalysis` adapter that keeps rich H.264 syntax details
   nested as codec-specific data.
+- A parser directory split by media kind: audio parsers under
+  `src/core/parser/audio`, video parsers under `src/core/parser/video`, with
+  H.264 in `video/h264` and HEVC in `video/hevc`.
+- Codec-neutral parser helpers under `src/core/util` for bit reading, Annex B
+  byte-stream helpers, big-endian length reads, EBSP/RBSP conversion, and
+  packet bit-range mapping for hex highlighting.
 - A wired HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
   VCL access units, and unsupported slice diagnostics through the generic
   `FrameAnalysis` path.
@@ -97,7 +103,8 @@ Acceptance criteria:
 
 Suggested files:
 
-- `src/core/H264Parser.*`
+- `src/core/parser/video/h264/H264*.cpp`
+- `src/core/util/*`
 - `src/ui/VideoCanvas.*`
 - `src/ui/PropertyTreeView.*`
 - `tests/test_h264_parser.cpp`
@@ -162,10 +169,10 @@ Acceptance criteria:
 
 Suggested files:
 
-- `src/core/BitstreamParser.*`
-- New `src/core/FrameAnalysis.*`
-- `src/core/H264Parser.*`
-- `src/core/FFmpegDecoder.*`
+- `src/core/parser/BitstreamParser.*`
+- New `src/core/model/FrameAnalysis.*`
+- `src/core/parser/video/h264/H264*.cpp`
+- `src/core/decode/FFmpegDecoder.*`
 - `src/app/MainWindow.*`
 - `src/ui/PropertyTreeView.*`
 
@@ -212,8 +219,8 @@ Acceptance criteria:
 Suggested files:
 
 - New `src/ui/BitstreamHexView.*`
-- `src/core/H264Parser.*`
-- `src/core/FrameAnalysis.*`
+- `src/core/parser/video/h264/H264*.cpp`
+- `src/core/model/FrameAnalysis.*`
 - `src/app/MainWindow.*`
 
 ## Stage 4: Add Analysis Charts And Statistics
@@ -243,7 +250,7 @@ Suggested files:
 - New `src/core/AnalysisStats.*`
 - New `src/ui/StatsDock.*`
 - `src/app/MainWindow.*`
-- `src/core/DecodeWorker.*`
+- `src/core/decode/DecodeWorker.*`
 
 ## Stage 5: Add Reference Comparison And Quality Metrics
 
@@ -304,9 +311,9 @@ Acceptance criteria:
 
 Suggested files:
 
-- New `src/core/HevcParser.*`
-- `src/core/BitstreamParser.*`
-- `src/core/FrameAnalysis.*`
+- New `src/core/parser/video/hevc/HevcParser.*`
+- `src/core/parser/BitstreamParser.*`
+- `src/core/model/FrameAnalysis.*`
 - `src/ui/VideoCanvas.*`
 - `tests/fixtures/hevc/`
 
@@ -340,7 +347,7 @@ Acceptance criteria:
 
 Suggested files:
 
-- `src/core/FFmpegDecoder.*`
+- `src/core/decode/FFmpegDecoder.*`
 - New `src/core/ContainerAnalysis.*`
 - `src/ui/FrameListView.*`
 - `src/app/MainWindow.*`
@@ -405,8 +412,8 @@ Acceptance criteria:
 
 Suggested files:
 
-- `src/core/DecodeWorker.*`
-- `src/core/FFmpegDecoder.*`
+- `src/core/decode/DecodeWorker.*`
+- `src/core/decode/FFmpegDecoder.*`
 - `src/app/MainWindow.*`
 - `.github/workflows/`
 - `scripts/`

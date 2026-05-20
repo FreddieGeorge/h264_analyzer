@@ -19,12 +19,21 @@ set(ZSTREAMEYE_CORE_SOURCES
     parser/audio/AacAdtsParser.cpp
     parser/audio/Mp3FrameParser.h
     parser/audio/Mp3FrameParser.cpp
-    parser/h264/H264FrameAnalysisAdapter.h
-    parser/h264/H264FrameAnalysisAdapter.cpp
-    parser/h264/H264Parser.h
-    parser/h264/H264Parser.cpp
-    parser/hevc/HevcParser.h
-    parser/hevc/HevcParser.cpp
+    parser/video/h264/H264FrameAnalysisAdapter.h
+    parser/video/h264/H264FrameAnalysisAdapter.cpp
+    parser/video/h264/H264MacroblockParser.cpp
+    parser/video/h264/H264ParameterSetParser.cpp
+    parser/video/h264/H264Parser.h
+    parser/video/h264/H264Parser.cpp
+    parser/video/h264/H264SliceHeaderParser.cpp
+    parser/video/hevc/HevcParser.h
+    parser/video/hevc/HevcParser.cpp
+    util/BitReader.h
+    util/BitReader.cpp
+    util/ByteStream.h
+    util/ByteStream.cpp
+    util/Rbsp.h
+    util/Rbsp.cpp
 )
 
 add_library(ZStreamEyeCore STATIC ${ZSTREAMEYE_CORE_SOURCES})

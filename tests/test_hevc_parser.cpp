@@ -1,4 +1,4 @@
-#include "core/parser/hevc/HevcParser.h"
+#include "core/parser/video/hevc/HevcParser.h"
 
 #include <QByteArray>
 

@@ -73,8 +73,10 @@ ZStreamEye/
 |   |   +-- model/
 |   |   +-- parser/
 |   |   |   +-- audio/
-|   |   |   +-- h264/
-|   |   |   +-- hevc/
+|   |   |   +-- video/
+|   |   |   |   +-- h264/
+|   |   |   |   +-- hevc/
+|   |   +-- util/
 |   |   +-- buffering/
 |   +-- platform/
 |   |   +-- windows/
@@ -91,7 +93,8 @@ Folder responsibilities:
 
 - `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, and workflow wiring.
 - `src/core/model`: stream metadata, media types, frame analysis data, and document state.
-- `src/core/parser`: codec-neutral parser interface plus H.264, HEVC, AAC ADTS, and MP3 parsers.
+- `src/core/parser`: codec-neutral parser interface plus audio and video parser modules.
+- `src/core/util`: codec-neutral low-level helpers for bit reading, bytestreams, and RBSP/packet bit-range mapping.
 - `src/core/decode`: FFmpeg decoder wrapper and decode worker.
 - `src/core/export`: analysis export serialization.
 - `src/core/buffering`: buffering and seek rebuffer state helpers.
