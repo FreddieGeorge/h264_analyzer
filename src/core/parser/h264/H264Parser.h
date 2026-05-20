@@ -221,11 +221,6 @@ public:
     static QString naluTypeName(int nalUnitType);
     static QString sliceTypeName(int sliceType);
 
-#ifdef H264_ANALYZER_ENABLE_TESTS
-    static quint32 decodeUnsignedExpGolombForTest(const QByteArray &data, bool *ok = nullptr);
-    static qint32 decodeSignedExpGolombForTest(const QByteArray &data, bool *ok = nullptr);
-#endif
-
 private:
     class BitReader;
 

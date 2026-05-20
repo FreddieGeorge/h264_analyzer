@@ -65,7 +65,9 @@ ZStreamEye/
 +-- scripts/
 +-- src/
 |   +-- app/
+|   |   +-- CMakeLists.txt
 |   +-- core/
+|   |   +-- CMakeLists.txt
 |   |   +-- decode/
 |   |   +-- export/
 |   |   +-- model/
@@ -75,7 +77,10 @@ ZStreamEye/
 |   |   |   +-- hevc/
 |   |   +-- buffering/
 |   +-- platform/
+|   |   +-- windows/
 |   +-- ui/
+|-- tests/
+|   +-- CMakeLists.txt
 +-- CMakeLists.txt
 +-- README.md
 +-- README.zh-CN.md
@@ -84,7 +89,7 @@ ZStreamEye/
 
 Folder responsibilities:
 
-- `src/app`: application window, menu, toolbar, dock layout, file opening, and workflow wiring.
+- `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, and workflow wiring.
 - `src/core/model`: stream metadata, media types, frame analysis data, and document state.
 - `src/core/parser`: codec-neutral parser interface plus H.264, HEVC, AAC ADTS, and MP3 parsers.
 - `src/core/decode`: FFmpeg decoder wrapper and decode worker.

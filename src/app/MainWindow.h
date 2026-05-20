@@ -16,15 +16,16 @@ class QDragEnterEvent;
 class QDropEvent;
 class QLabel;
 class QMenu;
-class QNetworkAccessManager;
 class QSlider;
 class QThread;
 
 class DecodeWorker;
 class BitstreamHexView;
+class ExportController;
 class FrameListView;
 class LogDock;
 class PropertyTreeView;
+class UpdateChecker;
 class VideoCanvas;
 
 class MainWindow : public QMainWindow
@@ -72,10 +73,6 @@ private:
     void exportScreenshot();
     void checkForUpdates();
     void showAboutDialog();
-    void downloadAndInstallUpdate(const QUrl &installerUrl,
-                                  const QUrl &checksumUrl,
-                                  const QString &installerFileName,
-                                  const QString &tagName);
     void handleFrameReady(int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis);
     void handleAccessUnitAnalysis(const FrameAnalysis &analysis);
     void handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint);
@@ -132,7 +129,8 @@ private:
     StreamDocument m_document;
     QPointer<QThread> m_decodeThread;
     QPointer<DecodeWorker> m_decodeWorker;
-    QNetworkAccessManager *m_updateNetworkManager = nullptr;
+    ExportController *m_exportController = nullptr;
+    UpdateChecker *m_updateChecker = nullptr;
     QString m_lastOpenDirectory;
     QString m_lastExportDirectory;
     QVector<CachedFrame> m_frameCache;

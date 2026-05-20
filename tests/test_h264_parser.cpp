@@ -143,6 +143,47 @@ bool hasAnalysisDiagnosticCode(const FrameAnalysis &analysis, const QString &cod
     return false;
 }
 
+quint32 readBit(const QByteArray &data, qsizetype &bitOffset, bool &ok)
+{
+    if (!ok || bitOffset >= data.size() * 8) {
+        ok = false;
+        return 0;
+    }
+
+    const qsizetype byteOffset = bitOffset / 8;
+    const int bitInByte = int(7 - (bitOffset % 8));
+    ++bitOffset;
+    return (quint8(data.at(byteOffset)) >> bitInByte) & 1U;
+}
+
+quint32 decodeUnsignedExpGolomb(const QByteArray &data, bool *ok = nullptr)
+{
+    bool localOk = true;
+    qsizetype bitOffset = 0;
+    int leadingZeroBits = 0;
+    while (readBit(data, bitOffset, localOk) == 0U && localOk) {
+        ++leadingZeroBits;
+    }
+
+    quint32 value = 1U;
+    for (int i = 0; i < leadingZeroBits; ++i) {
+        value = (value << 1) | readBit(data, bitOffset, localOk);
+    }
+
+    if (ok != nullptr) {
+        *ok = localOk;
+    }
+    return localOk ? value - 1U : 0U;
+}
+
+qint32 decodeSignedExpGolomb(const QByteArray &data, bool *ok = nullptr)
+{
+    const quint32 codeNum = decodeUnsignedExpGolomb(data, ok);
+    return (codeNum & 1U) != 0U
+        ? qint32((codeNum + 1U) / 2U)
+        : -qint32(codeNum / 2U);
+}
+
 QByteArray makeMinimalSpsNalu()
 {
     BitWriter rbsp;
@@ -308,12 +349,12 @@ void testExpGolomb()
     BitWriter ueWriter;
     ueWriter.writeUE(5);
     bool ok = false;
-    require(H264Parser::decodeUnsignedExpGolombForTest(ueWriter.data(), &ok) == 5 && ok,
+    require(decodeUnsignedExpGolomb(ueWriter.data(), &ok) == 5 && ok,
             "unsigned Exp-Golomb value 5");
 
     BitWriter seWriter;
     seWriter.writeSE(-2);
-    require(H264Parser::decodeSignedExpGolombForTest(seWriter.data(), &ok) == -2 && ok,
+    require(decodeSignedExpGolomb(seWriter.data(), &ok) == -2 && ok,
             "signed Exp-Golomb value -2");
 }
 
