@@ -106,6 +106,26 @@ struct MotionVectorInfo
     int referenceY = -1;
 };
 
+struct ResidualBlockInfo
+{
+    struct Coefficient
+    {
+        int scanIndex = -1;
+        int level = 0;
+        int runBefore = 0;
+    };
+
+    QString kind;
+    int component = -1;
+    int blockIndex = -1;
+    int predictedNonZeroCount = 0;
+    int maxCoefficientCount = 0;
+    int totalCoefficientCount = 0;
+    int trailingOnes = 0;
+    int totalZeros = 0;
+    QVector<Coefficient> coefficients;
+};
+
 struct MacroblockInfo
 {
     int address = 0;
@@ -122,6 +142,7 @@ struct MacroblockInfo
     bool skipped = false;
     bool parsed = false;
     QString note;
+    QVector<ResidualBlockInfo> residualBlocks;
     QVector<MotionVectorInfo> motionVectors;
     QVector<SyntaxFieldInfo> fields;
 };
@@ -247,6 +268,7 @@ Q_DECLARE_METATYPE(PpsInfo)
 Q_DECLARE_METATYPE(SyntaxFieldInfo)
 Q_DECLARE_METATYPE(ParserDiagnosticInfo)
 Q_DECLARE_METATYPE(MotionVectorInfo)
+Q_DECLARE_METATYPE(ResidualBlockInfo)
 Q_DECLARE_METATYPE(MacroblockInfo)
 Q_DECLARE_METATYPE(SliceInfo)
 Q_DECLARE_METATYPE(NaluInfo)

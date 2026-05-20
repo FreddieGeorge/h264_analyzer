@@ -37,9 +37,12 @@ The project currently supports video loading/decoding, controllable playback, H.
   bytes, with byte-range highlighting driven by syntax bit-field selection.
 - Show an analysis statistics dock with access-unit counts, frame-type counts,
   frame-type distribution, macroblock/QP summaries, QP bucket distribution,
-  motion-vector magnitude summaries, and diagnostic distribution derived from
-  internal `FrameAnalysis` data.
-- Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
+  motion-vector L0/L1/Other list counts, motion-vector magnitude summaries, and
+  diagnostic distribution derived from internal `FrameAnalysis` data.
+- Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields,
+  residual block/coefficient summaries, QP, P-slice L0 motion vectors, and
+  focused non-direct B-slice L0/L1/Bi motion vectors with the custom
+  `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
   notes and motion-vector support diagnostics for the current frame.
@@ -58,11 +61,13 @@ The project currently supports video loading/decoding, controllable playback, H.
 
 Current limitations:
 
-- CAVLC residual parsing consumes and counts residual blocks so macroblock parsing can continue, but individual coefficient values are not yet exposed in the UI/export model.
+- CAVLC residual parsing exposes block summaries and non-zero coefficient
+  summaries with scan index, level, and run-before values. It is still a
+  focused CAVLC path, not a full inverse-scan/transform visualization.
 - HEVC frame types are currently reported as coarse `IRAP` / `VCL` labels from
   NAL-unit classification. Full I/P/B-style HEVC slice typing requires deeper
   HEVC slice-header parsing.
-- CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage.
+- CABAC, B_Direct/B_8x8 motion vectors, and MBAFF/FMO are reported as unsupported or partially parsed; CAVLC P_8x8/P_8x8ref0 L0 and non-direct B_L0/B_L1/Bi motion vectors have focused parser coverage and regression fixtures.
 - The property tree limits displayed macroblocks to keep playback responsive; overlay data still uses the parsed macroblock list.
 - OpenGL canvas text is intentionally avoided for analysis hints because some
   Windows/OpenGL deployments render QPainter text incorrectly; use the property
@@ -309,8 +314,8 @@ Key modules:
 - `AnalysisStats` and `StatsDock`: aggregate `FrameAnalysis` records into
   codec-neutral stream summaries for access units, frame types, macroblocks,
   QP, motion vectors, and diagnostics. The dock shows simple count/percentage
-  distribution rows for frame types, QP buckets, and diagnostic code/severity
-  groups.
+  distribution rows for frame types, QP buckets, motion-vector L0/L1/Other list
+  counts, and diagnostic code/severity groups.
 
 Recommended next work:
 
@@ -329,7 +334,7 @@ Recommended next work:
 6. Expand the bitstream hex dock with graphical sub-byte decoration and broader
    offset normalization for macroblock fields and container/elementary-stream
    wrappers.
-7. Expose richer residual coefficient details and broaden macroblock support.
+7. Broaden residual coefficient and B-slice coverage toward real-world streams.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

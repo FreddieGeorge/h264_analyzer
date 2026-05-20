@@ -21,9 +21,16 @@ set(ZSTREAMEYE_CORE_SOURCES
     parser/audio/AacAdtsParser.cpp
     parser/audio/Mp3FrameParser.h
     parser/audio/Mp3FrameParser.cpp
+    parser/video/h264/H264CabacMacroblockParser.h
+    parser/video/h264/H264CabacMacroblockParser.cpp
+    parser/video/h264/H264CavlcResidualParser.h
+    parser/video/h264/H264CavlcResidualParser.cpp
     parser/video/h264/H264FrameAnalysisAdapter.h
     parser/video/h264/H264FrameAnalysisAdapter.cpp
     parser/video/h264/H264MacroblockParser.cpp
+    parser/video/h264/H264MacroblockTypes.cpp
+    parser/video/h264/H264MotionVectorParser.h
+    parser/video/h264/H264MotionVectorParser.cpp
     parser/video/h264/H264ParameterSetParser.cpp
     parser/video/h264/H264Parser.h
     parser/video/h264/H264Parser.cpp

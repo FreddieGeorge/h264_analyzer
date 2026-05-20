@@ -20,6 +20,30 @@ QJsonObject motionVectorToJson(const MotionVectorInfo &mv)
     };
 }
 
+QJsonObject residualBlockToJson(const ResidualBlockInfo &block)
+{
+    QJsonArray coefficients;
+    for (const ResidualBlockInfo::Coefficient &coefficient : block.coefficients) {
+        coefficients.append(QJsonObject {
+            {QStringLiteral("scan_index"), coefficient.scanIndex},
+            {QStringLiteral("level"), coefficient.level},
+            {QStringLiteral("run_before"), coefficient.runBefore}
+        });
+    }
+
+    return {
+        {QStringLiteral("kind"), block.kind},
+        {QStringLiteral("component"), block.component},
+        {QStringLiteral("block_index"), block.blockIndex},
+        {QStringLiteral("predicted_non_zero_count"), block.predictedNonZeroCount},
+        {QStringLiteral("max_coefficient_count"), block.maxCoefficientCount},
+        {QStringLiteral("total_coefficient_count"), block.totalCoefficientCount},
+        {QStringLiteral("trailing_ones"), block.trailingOnes},
+        {QStringLiteral("total_zeros"), block.totalZeros},
+        {QStringLiteral("coefficients"), coefficients}
+    };
+}
+
 QJsonObject diagnosticToJson(const ParserDiagnosticInfo &diagnostic)
 {
     return {
@@ -35,6 +59,11 @@ QJsonObject macroblockToJson(const MacroblockInfo &mb)
         motionVectors.append(motionVectorToJson(mv));
     }
 
+    QJsonArray residualBlocks;
+    for (const ResidualBlockInfo &block : mb.residualBlocks) {
+        residualBlocks.append(residualBlockToJson(block));
+    }
+
     return {
         {QStringLiteral("address"), mb.address},
         {QStringLiteral("mb_type"), mb.mbType},
@@ -47,6 +76,7 @@ QJsonObject macroblockToJson(const MacroblockInfo &mb)
         {QStringLiteral("residual_block_count"), mb.residualBlockCount},
         {QStringLiteral("residual_coefficient_count"), mb.residualCoefficientCount},
         {QStringLiteral("residual_parsed"), mb.residualParsed},
+        {QStringLiteral("residual_blocks"), residualBlocks},
         {QStringLiteral("skipped"), mb.skipped},
         {QStringLiteral("parsed"), mb.parsed},
         {QStringLiteral("note"), mb.note},

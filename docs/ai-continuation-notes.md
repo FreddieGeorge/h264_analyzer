@@ -89,8 +89,9 @@ Implemented capabilities:
   `src/core/analysis`. `StatsDock` shows the current stream summary in the
   right dock area: access-unit media counts, decoded frame count, frame-type
   distribution, macroblock parsed/skipped counts, QP min/max/average, QP bucket
-  distribution, motion-vector magnitude summaries, and diagnostic
-  code/severity distribution. `MainWindow` refreshes the dock from
+  distribution, motion-vector L0/L1/Other list counts, motion-vector magnitude
+  summaries, and diagnostic code/severity distribution. `MainWindow` refreshes
+  the dock from
   `m_accessUnitAnalyses`, so it stays codec-neutral and does not scrape UI
   text.
 - `AnalysisBitField` now carries `offsetBasis`. AAC/MP3 header fields are
@@ -117,7 +118,18 @@ Implemented capabilities:
     reference-list modification summaries, prediction-weight-table summaries,
     and decoded-reference-picture-marking summaries.
   - `src/core/parser/video/h264/H264MacroblockParser.cpp`: `slice_data`, macroblock,
-    focused CAVLC residual counting, QP, and motion-vector parsing.
+    QP, macroblock flow control, and the top-level CAVLC/CABAC dispatch points.
+  - `src/core/parser/video/h264/H264CavlcResidualParser.*`: CAVLC residual block
+    parsing, including coefficient token tables, level/run parsing, and focused
+    non-zero coefficient summaries.
+  - `src/core/parser/video/h264/H264MotionVectorParser.*`: motion-vector
+    prediction helpers, MV state updates, and B-slice partition-mode mapping for
+    non-direct CAVLC macroblocks.
+  - `src/core/parser/video/h264/H264MacroblockTypes.cpp`: coded-block-pattern
+    mapping and H.264 macroblock type naming tables.
+  - `src/core/parser/video/h264/H264CabacMacroblockParser.*`: CABAC macroblock
+    parser entry point. It currently returns the structured `cabac_unsupported`
+    diagnostic while preserving the future implementation boundary.
 - Codec-neutral parser utilities now live under `src/core/util`:
   - `BitReader.*`: bit reading plus Exp-Golomb helpers and fixed-offset
     `readBitsAt()` for audio headers.
@@ -131,11 +143,13 @@ Implemented capabilities:
   - prediction mode
   - coded block pattern
   - QP / `mb_qp_delta`
-  - residual CAVLC block parsing/counting for common 4:2:0 streams
+  - residual CAVLC block parsing/counting for common 4:2:0 streams, including
+    non-zero coefficient summaries with scan index, level, and run-before
   - P-slice L0 motion vector differences for supported partition types,
-    including focused CAVLC P_8x8/P_8x8ref0 sub-macroblock fixtures
+    including multi-macroblock prediction and focused CAVLC P_8x8/P_8x8ref0
+    sub-macroblock fixtures
   - focused CAVLC B-slice L0/L1/Bi motion vector parsing for non-direct
-    16x16/16x8/8x16 macroblocks
+    16x16/16x8/8x16 macroblocks, plus explicit B_8x8 unsupported diagnostics
 - Analysis overlays:
   - macroblock grid
   - macroblock QP heatmap
@@ -183,9 +197,10 @@ Implemented capabilities:
   Exp-Golomb, Annex B, AVCC, and SPS dimensions.
 - Tiny checked-in parser fixtures under `tests/fixtures/` plus synthetic
   bit-writer fixtures for Annex B, AVCC, CAVLC I/P macroblocks, P-slice motion
-  vectors, P_8x8/P_8x8ref0 sub-macroblock motion vectors, focused B_Bi
-  motion vectors, B_Direct unsupported diagnostics, and unsupported CABAC
-  diagnostics.
+  vectors, multi-macroblock P-slice MV prediction, P_8x8/P_8x8ref0
+  sub-macroblock motion vectors, focused B_Bi and B partitioned L0/L1 motion
+  vectors, B_Direct/B_8x8 unsupported diagnostics, residual coefficient export,
+  aggregate H.264 stats/export regression, and unsupported CABAC diagnostics.
 - Truncated P-slice fixture coverage verifies structured `slice_data_truncated`
   diagnostics and keeps estimated macroblock data instead of dropping the
   interrupted macroblock.
@@ -330,13 +345,15 @@ Suggested files:
 
 Current limitations:
 
-- CAVLC residual parsing now consumes residual blocks and counts coefficients so
-  macroblock parsing can continue, but individual residual coefficient values
-  are not yet represented in the public syntax model.
+- CAVLC residual parsing now consumes residual blocks, counts coefficients, and
+  exposes focused non-zero coefficient summaries in the public H.264 syntax
+  model and JSON export. It does not yet expose a full inverse-scan,
+  dequantized, or transformed residual visualization.
 - CABAC macroblock parsing is not implemented.
 - Focused CAVLC B-slice L0/L1/Bi motion vector parsing is implemented for
   non-direct 16x16/16x8/8x16 macroblocks. B_Direct and B_8x8 remain
-  unsupported with structured diagnostics.
+  unsupported with structured diagnostics, and unsupported B macroblocks are
+  not marked fully parsed.
 - Focused CAVLC P_8x8 / P_8x8ref0 sub-macroblock L0 motion vector parsing is
   implemented; broader sub-macroblock prediction coverage still needs work.
 - MBAFF/interlaced and FMO are not implemented.
@@ -344,7 +361,8 @@ Current limitations:
 
 Recommended next parser milestones:
 
-1. Expose residual coefficient details where useful instead of only block/coeff counts.
+1. Broaden residual coefficient fixtures beyond the current focused non-zero
+   coefficient case, including more realistic luma/chroma block patterns.
 2. Expand P_8x8 / P_8x8ref0 sub-macroblock parsing coverage beyond the current
    focused CAVLC L0 fixtures.
 3. Expand B-slice support to B_Direct and B_8x8/sub-macroblock prediction
@@ -432,10 +450,15 @@ Completed fixture coverage:
 - CAVLC I-slice with non-zero `mb_qp_delta`
 - CAVLC P-slice skip macroblock
 - CAVLC P-slice with non-zero L0 motion vector
+- CAVLC P-slice multi-macroblock L0 motion-vector prediction
 - CAVLC P_8x8 / P_8x8ref0 sub-macroblock L0 motion vectors through synthetic
   bit-writer fixtures
-- Focused CAVLC B_Bi L0/L1 motion vectors through synthetic bit-writer fixtures
-- B_Direct unsupported diagnostics through synthetic bit-writer fixtures
+- Focused CAVLC B_Bi and B partitioned L0/L1 motion vectors through synthetic
+  bit-writer fixtures
+- B_Direct and B_8x8 unsupported diagnostics through synthetic bit-writer fixtures
+- CAVLC residual block summaries and focused non-zero coefficient summaries
+- Aggregate H.264 stats/export regression covering residual coefficients,
+  B-slice L0/L1 motion-vector lists, and unsupported diagnostics
 - Unsupported CABAC stream that reports a structured diagnostic and does not crash
 - Truncated slice headers that report `slice_header_truncated`
 - Truncated P-slice data that reports `slice_data_truncated`
@@ -449,7 +472,7 @@ Recommended remaining improvement:
 - Add multi-macroblock and multi-frame fixtures.
 - Add decoded-real-world samples where redistribution is legally safe.
 - Expand assertions as parser coverage grows:
-  - residual CAVLC coefficient totals
+  - broader residual CAVLC coefficient patterns
   - sub-macroblock P_8x8 motion vectors
   - B-slice L0/L1/bi prediction modes
   - richer unsupported diagnostics for MBAFF/FMO and truncated streams

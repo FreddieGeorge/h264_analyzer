@@ -116,6 +116,13 @@ AnalysisStats calculateAnalysisStats(const QVector<FrameAnalysis> &analyses)
             mvMagnitudeSum += magnitude;
             maxMvMagnitude = std::max(maxMvMagnitude, magnitude);
             ++stats.motionVectorCount;
+            if (mv.list == 0) {
+                ++stats.l0MotionVectorCount;
+            } else if (mv.list == 1) {
+                ++stats.l1MotionVectorCount;
+            } else {
+                ++stats.otherMotionVectorCount;
+            }
         }
     }
 

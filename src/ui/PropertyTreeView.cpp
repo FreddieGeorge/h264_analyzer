@@ -690,6 +690,49 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
             addPair(mbItem, tr("residual coefficients"), QString::number(mb.residualCoefficientCount));
             addPair(mbItem, tr("note"), mb.note);
 
+            if (!mb.residualBlocks.isEmpty()) {
+                auto *residualRoot = new QTreeWidgetItem(mbItem, {
+                    tr("Residual Blocks"),
+                    QString::number(mb.residualBlocks.size())
+                });
+                for (int blockIndex = 0; blockIndex < mb.residualBlocks.size(); ++blockIndex) {
+                    const ResidualBlockInfo &block = mb.residualBlocks[blockIndex];
+                    auto *blockItem = new QTreeWidgetItem(residualRoot, {
+                        tr("Block %1").arg(blockIndex),
+                        tr("%1 coeffs %2/%3")
+                            .arg(block.kind)
+                            .arg(block.totalCoefficientCount)
+                            .arg(block.maxCoefficientCount)
+                    });
+                    addPair(blockItem, tr("kind"), block.kind);
+                    addPair(blockItem, tr("component"), QString::number(block.component));
+                    addPair(blockItem, tr("block_index"), QString::number(block.blockIndex));
+                    addPair(blockItem, tr("predicted_non_zero_count"), QString::number(block.predictedNonZeroCount));
+                    addPair(blockItem, tr("max_coefficient_count"), QString::number(block.maxCoefficientCount));
+                    addPair(blockItem, tr("total_coefficient_count"), QString::number(block.totalCoefficientCount));
+                    addPair(blockItem, tr("trailing_ones"), QString::number(block.trailingOnes));
+                    addPair(blockItem, tr("total_zeros"), QString::number(block.totalZeros));
+                    if (!block.coefficients.isEmpty()) {
+                        auto *coeffRoot = new QTreeWidgetItem(blockItem, {
+                            tr("Coefficients"),
+                            QString::number(block.coefficients.size())
+                        });
+                        for (int coeffIndex = 0; coeffIndex < block.coefficients.size(); ++coeffIndex) {
+                            const ResidualBlockInfo::Coefficient &coefficient = block.coefficients[coeffIndex];
+                            auto *coeffItem = new QTreeWidgetItem(coeffRoot, {
+                                tr("Coeff %1").arg(coeffIndex),
+                                tr("scan %1 level %2")
+                                    .arg(coefficient.scanIndex)
+                                    .arg(coefficient.level)
+                            });
+                            addPair(coeffItem, tr("scan_index"), QString::number(coefficient.scanIndex));
+                            addPair(coeffItem, tr("level"), QString::number(coefficient.level));
+                            addPair(coeffItem, tr("run_before"), QString::number(coefficient.runBefore));
+                        }
+                    }
+                }
+            }
+
             if (!mb.motionVectors.isEmpty()) {
                 auto *mvRoot = new QTreeWidgetItem(mbItem, {tr("Motion Vectors"), QString::number(mb.motionVectors.size())});
                 for (int mvIndex = 0; mvIndex < mb.motionVectors.size(); ++mvIndex) {

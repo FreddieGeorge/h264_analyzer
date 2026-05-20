@@ -48,6 +48,9 @@ struct AnalysisStats
     QVector<AnalysisQpBucket> qpBuckets;
 
     int motionVectorCount = 0;
+    int l0MotionVectorCount = 0;
+    int l1MotionVectorCount = 0;
+    int otherMotionVectorCount = 0;
     double averageMvMagnitudeQuarterPel = 0.0;
     int maxMvMagnitudeQuarterPel = 0;
 

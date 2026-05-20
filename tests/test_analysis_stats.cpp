@@ -40,6 +40,12 @@ int main()
     mv.mvYQuarterPel = 4;
     video.motionVectors.append(mv);
 
+    AnalysisMotionVector l1Mv;
+    l1Mv.list = 1;
+    l1Mv.mvXQuarterPel = 0;
+    l1Mv.mvYQuarterPel = 8;
+    video.motionVectors.append(l1Mv);
+
     AnalysisDiagnostic diagnostic;
     diagnostic.code = QStringLiteral("slice.short");
     diagnostic.severity = QStringLiteral("warning");
@@ -88,9 +94,12 @@ int main()
             "qp 24-29 bucket mismatch");
     require(stats.qpBuckets[2].minQp == 36 && stats.qpBuckets[2].maxQp == 41 && stats.qpBuckets[2].count == 1,
             "qp 36-41 bucket mismatch");
-    require(stats.motionVectorCount == 1, "motion vector count mismatch");
-    require(std::abs(stats.averageMvMagnitudeQuarterPel - 5.0) < 0.001, "average mv magnitude mismatch");
-    require(stats.maxMvMagnitudeQuarterPel == 5, "max mv magnitude mismatch");
+    require(stats.motionVectorCount == 2, "motion vector count mismatch");
+    require(stats.l0MotionVectorCount == 1, "L0 motion vector count mismatch");
+    require(stats.l1MotionVectorCount == 1, "L1 motion vector count mismatch");
+    require(stats.otherMotionVectorCount == 0, "other motion vector count mismatch");
+    require(std::abs(stats.averageMvMagnitudeQuarterPel - 6.5) < 0.001, "average mv magnitude mismatch");
+    require(stats.maxMvMagnitudeQuarterPel == 8, "max mv magnitude mismatch");
     require(stats.diagnosticAccessUnits == 2, "diagnostic access unit count mismatch");
     require(stats.diagnosticCount == 2, "diagnostic count mismatch");
     require(stats.diagnostics.size() == 2, "diagnostic summary count mismatch");

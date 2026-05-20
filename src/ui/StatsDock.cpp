@@ -108,6 +108,15 @@ void StatsDock::setStats(const AnalysisStats &stats)
 
     QTreeWidgetItem *motion = addSection(tr("Motion vectors"));
     addMetric(motion, tr("Vectors"), QString::number(stats.motionVectorCount));
+    addMetric(motion, tr("L0 vectors"),
+              tr("%1 (%2)").arg(stats.l0MotionVectorCount).arg(percentText(stats.l0MotionVectorCount,
+                                                                           stats.motionVectorCount)));
+    addMetric(motion, tr("L1 vectors"),
+              tr("%1 (%2)").arg(stats.l1MotionVectorCount).arg(percentText(stats.l1MotionVectorCount,
+                                                                           stats.motionVectorCount)));
+    addMetric(motion, tr("Other list vectors"),
+              tr("%1 (%2)").arg(stats.otherMotionVectorCount).arg(percentText(stats.otherMotionVectorCount,
+                                                                              stats.motionVectorCount)));
     addMetric(motion, tr("Average magnitude"), stats.motionVectorCount > 0
               ? averageText(stats.averageMvMagnitudeQuarterPel)
               : tr("-"));

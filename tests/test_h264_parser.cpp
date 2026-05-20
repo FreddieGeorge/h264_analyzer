@@ -1,4 +1,5 @@
 #include "core/export/AnalysisExportWriter.h"
+#include "core/analysis/AnalysisStats.h"
 #include "core/parser/audio/AacAdtsParser.h"
 #include "core/parser/video/h264/H264FrameAnalysisAdapter.h"
 #include "core/parser/video/h264/H264Parser.h"
@@ -184,7 +185,7 @@ qint32 decodeSignedExpGolomb(const QByteArray &data, bool *ok = nullptr)
         : -qint32(codeNum / 2U);
 }
 
-QByteArray makeMinimalSpsNalu()
+QByteArray makeMinimalSpsNalu(int widthInMbs = 1, int heightInMapUnits = 1)
 {
     BitWriter rbsp;
     rbsp.writeBits(66, 8); // profile_idc: baseline
@@ -196,8 +197,8 @@ QByteArray makeMinimalSpsNalu()
     rbsp.writeUE(0);       // log2_max_pic_order_cnt_lsb_minus4
     rbsp.writeUE(1);       // max_num_ref_frames
     rbsp.writeBit(false);  // gaps_in_frame_num_value_allowed_flag
-    rbsp.writeUE(0);       // pic_width_in_mbs_minus1 -> 16 px
-    rbsp.writeUE(0);       // pic_height_in_map_units_minus1 -> 16 px
+    rbsp.writeUE(widthInMbs > 0 ? quint32(widthInMbs - 1) : 0); // pic_width_in_mbs_minus1
+    rbsp.writeUE(heightInMapUnits > 0 ? quint32(heightInMapUnits - 1) : 0); // pic_height_in_map_units_minus1
     rbsp.writeBit(true);   // frame_mbs_only_flag
     rbsp.writeBit(true);   // direct_8x8_inference_flag
     rbsp.writeBit(false);  // frame_cropping_flag
@@ -231,6 +232,38 @@ QByteArray makeMinimalPpsNalu(int numRefIdxL0DefaultActiveMinus1 = 0,
 
     QByteArray nalu;
     nalu.append(char(0x68));
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
+QByteArray makePMultiMacroblockPredictionSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(0);         // slice_type: P
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(false);    // num_ref_idx_active_override_flag
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l0
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(0);         // mb_type: P_L0_16x16
+    rbsp.writeSE(2);         // mvd_l0[0][0]
+    rbsp.writeSE(0);         // mvd_l0[0][1]
+    rbsp.writeUE(0);         // coded_block_pattern
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(0);         // mb_type: P_L0_16x16
+    rbsp.writeSE(1);         // mvd_l0[0][0], predicted from left macroblock
+    rbsp.writeSE(-1);        // mvd_l0[0][1], predicted from left macroblock
+    rbsp.writeUE(0);         // coded_block_pattern
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
     nalu.append(rbsp.finishRbsp());
     return nalu;
 }
@@ -277,6 +310,39 @@ QByteArray makeP8x8SliceNalu(int mbType, int numRefIdxL0DefaultActiveMinus1 = 0)
     return nalu;
 }
 
+QByteArray makeI16x16NonZeroResidualSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(2);         // slice_type: I
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(13);        // mb_type: I_16x16 with luma AC present, chroma DC/AC absent
+    rbsp.writeUE(0);         // intra_chroma_pred_mode
+    rbsp.writeSE(0);         // mb_qp_delta
+
+    rbsp.writeBit(true);     // luma16x16 DC coeff_token: total_coeff=0
+
+    rbsp.writeBit(false);    // luma16x16 AC[0] coeff_token: total_coeff=1 trailing_ones=1
+    rbsp.writeBit(true);
+    rbsp.writeBit(false);    // trailing_one_sign_flag: positive
+    rbsp.writeBit(true);     // total_zeros: 0
+
+    for (int i = 1; i < 16; ++i) {
+        rbsp.writeBit(true); // luma16x16 AC[i] coeff_token: total_coeff=0
+    }
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
 QByteArray makeBSliceNalu()
 {
     BitWriter rbsp;
@@ -295,6 +361,31 @@ QByteArray makeBSliceNalu()
 
     rbsp.writeUE(0);         // mb_skip_run
     rbsp.writeUE(0);         // mb_type: B_Direct_16x16
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
+QByteArray makeB8x8UnsupportedSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(1);         // slice_type: B
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(true);     // direct_spatial_mv_pred_flag
+    rbsp.writeBit(false);    // num_ref_idx_active_override_flag
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l0
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l1
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(22);        // mb_type: B_8x8
 
     QByteArray nalu;
     nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
@@ -324,6 +415,100 @@ QByteArray makeBMotionSliceNalu()
     rbsp.writeSE(-1);        // mvd_l0[0][0][1]
     rbsp.writeSE(-2);        // mvd_l1[0][0][0]
     rbsp.writeSE(1);         // mvd_l1[0][0][1]
+    rbsp.writeUE(0);         // coded_block_pattern
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
+QByteArray makeBPartitionedMotionSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(1);         // slice_type: B
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(true);     // direct_spatial_mv_pred_flag
+    rbsp.writeBit(false);    // num_ref_idx_active_override_flag
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l0
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l1
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(8);         // mb_type: B_L0_L1_16x8
+    rbsp.writeSE(2);         // mvd_l0[0][0]
+    rbsp.writeSE(-1);        // mvd_l0[0][1]
+    rbsp.writeSE(-3);        // mvd_l1[1][0]
+    rbsp.writeSE(1);         // mvd_l1[1][1]
+    rbsp.writeUE(0);         // coded_block_pattern
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
+QByteArray makeB8x16PartitionedMotionSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(1);         // slice_type: B
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(true);     // direct_spatial_mv_pred_flag
+    rbsp.writeBit(false);    // num_ref_idx_active_override_flag
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l0
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l1
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(11);        // mb_type: B_L1_L0_8x16
+    rbsp.writeSE(4);         // mvd_l0[1][0]
+    rbsp.writeSE(-2);        // mvd_l0[1][1]
+    rbsp.writeSE(-1);        // mvd_l1[0][0]
+    rbsp.writeSE(3);         // mvd_l1[0][1]
+    rbsp.writeUE(0);         // coded_block_pattern
+
+    QByteArray nalu;
+    nalu.append(char(0x41)); // nal_ref_idc=2, nal_unit_type=1
+    nalu.append(rbsp.finishRbsp());
+    return nalu;
+}
+
+QByteArray makeBBiBiPartitionedMotionSliceNalu()
+{
+    BitWriter rbsp;
+    rbsp.writeUE(0);         // first_mb_in_slice
+    rbsp.writeUE(1);         // slice_type: B
+    rbsp.writeUE(0);         // pic_parameter_set_id
+    rbsp.writeBits(0, 4);    // frame_num
+    rbsp.writeBits(0, 4);    // pic_order_cnt_lsb
+    rbsp.writeBit(true);     // direct_spatial_mv_pred_flag
+    rbsp.writeBit(false);    // num_ref_idx_active_override_flag
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l0
+    rbsp.writeBit(false);    // ref_pic_list_modification_flag_l1
+    rbsp.writeBit(false);    // adaptive_ref_pic_marking_mode_flag
+    rbsp.writeSE(0);         // slice_qp_delta
+    rbsp.writeUE(1);         // disable_deblocking_filter_idc
+
+    rbsp.writeUE(0);         // mb_skip_run
+    rbsp.writeUE(20);        // mb_type: B_Bi_Bi_16x8
+    rbsp.writeSE(1);         // mvd_l0[0][0]
+    rbsp.writeSE(0);         // mvd_l0[0][1]
+    rbsp.writeSE(-1);        // mvd_l0[1][0]
+    rbsp.writeSE(2);         // mvd_l0[1][1]
+    rbsp.writeSE(0);         // mvd_l1[0][0]
+    rbsp.writeSE(-2);        // mvd_l1[0][1]
+    rbsp.writeSE(3);         // mvd_l1[1][0]
+    rbsp.writeSE(1);         // mvd_l1[1][1]
     rbsp.writeUE(0);         // coded_block_pattern
 
     QByteArray nalu;
@@ -480,6 +665,17 @@ void testCavlcIFrameQpDeltaFixture()
     require(slice.macroblocks.first().residualParsed, "CAVLC I fixture residual parsed");
     require(slice.macroblocks.first().residualBlockCount == 17, "CAVLC I fixture residual block count");
     require(slice.macroblocks.first().residualCoefficientCount == 0, "CAVLC I fixture zero residual coefficients");
+    require(slice.macroblocks.first().residualBlocks.size() == 17, "CAVLC I fixture residual block summaries");
+    require(slice.macroblocks.first().residualBlocks.first().kind == QStringLiteral("luma16x16_dc"),
+            "CAVLC I fixture first residual block kind");
+    require(slice.macroblocks.first().residualBlocks.first().maxCoefficientCount == 16,
+            "CAVLC I fixture first residual block max coeffs");
+    require(slice.macroblocks.first().residualBlocks.first().totalCoefficientCount == 0,
+            "CAVLC I fixture first residual block coeff count");
+    require(slice.macroblocks.first().residualBlocks.last().kind == QStringLiteral("luma16x16_ac"),
+            "CAVLC I fixture last residual block kind");
+    require(slice.macroblocks.first().residualBlocks.last().blockIndex == 15,
+            "CAVLC I fixture last residual block index");
     require(slice.macroblocks[1].parsed, "CAVLC I fixture continues after residual macroblock");
     require(!hasDiagnosticCode(slice, QStringLiteral("cavlc_residual_unsupported")),
             "CAVLC I fixture has no residual unsupported diagnostic");
@@ -508,6 +704,40 @@ void testCavlcPMotionVectorFixture()
     const MotionVectorInfo &mv = slice.macroblocks.first().motionVectors.first();
     require(mv.mvXQuarterPel == 2, "CAVLC P MV fixture mv_x");
     require(mv.mvYQuarterPel == -1, "CAVLC P MV fixture mv_y");
+}
+
+void testCavlcPMultiMacroblockMotionVectorPredictionFixture()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(2, 1),
+        makeMinimalPpsNalu(),
+        makePMultiMacroblockPredictionSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "CAVLC P multi-macroblock MV fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("P"), "CAVLC P multi-macroblock MV fixture slice type");
+    require(slice.picWidthInMbs == 2, "CAVLC P multi-macroblock MV fixture width");
+    require(slice.macroblocks.size() == 2, "CAVLC P multi-macroblock MV fixture macroblock count");
+    require(slice.macroblocks[0].address == 0, "CAVLC P multi-macroblock MV fixture first address");
+    require(slice.macroblocks[1].address == 1, "CAVLC P multi-macroblock MV fixture second address");
+    require(slice.macroblocks[0].motionVectors.size() == 1, "CAVLC P multi-macroblock first MV count");
+    require(slice.macroblocks[1].motionVectors.size() == 1, "CAVLC P multi-macroblock second MV count");
+
+    const MotionVectorInfo &firstMv = slice.macroblocks[0].motionVectors.first();
+    require(firstMv.mvXQuarterPel == 2, "CAVLC P multi-macroblock first mv_x");
+    require(firstMv.mvYQuarterPel == 0, "CAVLC P multi-macroblock first mv_y");
+
+    const MotionVectorInfo &secondMv = slice.macroblocks[1].motionVectors.first();
+    require(secondMv.mvXQuarterPel == 3, "CAVLC P multi-macroblock second mv_x uses left prediction");
+    require(secondMv.mvYQuarterPel == -1, "CAVLC P multi-macroblock second mv_y uses left prediction");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    require(analysis.motionVectors.size() == 2, "CAVLC P multi-macroblock FrameAnalysis MV count");
+    require(analysis.motionVectors[0].regionAddress == 0, "CAVLC P multi-macroblock FrameAnalysis first region");
+    require(analysis.motionVectors[1].regionAddress == 1, "CAVLC P multi-macroblock FrameAnalysis second region");
+    require(analysis.motionVectors[1].mvXQuarterPel == 3, "CAVLC P multi-macroblock FrameAnalysis second mv_x");
+    require(analysis.motionVectors[1].mvYQuarterPel == -1, "CAVLC P multi-macroblock FrameAnalysis second mv_y");
 }
 
 void testCavlcP8x8MotionVectorFixture()
@@ -553,6 +783,46 @@ void testCavlcP8x8Ref0MotionVectorFixture()
     }
 }
 
+void testCavlcResidualCoefficientFixture()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeI16x16NonZeroResidualSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "CAVLC coefficient fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("I"), "CAVLC coefficient fixture slice type");
+    require(slice.macroblocks.size() == 1, "CAVLC coefficient fixture macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.residualParsed, "CAVLC coefficient fixture residual parsed");
+    require(mb.residualBlockCount == 17, "CAVLC coefficient fixture residual block count");
+    require(mb.residualCoefficientCount == 1, "CAVLC coefficient fixture total coefficient count");
+    require(mb.residualBlocks.size() == 17, "CAVLC coefficient fixture residual block summaries");
+
+    const ResidualBlockInfo &dcBlock = mb.residualBlocks.first();
+    require(dcBlock.kind == QStringLiteral("luma16x16_dc"), "CAVLC coefficient fixture DC block kind");
+    require(dcBlock.totalCoefficientCount == 0, "CAVLC coefficient fixture zero DC coefficients");
+    require(dcBlock.coefficients.isEmpty(), "CAVLC coefficient fixture empty DC coefficients");
+
+    const ResidualBlockInfo &acBlock = mb.residualBlocks[1];
+    require(acBlock.kind == QStringLiteral("luma16x16_ac"), "CAVLC coefficient fixture AC block kind");
+    require(acBlock.blockIndex == 0, "CAVLC coefficient fixture AC block index");
+    require(acBlock.totalCoefficientCount == 1, "CAVLC coefficient fixture AC coefficient count");
+    require(acBlock.trailingOnes == 1, "CAVLC coefficient fixture trailing ones");
+    require(acBlock.totalZeros == 0, "CAVLC coefficient fixture total zeros");
+    require(acBlock.coefficients.size() == 1, "CAVLC coefficient fixture coefficient summary");
+    require(acBlock.coefficients.first().scanIndex == 0, "CAVLC coefficient fixture scan index");
+    require(acBlock.coefficients.first().level == 1, "CAVLC coefficient fixture coefficient level");
+    require(acBlock.coefficients.first().runBefore == 0, "CAVLC coefficient fixture run before");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    const FrameSyntaxInfo syntax = h264SyntaxFromFrameAnalysis(analysis);
+    require(syntax.slices.first().macroblocks.first().residualBlocks[1].coefficients.first().level == 1,
+            "CAVLC coefficient fixture survives FrameAnalysis details");
+}
+
 void testBSliceReportsMotionVectorDiagnostic()
 {
     H264Parser parser;
@@ -572,6 +842,35 @@ void testBSliceReportsMotionVectorDiagnostic()
     const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
     require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("b_direct_macroblock_unsupported")),
             "B-slice diagnostic is exposed in FrameAnalysis");
+}
+
+void testB8x8UnsupportedReportsDiagnosticWithoutMotionVectors()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeB8x8UnsupportedSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "B_8x8 fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("B"), "B_8x8 fixture slice type");
+    require(hasDiagnosticCode(slice, QStringLiteral("b8x8_sub_macroblock_unsupported")),
+            "B_8x8 fixture reports structured unsupported diagnostic");
+    require(!slice.macroblocks.isEmpty(), "B_8x8 fixture keeps macroblock data");
+    require(slice.macroblocks.first().mbType == QStringLiteral("B_8x8"), "B_8x8 fixture macroblock type");
+    require(!slice.macroblocks.first().parsed, "B_8x8 fixture macroblock is not marked parsed");
+    require(slice.macroblocks.first().motionVectors.isEmpty(), "B_8x8 fixture does not invent motion vectors");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    require(hasAnalysisDiagnosticCode(analysis, QStringLiteral("b8x8_sub_macroblock_unsupported")),
+            "B_8x8 diagnostic is exposed in FrameAnalysis");
+    require(analysis.motionVectors.isEmpty(), "B_8x8 FrameAnalysis has no motion vectors");
+
+    const AnalysisStats stats = calculateAnalysisStats({analysis});
+    require(stats.motionVectorCount == 0, "B_8x8 stats has no motion vectors");
+    require(stats.diagnosticAccessUnits == 1, "B_8x8 stats diagnostic access unit count");
+    require(stats.diagnosticCount == 1, "B_8x8 stats diagnostic count");
 }
 
 void testCavlcBSliceBiMotionVectorFixture()
@@ -604,6 +903,197 @@ void testCavlcBSliceBiMotionVectorFixture()
     require(analysis.motionVectors[1].list == 1, "CAVLC B Bi FrameAnalysis L1 vector");
 }
 
+void testCavlcBSlicePartitionedMotionVectorFixture()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeBPartitionedMotionSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "CAVLC B partitioned fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("B"), "CAVLC B partitioned fixture slice type");
+    require(slice.macroblocks.size() == 1, "CAVLC B partitioned fixture macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.mbType == QStringLiteral("B_L0_L1_16x8"), "CAVLC B partitioned fixture mb_type");
+    require(mb.parsed, "CAVLC B partitioned fixture macroblock parsed");
+    require(mb.motionVectors.size() == 2, "CAVLC B partitioned fixture motion vector count");
+    require(!hasDiagnosticCode(slice, QStringLiteral("b_slice_macroblock_unsupported")),
+            "CAVLC B partitioned fixture has no generic unsupported diagnostic");
+
+    const QVector<MotionVectorInfo> &mvs = mb.motionVectors;
+    require(mvs[0].list == 0 && mvs[0].mvXQuarterPel == 2 && mvs[0].mvYQuarterPel == -1,
+            "CAVLC B partitioned fixture L0 partition mv");
+    require(mvs[1].list == 1 && mvs[1].mvXQuarterPel == -3 && mvs[1].mvYQuarterPel == 1,
+            "CAVLC B partitioned fixture L1 partition mv");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    require(analysis.motionVectors.size() == 2, "CAVLC B partitioned FrameAnalysis motion vectors");
+    require(analysis.motionVectors[0].list == 0, "CAVLC B partitioned FrameAnalysis L0 vector");
+    require(analysis.motionVectors[1].list == 1, "CAVLC B partitioned FrameAnalysis L1 vector");
+    require(analysis.motionVectors[1].mvXQuarterPel == -3, "CAVLC B partitioned FrameAnalysis L1 mv_x");
+    require(analysis.motionVectors[1].mvYQuarterPel == 1, "CAVLC B partitioned FrameAnalysis L1 mv_y");
+
+    const AnalysisStats stats = calculateAnalysisStats({analysis});
+    require(stats.motionVectorCount == 2, "CAVLC B partitioned stats motion vector count");
+    require(stats.l0MotionVectorCount == 1, "CAVLC B partitioned stats L0 vector count");
+    require(stats.l1MotionVectorCount == 1, "CAVLC B partitioned stats L1 vector count");
+    require(stats.otherMotionVectorCount == 0, "CAVLC B partitioned stats other vector count");
+}
+
+void testCavlcBSlice8x16PartitionedMotionVectorFixture()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeB8x16PartitionedMotionSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "CAVLC B 8x16 partitioned fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("B"), "CAVLC B 8x16 partitioned fixture slice type");
+    require(slice.macroblocks.size() == 1, "CAVLC B 8x16 partitioned fixture macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.mbType == QStringLiteral("B_L1_L0_8x16"), "CAVLC B 8x16 partitioned fixture mb_type");
+    require(mb.parsed, "CAVLC B 8x16 partitioned fixture macroblock parsed");
+    require(mb.motionVectors.size() == 2, "CAVLC B 8x16 partitioned fixture motion vector count");
+
+    const QVector<MotionVectorInfo> &mvs = mb.motionVectors;
+    require(mvs[0].list == 0 && mvs[0].mvXQuarterPel == 4 && mvs[0].mvYQuarterPel == -2,
+            "CAVLC B 8x16 partitioned fixture L0 partition 1 mv");
+    require(mvs[1].list == 1 && mvs[1].mvXQuarterPel == -1 && mvs[1].mvYQuarterPel == 3,
+            "CAVLC B 8x16 partitioned fixture L1 partition 0 mv");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    const AnalysisStats stats = calculateAnalysisStats({analysis});
+    require(stats.motionVectorCount == 2, "CAVLC B 8x16 partitioned stats MV count");
+    require(stats.l0MotionVectorCount == 1, "CAVLC B 8x16 partitioned stats L0 count");
+    require(stats.l1MotionVectorCount == 1, "CAVLC B 8x16 partitioned stats L1 count");
+}
+
+void testCavlcBSliceBiBiPartitionedMotionVectorFixture()
+{
+    H264Parser parser;
+    const QByteArray packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeBBiBiPartitionedMotionSliceNalu()
+    });
+    const FrameSyntaxInfo frame = parser.parsePacketSyntax(packet, 0, 0, 0);
+    const SliceInfo &slice = firstSlice(frame, "CAVLC B Bi/Bi partitioned fixture has slice");
+    require(slice.sliceTypeName == QStringLiteral("B"), "CAVLC B Bi/Bi partitioned fixture slice type");
+    require(slice.macroblocks.size() == 1, "CAVLC B Bi/Bi partitioned fixture macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.mbType == QStringLiteral("B_Bi_Bi_16x8"), "CAVLC B Bi/Bi partitioned fixture mb_type");
+    require(mb.parsed, "CAVLC B Bi/Bi partitioned fixture macroblock parsed");
+    require(mb.motionVectors.size() == 4, "CAVLC B Bi/Bi partitioned fixture motion vector count");
+
+    const QVector<MotionVectorInfo> &mvs = mb.motionVectors;
+    require(mvs[0].list == 0 && mvs[0].mvXQuarterPel == 1 && mvs[0].mvYQuarterPel == 0,
+            "CAVLC B Bi/Bi partitioned fixture L0 partition 0 mv");
+    require(mvs[1].list == 0 && mvs[1].mvXQuarterPel == -1 && mvs[1].mvYQuarterPel == 2,
+            "CAVLC B Bi/Bi partitioned fixture L0 partition 1 mv");
+    require(mvs[2].list == 1 && mvs[2].mvXQuarterPel == 0 && mvs[2].mvYQuarterPel == -2,
+            "CAVLC B Bi/Bi partitioned fixture L1 partition 0 mv");
+    require(mvs[3].list == 1 && mvs[3].mvXQuarterPel == 3 && mvs[3].mvYQuarterPel == 1,
+            "CAVLC B Bi/Bi partitioned fixture L1 partition 1 mv");
+
+    const FrameAnalysis analysis = parser.parsePacket(packet, 0, 0, 0);
+    const AnalysisStats stats = calculateAnalysisStats({analysis});
+    require(stats.motionVectorCount == 4, "CAVLC B Bi/Bi partitioned stats MV count");
+    require(stats.l0MotionVectorCount == 2, "CAVLC B Bi/Bi partitioned stats L0 count");
+    require(stats.l1MotionVectorCount == 2, "CAVLC B Bi/Bi partitioned stats L1 count");
+}
+
+void testH264AggregateStatsAndExportRegression()
+{
+    H264Parser parser;
+    const QByteArray pMvPacket = loadFixture(QStringLiteral("cavlc_p_motion_vector.hex"));
+    const QByteArray bPartitionedPacket = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeBPartitionedMotionSliceNalu()
+    });
+    const QByteArray b8x8Packet = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeB8x8UnsupportedSliceNalu()
+    });
+    const QByteArray residualPacket = makeAnnexBPacket({
+        makeMinimalSpsNalu(),
+        makeMinimalPpsNalu(),
+        makeI16x16NonZeroResidualSliceNalu()
+    });
+
+    const FrameAnalysis pMv = parser.parsePacket(pMvPacket, 0, 0, 0);
+    const FrameAnalysis bPartitioned = parser.parsePacket(bPartitionedPacket, 1, 1, 1);
+    const FrameAnalysis b8x8 = parser.parsePacket(b8x8Packet, 2, 2, 2);
+    const FrameAnalysis residual = parser.parsePacket(residualPacket, 3, 3, 3);
+    const QVector<FrameAnalysis> analyses {pMv, bPartitioned, b8x8, residual};
+
+    const AnalysisStats stats = calculateAnalysisStats(analyses);
+    require(stats.totalAccessUnits == 4, "H264 aggregate stats access unit count");
+    require(stats.frameCount == 4, "H264 aggregate stats frame count");
+    require(stats.motionVectorCount == 3, "H264 aggregate stats MV count");
+    require(stats.l0MotionVectorCount == 2, "H264 aggregate stats L0 MV count");
+    require(stats.l1MotionVectorCount == 1, "H264 aggregate stats L1 MV count");
+    require(stats.otherMotionVectorCount == 0, "H264 aggregate stats other MV count");
+    require(stats.diagnosticAccessUnits == 1, "H264 aggregate stats diagnostic access units");
+    require(stats.diagnosticCount == 1, "H264 aggregate stats diagnostic count");
+
+    StreamInfo stream;
+    stream.fileName = QStringLiteral("aggregate.264");
+    stream.absoluteFilePath = QStringLiteral("D:/fixtures/aggregate.264");
+    stream.mediaKind = MediaKind::Video;
+    stream.streamIndex = 0;
+    stream.codecKind = CodecKind::H264;
+    stream.codecName = QStringLiteral("h264");
+    stream.width = 16;
+    stream.height = 16;
+    stream.isValid = true;
+
+    const QJsonObject batch = allFramesExportToJson(stream,
+                                                   analyses,
+                                                   QStringLiteral("test-generator"),
+                                                   QStringLiteral("1.0"));
+    const QJsonArray frames = batch.value(QStringLiteral("frames")).toArray();
+    require(frames.size() == 4, "H264 aggregate export frame count");
+    for (const QJsonValue &frameValue : frames) {
+        require(frameValue.toObject().contains(QStringLiteral("h264")),
+                "H264 aggregate export keeps h264 details");
+    }
+
+    const QJsonArray bMotionVectors = frames[1].toObject().value(QStringLiteral("motion_vectors")).toArray();
+    require(bMotionVectors.size() == 2, "H264 aggregate export B partitioned MV count");
+    require(bMotionVectors[0].toObject().value(QStringLiteral("list")).toInt() == 0,
+            "H264 aggregate export B partitioned L0 MV");
+    require(bMotionVectors[1].toObject().value(QStringLiteral("list")).toInt() == 1,
+            "H264 aggregate export B partitioned L1 MV");
+
+    const QJsonArray unsupportedDiagnostics = frames[2].toObject().value(QStringLiteral("diagnostics")).toArray();
+    require(unsupportedDiagnostics.size() == 1, "H264 aggregate export unsupported diagnostic count");
+    require(unsupportedDiagnostics.first().toObject().value(QStringLiteral("code")).toString()
+                == QStringLiteral("b8x8_sub_macroblock_unsupported"),
+            "H264 aggregate export unsupported diagnostic code");
+    require(frames[2].toObject().value(QStringLiteral("motion_vectors")).toArray().isEmpty(),
+            "H264 aggregate export unsupported frame has no MVs");
+
+    const QJsonArray residualSlices = frames[3].toObject().value(QStringLiteral("h264")).toObject()
+                                          .value(QStringLiteral("slices")).toArray();
+    const QJsonArray residualMacroblocks = residualSlices.first().toObject()
+                                               .value(QStringLiteral("macroblocks")).toArray();
+    const QJsonArray residualBlocks = residualMacroblocks.first().toObject()
+                                           .value(QStringLiteral("residual_blocks")).toArray();
+    const QJsonArray coefficients = residualBlocks[1].toObject()
+                                        .value(QStringLiteral("coefficients")).toArray();
+    require(coefficients.size() == 1, "H264 aggregate export residual coefficient count");
+    require(coefficients.first().toObject().value(QStringLiteral("level")).toInt() == 1,
+            "H264 aggregate export residual coefficient level");
+    require(coefficients.first().toObject().value(QStringLiteral("scan_index")).toInt() == 0,
+            "H264 aggregate export residual coefficient scan index");
+}
+
 void testFrameAnalysisMirrorsH264SyntaxFixture()
 {
     H264Parser parser;
@@ -625,6 +1115,41 @@ void testFrameAnalysisMirrorsH264SyntaxFixture()
     const FrameSyntaxInfo syntax = h264SyntaxFromFrameAnalysis(analysis);
     require(syntax.slices.size() == 1, "FrameAnalysis keeps H264 details");
     require(syntax.slices.first().macroblocks.size() == 1, "FrameAnalysis keeps H264 macroblocks");
+}
+
+void testH264ResidualBlocksExportFixture()
+{
+    H264Parser parser;
+    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("cavlc_i_qp_delta.hex")), 0, 0, 0);
+
+    StreamInfo stream;
+    stream.fileName = QStringLiteral("fixture.264");
+    stream.absoluteFilePath = QStringLiteral("D:/fixtures/fixture.264");
+    stream.mediaKind = MediaKind::Video;
+    stream.streamIndex = 0;
+    stream.codecKind = CodecKind::H264;
+    stream.codecName = QStringLiteral("h264");
+    stream.isValid = true;
+
+    const QJsonObject selected = selectedFrameExportToJson(stream,
+                                                          analysis,
+                                                          QStringLiteral("test-generator"),
+                                                          QStringLiteral("1.0"));
+    const QJsonArray slices = selected.value(QStringLiteral("frame")).toObject()
+                                  .value(QStringLiteral("slices")).toArray();
+    const QJsonArray macroblocks = slices.first().toObject()
+                                      .value(QStringLiteral("macroblocks")).toArray();
+    const QJsonObject firstMacroblock = macroblocks.first().toObject();
+    const QJsonArray residualBlocks = firstMacroblock.value(QStringLiteral("residual_blocks")).toArray();
+    require(residualBlocks.size() == 17, "H264 export residual block summary count");
+    require(residualBlocks.first().toObject().value(QStringLiteral("kind")).toString() == QStringLiteral("luma16x16_dc"),
+            "H264 export residual block kind");
+    require(residualBlocks.first().toObject().value(QStringLiteral("max_coefficient_count")).toInt() == 16,
+            "H264 export residual block max coeffs");
+    require(residualBlocks.first().toObject().value(QStringLiteral("total_coefficient_count")).toInt() == 0,
+            "H264 export residual block coeff count");
+    require(residualBlocks.first().toObject().contains(QStringLiteral("coefficients")),
+            "H264 export residual block has coefficient array");
 }
 
 void testFrameAnalysisExportSchemaFixture()
@@ -842,6 +1367,12 @@ void testCavlcPResidualContinuesToMotionVectorFixture()
     require(slice.macroblocks.first().qp == 28, "CAVLC P residual fixture first macroblock QP");
     require(slice.macroblocks.first().residualParsed, "CAVLC P residual fixture residual parsed");
     require(slice.macroblocks.first().residualBlockCount == 4, "CAVLC P residual fixture residual block count");
+    require(slice.macroblocks.first().residualBlocks.size() == 4,
+            "CAVLC P residual fixture residual block summaries");
+    for (const ResidualBlockInfo &block : slice.macroblocks.first().residualBlocks) {
+        require(block.kind == QStringLiteral("luma4x4"), "CAVLC P residual fixture luma4x4 block kind");
+        require(block.maxCoefficientCount == 16, "CAVLC P residual fixture max coeffs");
+    }
     require(slice.macroblocks[1].parsed, "CAVLC P residual fixture second macroblock parsed");
     require(!slice.macroblocks[1].motionVectors.isEmpty(), "CAVLC P residual fixture later motion vector");
 
@@ -902,11 +1433,19 @@ int main()
     testCavlcIFrameQpDeltaFixture();
     testCavlcPSkipFixture();
     testCavlcPMotionVectorFixture();
+    testCavlcPMultiMacroblockMotionVectorPredictionFixture();
     testCavlcP8x8MotionVectorFixture();
     testCavlcP8x8Ref0MotionVectorFixture();
+    testCavlcResidualCoefficientFixture();
     testBSliceReportsMotionVectorDiagnostic();
+    testB8x8UnsupportedReportsDiagnosticWithoutMotionVectors();
     testCavlcBSliceBiMotionVectorFixture();
+    testCavlcBSlicePartitionedMotionVectorFixture();
+    testCavlcBSlice8x16PartitionedMotionVectorFixture();
+    testCavlcBSliceBiBiPartitionedMotionVectorFixture();
+    testH264AggregateStatsAndExportRegression();
     testFrameAnalysisMirrorsH264SyntaxFixture();
+    testH264ResidualBlocksExportFixture();
     testFrameAnalysisExportSchemaFixture();
     testAudioFrameAnalysisExportSchemaFixture();
     testCavlcPResidualContinuesToMotionVectorFixture();
