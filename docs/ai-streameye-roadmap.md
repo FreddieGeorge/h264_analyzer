@@ -24,6 +24,13 @@ The current project already has:
   header bit fields, and structured malformed-packet diagnostics.
 - An MP3 frame-header parser skeleton plus generic audio access-unit list,
   property-tree display, and JSON export coverage for audio `FrameAnalysis`.
+- Access-unit list filtering by discovered stream, media kind, and diagnostics.
+- Packet metadata and raw packet bytes carried by `FrameAnalysis` for parsed
+  access units, with stream/container packet indexes and packet metadata
+  exported to JSON/CSV.
+- A read-only bitstream hex dock that follows selected access-unit raw packet
+  bytes, renders bounded pages, highlights byte ranges for selected syntax bit
+  fields, and supports a first byte-to-field reverse selection path.
 - H.264 SPS/PPS/Slice Header parsing.
 - Partial CAVLC macroblock parsing, residual block counting, QP, P-slice L0 MV overlay, focused P_8x8/P_8x8ref0 sub-macroblock MV coverage, and focused non-direct B-slice L0/L1/Bi MV parsing.
 - Property-tree/status-bar explanations for overlay availability, including QP
@@ -114,6 +121,8 @@ Current status:
   below `Codec Details`.
 - Export JSON schema v2 includes a stable `frame_analysis` section while
   preserving H.264 details for compatibility.
+- The current schema v3 path also includes media/access-unit fields and packet
+  metadata for parsed access units.
 
 Remaining polish:
 
@@ -165,6 +174,22 @@ Suggested files:
 Goal:
 
 - Give users StreamEye-style syntax-to-bitstream traceability.
+
+Current status:
+
+- `FrameAnalysis` now carries raw packet bytes and packet metadata, so a future
+  hex/bitstream dock can start from decoded access-unit evidence instead of
+  re-reading UI text.
+- `BitstreamHexView` displays selected packet bytes in 4096-byte pages,
+  highlights byte ranges from `AnalysisBitField` selection, shows an ASCII bit
+  mask preview for the selected range, and can select a covering syntax field
+  when a user clicks a hex byte. If several fields overlap the byte, the user
+  can choose one from a menu. `AnalysisBitField::offsetBasis` distinguishes
+  packet-relative AAC/MP3 header fields from H.264 RBSP-relative fields, and
+  H.264 SPS/PPS/slice header fields plus selected macroblock syntax fields now
+  carry normalized packet bit ranges via an EBSP/RBSP mapping table. Remaining
+  work is graphical sub-byte decoration and broader coverage for residual
+  syntax fields and container vs elementary-stream wrappers.
 
 Main tasks:
 
@@ -287,6 +312,14 @@ Suggested files:
 Goal:
 
 - Connect elementary-stream analysis with container and transport context.
+
+Current status:
+
+- Parsed access units preserve container packet index, per-stream packet index,
+  stream index, PTS/DTS, duration, byte position, size, keyframe flag, media
+  kind, codec kind, and raw packet bytes. The UI and exports expose packet
+  metadata, but there is not yet a dedicated container timeline or
+  decoded-frame-to-packet navigation view.
 
 Main tasks:
 

@@ -9,6 +9,77 @@
 #include <algorithm>
 #include <array>
 
+namespace
+{
+QVector<qsizetype> rbspByteToPacketByteOffsets(const QByteArray &nalu, qsizetype packetPayloadOffset)
+{
+    QVector<qsizetype> offsets;
+    offsets.reserve(std::max<qsizetype>(0, nalu.size() - 1));
+    int zeroCount = 0;
+
+    for (qsizetype i = 1; i < nalu.size(); ++i) {
+        const uint8_t byte = static_cast<uint8_t>(nalu.at(i));
+        if (zeroCount == 2 && byte == 0x03) {
+            zeroCount = 0;
+            continue;
+        }
+
+        offsets.append(packetPayloadOffset + (i - 1));
+        zeroCount = byte == 0 ? zeroCount + 1 : 0;
+    }
+    return offsets;
+}
+
+QVector<AnalysisBitRange> packetBitRangesForRbspField(qsizetype rbspBitOffset,
+                                                      qsizetype bitLength,
+                                                      const QVector<qsizetype> &rbspByteToPacketByte)
+{
+    QVector<AnalysisBitRange> ranges;
+    if (rbspBitOffset < 0 || bitLength <= 0) {
+        return ranges;
+    }
+
+    qsizetype currentStart = -1;
+    qsizetype currentLength = 0;
+    qsizetype previousPacketBit = -1;
+    for (qsizetype i = 0; i < bitLength; ++i) {
+        const qsizetype rbspBit = rbspBitOffset + i;
+        const qsizetype rbspByte = rbspBit / 8;
+        if (rbspByte < 0 || rbspByte >= rbspByteToPacketByte.size()) {
+            break;
+        }
+
+        const qsizetype packetBit = rbspByteToPacketByte.at(rbspByte) * 8 + (rbspBit % 8);
+        if (currentStart < 0) {
+            currentStart = packetBit;
+            currentLength = 1;
+        } else if (packetBit == previousPacketBit + 1) {
+            ++currentLength;
+        } else {
+            ranges.append({currentStart, currentLength, QStringLiteral("packet")});
+            currentStart = packetBit;
+            currentLength = 1;
+        }
+        previousPacketBit = packetBit;
+    }
+
+    if (currentStart >= 0 && currentLength > 0) {
+        ranges.append({currentStart, currentLength, QStringLiteral("packet")});
+    }
+    return ranges;
+}
+
+void normalizeRbspFieldsToPacket(QVector<SyntaxFieldInfo> &fields,
+                                 const QVector<qsizetype> &rbspByteToPacketByte)
+{
+    for (SyntaxFieldInfo &field : fields) {
+        field.packetBitRanges = packetBitRangesForRbspField(field.bitOffset,
+                                                            field.bitLength,
+                                                            rbspByteToPacketByte);
+    }
+}
+}
+
 class H264Parser::BitReader
 {
 public:
@@ -398,9 +469,11 @@ NaluInfo H264Parser::parseNaluPayload(const NaluInfo &base, const QByteArray &na
 
     const QByteArray rbsp = rbspFromEbsp(reinterpret_cast<const uint8_t *>(nalu.constData() + 1),
                                         nalu.size() - 1);
+    const QVector<qsizetype> rbspByteToPacketByte = rbspByteToPacketByteOffsets(nalu, info.offset + 1);
 
     if (info.nalUnitType == 7) {
         info.sps = parseSps(rbsp);
+        normalizeRbspFieldsToPacket(info.sps.fields, rbspByteToPacketByte);
         if (info.sps.valid) {
             m_spsById.insert(info.sps.seqParameterSetId, info.sps);
         } else {
@@ -411,6 +484,7 @@ NaluInfo H264Parser::parseNaluPayload(const NaluInfo &base, const QByteArray &na
         }
     } else if (info.nalUnitType == 8) {
         info.pps = parsePps(rbsp);
+        normalizeRbspFieldsToPacket(info.pps.fields, rbspByteToPacketByte);
         if (info.pps.valid) {
             m_ppsById.insert(info.pps.picParameterSetId, info.pps);
         } else {
@@ -421,6 +495,10 @@ NaluInfo H264Parser::parseNaluPayload(const NaluInfo &base, const QByteArray &na
         }
     } else if (info.nalUnitType == 1 || info.nalUnitType == 5) {
         info.slice = parseSliceHeader(rbsp, info.nalUnitType, info.nalRefIdc);
+        normalizeRbspFieldsToPacket(info.slice.fields, rbspByteToPacketByte);
+        for (MacroblockInfo &mb : info.slice.macroblocks) {
+            normalizeRbspFieldsToPacket(mb.fields, rbspByteToPacketByte);
+        }
     }
 
     return info;
@@ -1133,6 +1211,49 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         return static_cast<int>(reader.readUE());
     };
 
+    auto addMbField = [](MacroblockInfo &mb,
+                         const QString &name,
+                         qsizetype start,
+                         qsizetype end,
+                         const QString &value) {
+        mb.fields.append({name, start, end - start, value});
+    };
+
+    auto readUEMbField = [&](MacroblockInfo &mb, const QString &name) {
+        const qsizetype start = reader.bitOffset();
+        const quint32 value = reader.readUE();
+        addMbField(mb, name, start, reader.bitOffset(), QString::number(value));
+        return value;
+    };
+
+    auto readSEMBField = [&](MacroblockInfo &mb, const QString &name) {
+        const qsizetype start = reader.bitOffset();
+        const qint32 value = reader.readSE();
+        addMbField(mb, name, start, reader.bitOffset(), QString::number(value));
+        return value;
+    };
+
+    auto readBitMbField = [&](MacroblockInfo &mb, const QString &name) {
+        const qsizetype start = reader.bitOffset();
+        const bool value = reader.readBit();
+        addMbField(mb, name, start, reader.bitOffset(), value ? QStringLiteral("1") : QStringLiteral("0"));
+        return value;
+    };
+
+    auto readTEMbField = [&](MacroblockInfo &mb, const QString &name, int range) {
+        if (range <= 0) {
+            addMbField(mb, name, reader.bitOffset(), reader.bitOffset(), QStringLiteral("0"));
+            return 0;
+        }
+        if (range == 1) {
+            const qsizetype start = reader.bitOffset();
+            const int value = reader.readBit() ? 0 : 1;
+            addMbField(mb, name, start, reader.bitOffset(), QString::number(value));
+            return value;
+        }
+        return static_cast<int>(readUEMbField(mb, name));
+    };
+
     auto bPartitionModes = [](int mbType) {
         BPartitionModes result;
         if (mbType == 0) {
@@ -1738,15 +1859,15 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             }
         }
 
-        const quint32 rawMbType = reader.readUE();
-        if (reader.hasError()) {
-            break;
-        }
-
         MacroblockInfo mb;
         mb.address = currentAddress;
         mb.qp = currentQp;
         mb.parsed = true;
+
+        const quint32 rawMbType = readUEMbField(mb, QStringLiteral("mb_type"));
+        if (reader.hasError()) {
+            break;
+        }
 
         bool intra = isISlice;
         int localMbType = static_cast<int>(rawMbType);
@@ -1792,16 +1913,17 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
         }
 
         if (intra && !intra16x16) {
-            transform8x8 = pps.transform8x8ModeFlag && reader.readBit();
+            transform8x8 = pps.transform8x8ModeFlag
+                && readBitMbField(mb, QStringLiteral("transform_size_8x8_flag"));
             const int predictionBlocks = transform8x8 ? 4 : 16;
             for (int i = 0; i < predictionBlocks; ++i) {
                 if (!reader.readBit()) {
                     reader.readBits(3);
                 }
             }
-            reader.readUE();
+            readUEMbField(mb, QStringLiteral("intra_chroma_pred_mode"));
         } else if (intra16x16) {
-            reader.readUE();
+            readUEMbField(mb, QStringLiteral("intra_chroma_pred_mode"));
         } else if (isPSlice) {
             int partitionCount = 1;
             std::array<PartitionMv, 2> partitions;
@@ -1816,8 +1938,11 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
                 };
 
                 std::array<SubMacroblock, 4> subMacroblocks;
-                for (SubMacroblock &subMb : subMacroblocks) {
-                    subMb.type = static_cast<int>(reader.readUE());
+                for (int subIndex = 0; subIndex < static_cast<int>(subMacroblocks.size()); ++subIndex) {
+                    SubMacroblock &subMb = subMacroblocks[subIndex];
+                    subMb.type = static_cast<int>(readUEMbField(
+                        mb,
+                        QStringLiteral("sub_mb_type_l0[%1]").arg(subIndex)));
                     switch (subMb.type) {
                     case 0:
                         subMb.partitionCount = 1;
@@ -1840,15 +1965,24 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
                 }
 
                 if (slice.numRefIdxL0ActiveMinus1 > 0 && localMbType != 4) {
-                    for (SubMacroblock &subMb : subMacroblocks) {
-                        subMb.refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
+                    for (int subIndex = 0; subIndex < static_cast<int>(subMacroblocks.size()); ++subIndex) {
+                        SubMacroblock &subMb = subMacroblocks[subIndex];
+                        subMb.refIndex = readTEMbField(
+                            mb,
+                            QStringLiteral("ref_idx_l0[%1]").arg(subIndex),
+                            slice.numRefIdxL0ActiveMinus1);
                     }
                 }
 
-                for (const SubMacroblock &subMb : subMacroblocks) {
+                for (int subIndex = 0; subIndex < static_cast<int>(subMacroblocks.size()); ++subIndex) {
+                    const SubMacroblock &subMb = subMacroblocks[subIndex];
                     for (int part = 0; part < subMb.partitionCount; ++part) {
-                        const int mvdX = reader.readSE();
-                        const int mvdY = reader.readSE();
+                        const int mvdX = readSEMBField(
+                            mb,
+                            QStringLiteral("mvd_l0[%1][%2][0]").arg(subIndex).arg(part));
+                        const int mvdY = readSEMBField(
+                            mb,
+                            QStringLiteral("mvd_l0[%1][%2][1]").arg(subIndex).arg(part));
                         const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, subMb.refIndex);
                         addMotionVector(mb, 0, subMb.refIndex, predicted.mvX + mvdX, predicted.mvY + mvdY);
                     }
@@ -1859,13 +1993,16 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
 
             if (!p8x8 && slice.numRefIdxL0ActiveMinus1 > 0) {
                 for (int i = 0; i < partitionCount; ++i) {
-                    partitions[i].refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
+                    partitions[i].refIndex = readTEMbField(
+                        mb,
+                        QStringLiteral("ref_idx_l0[%1]").arg(i),
+                        slice.numRefIdxL0ActiveMinus1);
                 }
             }
             if (!p8x8) {
                 for (int i = 0; i < partitionCount; ++i) {
-                    partitions[i].mvdX = reader.readSE();
-                    partitions[i].mvdY = reader.readSE();
+                    partitions[i].mvdX = readSEMBField(mb, QStringLiteral("mvd_l0[%1][0]").arg(i));
+                    partitions[i].mvdY = readSEMBField(mb, QStringLiteral("mvd_l0[%1][1]").arg(i));
                     const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, partitions[i].refIndex);
                     partitions[i].mvX = predicted.mvX + partitions[i].mvdX;
                     partitions[i].mvY = predicted.mvY + partitions[i].mvdY;
@@ -1888,22 +2025,28 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             if (slice.numRefIdxL0ActiveMinus1 > 0) {
                 for (int i = 0; i < modes.partitionCount; ++i) {
                     if (modes.modes[i] == PredictionList::L0 || modes.modes[i] == PredictionList::Bi) {
-                        l0Partitions[i].refIndex = readTE(slice.numRefIdxL0ActiveMinus1);
+                        l0Partitions[i].refIndex = readTEMbField(
+                            mb,
+                            QStringLiteral("ref_idx_l0[%1]").arg(i),
+                            slice.numRefIdxL0ActiveMinus1);
                     }
                 }
             }
             if (slice.numRefIdxL1ActiveMinus1 > 0) {
                 for (int i = 0; i < modes.partitionCount; ++i) {
                     if (modes.modes[i] == PredictionList::L1 || modes.modes[i] == PredictionList::Bi) {
-                        l1Partitions[i].refIndex = readTE(slice.numRefIdxL1ActiveMinus1);
+                        l1Partitions[i].refIndex = readTEMbField(
+                            mb,
+                            QStringLiteral("ref_idx_l1[%1]").arg(i),
+                            slice.numRefIdxL1ActiveMinus1);
                     }
                 }
             }
 
             for (int i = 0; i < modes.partitionCount; ++i) {
                 if (modes.modes[i] == PredictionList::L0 || modes.modes[i] == PredictionList::Bi) {
-                    l0Partitions[i].mvdX = reader.readSE();
-                    l0Partitions[i].mvdY = reader.readSE();
+                    l0Partitions[i].mvdX = readSEMBField(mb, QStringLiteral("mvd_l0[%1][0]").arg(i));
+                    l0Partitions[i].mvdY = readSEMBField(mb, QStringLiteral("mvd_l0[%1][1]").arg(i));
                     const MacroblockMvState predicted = predictMv(mvStatesL0, mb.address, l0Partitions[i].refIndex);
                     l0Partitions[i].mvX = predicted.mvX + l0Partitions[i].mvdX;
                     l0Partitions[i].mvY = predicted.mvY + l0Partitions[i].mvdY;
@@ -1912,8 +2055,8 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             }
             for (int i = 0; i < modes.partitionCount; ++i) {
                 if (modes.modes[i] == PredictionList::L1 || modes.modes[i] == PredictionList::Bi) {
-                    l1Partitions[i].mvdX = reader.readSE();
-                    l1Partitions[i].mvdY = reader.readSE();
+                    l1Partitions[i].mvdX = readSEMBField(mb, QStringLiteral("mvd_l1[%1][0]").arg(i));
+                    l1Partitions[i].mvdY = readSEMBField(mb, QStringLiteral("mvd_l1[%1][1]").arg(i));
                     const MacroblockMvState predicted = predictMv(mvStatesL1, mb.address, l1Partitions[i].refIndex);
                     l1Partitions[i].mvX = predicted.mvX + l1Partitions[i].mvdX;
                     l1Partitions[i].mvY = predicted.mvY + l1Partitions[i].mvdY;
@@ -1933,18 +2076,19 @@ void H264Parser::parseSliceData(BitReader &reader, SliceInfo &slice, const PpsIn
             mb.codedBlockPatternLuma = (typeOffset / 12) != 0 ? 15 : 0;
             mb.codedBlockPattern = mb.codedBlockPatternLuma | (mb.codedBlockPatternChroma << 4);
         } else {
-            mb.codedBlockPattern = codedBlockPatternFromCodeNum(reader.readUE(), intra, chromaArrayType);
+            const quint32 codedBlockPatternCodeNum = readUEMbField(mb, QStringLiteral("coded_block_pattern"));
+            mb.codedBlockPattern = codedBlockPatternFromCodeNum(codedBlockPatternCodeNum, intra, chromaArrayType);
             mb.codedBlockPatternLuma = mb.codedBlockPattern & 0x0f;
             mb.codedBlockPatternChroma = (mb.codedBlockPattern >> 4) & 0x03;
             if (mb.codedBlockPatternLuma > 0 && pps.transform8x8ModeFlag && !intra) {
-                transform8x8 = reader.readBit();
+                transform8x8 = readBitMbField(mb, QStringLiteral("transform_size_8x8_flag"));
             }
         }
 
         const bool hasResidual = intra16x16 || mb.codedBlockPatternLuma > 0 || mb.codedBlockPatternChroma > 0;
         MacroblockCoeffState coeffState;
         if (hasResidual) {
-            mb.mbQpDelta = reader.readSE();
+            mb.mbQpDelta = readSEMBField(mb, QStringLiteral("mb_qp_delta"));
             currentQp = (currentQp + mb.mbQpDelta + 52) % 52;
             mb.qp = currentQp;
             if (!parseResidual(mb, intra16x16, transform8x8, coeffState) || reader.hasError()) {

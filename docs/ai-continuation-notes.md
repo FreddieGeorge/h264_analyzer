@@ -61,6 +61,31 @@ Implemented capabilities:
   `FrameAnalysis` records separately, and `MainWindow` lists them in
   `FrameListView` without routing them through `VideoCanvas` or old-frame
   rebuffering.
+- The access-unit list now has a toolbar stream selector plus All / Video /
+  Audio / Diagnostics-only filtering. This is a list/analysis filter over
+  discovered streams; it does not yet switch the FFmpeg playback stream or add
+  audio-only analysis mode.
+- `FrameAnalysis` carries packet metadata and raw packet bytes through
+  `PacketRawData`: container packet index, per-stream packet index, stream
+  index, media kind, codec kind, PTS/DTS, duration, byte position, packet size,
+  keyframe flag, and raw bytes. JSON/CSV exports include packet metadata and
+  raw-byte size, not full raw bytes.
+- `BitstreamHexView` is a read-only hex dock for the selected access unit's
+  packet bytes. It renders bounded 4096-byte pages, highlights the byte range
+  for a selected `AnalysisBitField`, shows the selected bit/byte range plus an
+  ASCII bit mask preview, and lets a hex-byte click select a covering syntax
+  field in `PropertyTreeView`. When multiple fields cover the same byte, it
+  opens a small selection menu. It does not yet provide graphical sub-byte
+  decoration or full offset normalization for macroblock fields/container
+  wrappers.
+- `AnalysisBitField` now carries `offsetBasis`. AAC/MP3 header fields are
+  packet-relative. H.264 SPS/PPS/slice fields are currently RBSP-relative
+  because they come from the post-NAL-header, emulation-prevention-stripped
+  reader, but the parser now also records normalized packet bit ranges for
+  SPS/PPS/slice header fields and selected macroblock syntax fields using an
+  EBSP/RBSP mapping table. The hex dock uses those packet bit ranges for
+  accurate raw packet highlighting, including fields split by
+  emulation-prevention bytes.
 - Custom H.264 parser for Annex B and AVCC/length-prefixed packets.
 - SPS/PPS/Slice Header parsing with VUI/timing/aspect/bitstream restriction and field bit metadata where practical.
 - Basic CAVLC `slice_data` parsing for common baseline/main-profile paths:
@@ -313,6 +338,14 @@ Current foundation:
 - `FrameListView` now displays video and audio access units together. Selecting
   an audio access unit updates `PropertyTreeView` and JSON export state, but it
   does not trigger video seek/rebuffer.
+- `FrameListView` can filter displayed access units by stream, media kind, or
+  diagnostics. Hidden audio access units remain separate from `VideoCanvas` and
+  old-frame rebuffer behavior.
+- `PropertyTreeView` shows packet metadata for parsed access units. This is the
+  data foundation for a future hex/bit view linked to `AnalysisBitField`
+  offsets.
+- A first `BitstreamHexView` dock now consumes that foundation directly from
+  `FrameAnalysis::packet.bytes`.
 
 Current limitation:
 
@@ -327,9 +360,10 @@ Current limitation:
 Recommended next step:
 
 - Add a thin `MediaDecoder`/stream-selection layer or split the current
-  `FFmpegDecoder` video path from packet/access-unit parsing. Use the existing
-  AAC/MP3 skeletons as the first audio proofs for explicit stream selection and
-  better filtering before adding deep audio syntax.
+  `FFmpegDecoder` video path from packet/access-unit parsing. The current UI
+  stream selector filters the access-unit list only; use the existing AAC/MP3
+  skeletons as the first audio proofs for actual stream switching or
+  audio-only analysis before adding deep audio syntax.
 - For deeper HEVC work, extend the existing skeleton from NALU/VPS/SPS/PPS/VCL
   detection into SPS dimensions, slice headers, and CTU regions. For AV1, start
   with OBUs and superblock regions; for VP9, start with frame headers and

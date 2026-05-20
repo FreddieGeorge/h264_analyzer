@@ -19,7 +19,7 @@ FrameListView::FrameListView(QWidget *parent)
 {
     setObjectName(QStringLiteral("FrameListView"));
     setColumnCount(6);
-    setHeaderLabels({tr("Index"), tr("Stream"), tr("Kind"), tr("Type"), tr("PTS"), tr("Details")});
+    setHeaderLabels({tr("AU Index"), tr("Stream"), tr("Media"), tr("Type"), tr("PTS"), tr("Details")});
     setRootIsDecorated(false);
     setAlternatingRowColors(true);
     setUniformRowHeights(true);
@@ -49,9 +49,7 @@ void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
     }
 
     const QString type = !analysis.frameType.isEmpty() ? analysis.frameType : QStringLiteral("-");
-    const QString kind = analysis.accessUnitKind == AccessUnitKind::VideoFrame
-        ? tr("Video")
-        : tr("Audio");
+    const QString kind = mediaKindName(analysis.mediaKind);
     const QString details = analysis.accessUnitKind == AccessUnitKind::VideoFrame
         ? tr("POC %1, frame_num %2")
               .arg(analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-"))
@@ -70,6 +68,7 @@ void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
             existing->setText(4, QString::number(analysis.pts));
             existing->setText(5, details);
             existing->setData(0, AnalysisRole, QVariant::fromValue(analysis));
+            existing->setHidden(!itemMatchesFilters(existing));
             return;
         }
     }
@@ -84,6 +83,7 @@ void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
             existing->setText(4, QString::number(analysis.pts));
             existing->setText(5, details);
             existing->setData(0, AnalysisRole, QVariant::fromValue(analysis));
+            existing->setHidden(!itemMatchesFilters(existing));
             return;
         }
     }
@@ -101,6 +101,7 @@ void FrameListView::addFrameAnalysis(const FrameAnalysis &analysis)
     item->setData(0, AccessUnitKindRole, static_cast<int>(analysis.accessUnitKind));
     item->setData(0, AnalysisRole, QVariant::fromValue(analysis));
     addTopLevelItem(item);
+    item->setHidden(!itemMatchesFilters(item));
 }
 
 bool FrameListView::selectFrameIndex(int frameIndex, bool scrollToSelection)
@@ -127,7 +128,8 @@ bool FrameListView::selectFrameIndex(int frameIndex, bool scrollToSelection)
     if (frameIndex >= 0 && frameIndex < topLevelItemCount()) {
         QTreeWidgetItem *item = topLevelItem(frameIndex);
         if (item->data(0, FrameIndexRole).toInt() == frameIndex
-            && static_cast<AccessUnitKind>(item->data(0, AccessUnitKindRole).toInt()) == AccessUnitKind::VideoFrame) {
+            && static_cast<AccessUnitKind>(item->data(0, AccessUnitKindRole).toInt()) == AccessUnitKind::VideoFrame
+            && !item->isHidden()) {
             const QSignalBlocker blocker(this);
             setCurrentItem(item);
             if (scrollToSelection) {
@@ -150,6 +152,9 @@ bool FrameListView::selectFrameIndex(int frameIndex, bool scrollToSelection)
             if (static_cast<AccessUnitKind>(item->data(0, AccessUnitKindRole).toInt()) != AccessUnitKind::VideoFrame) {
                 continue;
             }
+            if (item->isHidden()) {
+                continue;
+            }
             const QSignalBlocker blocker(this);
             setCurrentItem(item);
             if (scrollToSelection) {
@@ -162,6 +167,66 @@ bool FrameListView::selectFrameIndex(int frameIndex, bool scrollToSelection)
     }
 
     return false;
+}
+
+void FrameListView::setStreamFilter(int streamIndex)
+{
+    if (m_streamFilter == streamIndex) {
+        return;
+    }
+    m_streamFilter = streamIndex;
+    applyFilters();
+}
+
+void FrameListView::setAccessUnitFilter(AccessUnitFilter filter)
+{
+    if (m_accessUnitFilter == filter) {
+        return;
+    }
+    m_accessUnitFilter = filter;
+    applyFilters();
+}
+
+void FrameListView::applyFilters()
+{
+    for (int row = 0; row < topLevelItemCount(); ++row) {
+        QTreeWidgetItem *item = topLevelItem(row);
+        item->setHidden(!itemMatchesFilters(item));
+    }
+}
+
+bool FrameListView::itemMatchesFilters(const QTreeWidgetItem *item) const
+{
+    if (item == nullptr) {
+        return false;
+    }
+
+    const QVariant frameIndex = item->data(0, FrameIndexRole);
+    if (!frameIndex.isValid()) {
+        return true;
+    }
+
+    const QVariant analysisValue = item->data(0, AnalysisRole);
+    if (!analysisValue.canConvert<FrameAnalysis>()) {
+        return true;
+    }
+
+    const FrameAnalysis analysis = analysisValue.value<FrameAnalysis>();
+    if (m_streamFilter >= 0 && analysis.streamIndex != m_streamFilter) {
+        return false;
+    }
+
+    switch (m_accessUnitFilter) {
+    case AccessUnitFilter::Video:
+        return analysis.mediaKind == MediaKind::Video;
+    case AccessUnitFilter::Audio:
+        return analysis.mediaKind == MediaKind::Audio;
+    case AccessUnitFilter::DiagnosticsOnly:
+        return !analysis.diagnostics.isEmpty();
+    case AccessUnitFilter::All:
+    default:
+        return true;
+    }
 }
 
 void FrameListView::handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)

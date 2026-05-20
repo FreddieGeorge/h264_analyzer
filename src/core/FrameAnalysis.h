@@ -4,6 +4,7 @@
 #include "core/MediaTypes.h"
 
 #include <QMetaType>
+#include <QByteArray>
 #include <QString>
 #include <QVariant>
 #include <QVector>
@@ -26,6 +27,13 @@ enum class AnalysisRegionKind
     Superblock
 };
 
+struct AnalysisBitRange
+{
+    qsizetype bitOffset = 0;
+    qsizetype bitLength = 0;
+    QString offsetBasis = QStringLiteral("packet");
+};
+
 struct AnalysisBitField
 {
     QString path;
@@ -33,6 +41,8 @@ struct AnalysisBitField
     qsizetype bitOffset = 0;
     qsizetype bitLength = 0;
     QString value;
+    QString offsetBasis = QStringLiteral("packet");
+    QVector<AnalysisBitRange> packetBitRanges;
 };
 
 struct AnalysisDiagnostic
@@ -89,6 +99,22 @@ struct AnalysisMotionVector
     int mvYQuarterPel = 0;
 };
 
+struct PacketRawData
+{
+    int containerPacketIndex = -1;
+    int streamPacketIndex = -1;
+    int streamIndex = -1;
+    MediaKind mediaKind = MediaKind::Unknown;
+    CodecKind codecKind = CodecKind::Unknown;
+    qint64 pts = 0;
+    qint64 dts = 0;
+    qint64 duration = 0;
+    qint64 position = -1;
+    qsizetype size = 0;
+    bool keyframe = false;
+    QByteArray bytes;
+};
+
 struct FrameAnalysis
 {
     int frameIndex = -1;
@@ -109,6 +135,7 @@ struct FrameAnalysis
     QVector<AnalysisMotionVector> motionVectors;
     QVector<AnalysisDiagnostic> diagnostics;
     QVector<AnalysisBitField> bitFields;
+    PacketRawData packet;
     QVariant codecSpecificDetails;
 };
 
@@ -116,9 +143,11 @@ QString analysisUnitKindName(AnalysisUnitKind kind);
 QString analysisRegionKindName(AnalysisRegionKind kind);
 
 Q_DECLARE_METATYPE(AnalysisBitField)
+Q_DECLARE_METATYPE(AnalysisBitRange)
 Q_DECLARE_METATYPE(AnalysisDiagnostic)
 Q_DECLARE_METATYPE(AnalysisUnit)
 Q_DECLARE_METATYPE(AnalysisParameterSet)
 Q_DECLARE_METATYPE(AnalysisRegion)
 Q_DECLARE_METATYPE(AnalysisMotionVector)
+Q_DECLARE_METATYPE(PacketRawData)
 Q_DECLARE_METATYPE(FrameAnalysis)

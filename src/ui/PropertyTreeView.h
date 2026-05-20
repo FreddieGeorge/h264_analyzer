@@ -15,8 +15,14 @@ public:
 
     void showPlaceholder(const QString &message);
     void showFrameAnalysis(const FrameAnalysis &analysis);
+    void selectBitField(const AnalysisBitField &field);
+
+signals:
+    void bitFieldSelected(const AnalysisBitField &field);
 
 private:
+    void handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+    bool selectBitFieldRecursive(QTreeWidgetItem *item, const AnalysisBitField &field);
     void showContextMenu(const QPoint &position);
     QString itemRowText(const QTreeWidgetItem *item) const;
     QString itemSubtreeText(const QTreeWidgetItem *item, int depth = 0) const;

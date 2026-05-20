@@ -35,6 +35,7 @@ struct FrameSeekCheckpoint
 {
     int frameIndex = -1;
     int packetIndex = -1;
+    int containerPacketIndex = -1;
     qint64 packetPosition = -1;
     qint64 packetPts = AV_NOPTS_VALUE;
     qint64 packetDts = AV_NOPTS_VALUE;
@@ -96,6 +97,7 @@ private:
 
     int m_videoStreamIndex = -1;
     int m_packetIndex = 0;
+    int m_containerPacketIndex = 0;
     bool m_draining = false;
     StreamInfo m_streamInfo;
     std::unique_ptr<IBitstreamParser> m_parser;

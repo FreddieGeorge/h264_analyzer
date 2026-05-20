@@ -145,12 +145,23 @@ QJsonObject sliceToJson(const SliceInfo &slice)
 
 QJsonObject bitFieldToJson(const AnalysisBitField &field)
 {
+    QJsonArray packetBitRanges;
+    for (const AnalysisBitRange &range : field.packetBitRanges) {
+        packetBitRanges.append(QJsonObject {
+            {QStringLiteral("bit_offset"), static_cast<double>(range.bitOffset)},
+            {QStringLiteral("bit_length"), static_cast<double>(range.bitLength)},
+            {QStringLiteral("offset_basis"), range.offsetBasis}
+        });
+    }
+
     return {
         {QStringLiteral("path"), field.path},
         {QStringLiteral("name"), field.name},
         {QStringLiteral("bit_offset"), static_cast<double>(field.bitOffset)},
         {QStringLiteral("bit_length"), static_cast<double>(field.bitLength)},
-        {QStringLiteral("value"), field.value}
+        {QStringLiteral("value"), field.value},
+        {QStringLiteral("offset_basis"), field.offsetBasis},
+        {QStringLiteral("packet_bit_ranges"), packetBitRanges}
     };
 }
 }
@@ -312,6 +323,23 @@ QJsonObject frameAnalysisToJson(const FrameAnalysis &analysis)
         bitFields.append(bitFieldToJson(field));
     }
 
+    const QJsonObject packet {
+        {QStringLiteral("packet_index"), analysis.packet.streamPacketIndex},
+        {QStringLiteral("stream_packet_index"), analysis.packet.streamPacketIndex},
+        {QStringLiteral("container_packet_index"), analysis.packet.containerPacketIndex},
+        {QStringLiteral("stream_index"), analysis.packet.streamIndex},
+        {QStringLiteral("media_kind"), mediaKindName(analysis.packet.mediaKind)},
+        {QStringLiteral("codec"), codecKindName(analysis.packet.codecKind)},
+        {QStringLiteral("pts"), static_cast<double>(analysis.packet.pts)},
+        {QStringLiteral("dts"), static_cast<double>(analysis.packet.dts)},
+        {QStringLiteral("duration"), static_cast<double>(analysis.packet.duration)},
+        {QStringLiteral("pos"), static_cast<double>(analysis.packet.position)},
+        {QStringLiteral("size"), static_cast<double>(analysis.packet.size)},
+        {QStringLiteral("keyframe"), analysis.packet.keyframe},
+        {QStringLiteral("raw_bytes_available"), !analysis.packet.bytes.isEmpty()},
+        {QStringLiteral("raw_bytes_size"), analysis.packet.bytes.size()}
+    };
+
     return {
         {QStringLiteral("index"), analysis.frameIndex},
         {QStringLiteral("stream_index"), analysis.streamIndex},
@@ -330,7 +358,8 @@ QJsonObject frameAnalysisToJson(const FrameAnalysis &analysis)
         {QStringLiteral("regions"), regions},
         {QStringLiteral("motion_vectors"), motionVectors},
         {QStringLiteral("diagnostics"), diagnostics},
-        {QStringLiteral("bit_fields"), bitFields}
+        {QStringLiteral("bit_fields"), bitFields},
+        {QStringLiteral("packet"), packet}
     };
 }
 

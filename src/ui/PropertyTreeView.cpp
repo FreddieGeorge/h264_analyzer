@@ -4,11 +4,14 @@
 #include "core/H264Parser.h"
 
 #include <QApplication>
+#include <QAbstractItemView>
 #include <QClipboard>
 #include <QMenu>
 #include <QObject>
 #include <QPoint>
+#include <QStringList>
 #include <QTreeWidgetItem>
+#include <QVariant>
 
 #include <algorithm>
 #include <optional>
@@ -16,6 +19,20 @@
 namespace
 {
 constexpr int MaxDisplayedMacroblocks = 256;
+constexpr int BitFieldRole = Qt::UserRole + 1;
+
+QString packetBitRangesText(const QVector<AnalysisBitRange> &ranges)
+{
+    if (ranges.isEmpty()) {
+        return QObject::tr("-");
+    }
+
+    QStringList parts;
+    for (const AnalysisBitRange &range : ranges) {
+        parts.append(QObject::tr("%1+%2").arg(range.bitOffset).arg(range.bitLength));
+    }
+    return parts.join(QStringLiteral(", "));
+}
 
 QString boolValue(bool value)
 {
@@ -184,6 +201,8 @@ PropertyTreeView::PropertyTreeView(QWidget *parent)
     setUniformRowHeights(false);
     setWordWrap(true);
     setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, &QTreeWidget::currentItemChanged,
+            this, &PropertyTreeView::handleCurrentItemChanged);
     connect(this, &QTreeWidget::customContextMenuRequested,
             this, &PropertyTreeView::showContextMenu);
     showPlaceholder(tr("Open a stream to inspect syntax properties."));
@@ -218,6 +237,55 @@ void PropertyTreeView::showFrameAnalysis(const FrameAnalysis &analysis)
     expandToDepth(1);
 }
 
+void PropertyTreeView::handleCurrentItemChanged(QTreeWidgetItem *current, QTreeWidgetItem *previous)
+{
+    Q_UNUSED(previous);
+    if (current == nullptr) {
+        return;
+    }
+
+    const QVariant value = current->data(0, BitFieldRole);
+    if (value.canConvert<AnalysisBitField>()) {
+        emit bitFieldSelected(value.value<AnalysisBitField>());
+    }
+}
+
+void PropertyTreeView::selectBitField(const AnalysisBitField &field)
+{
+    for (int i = 0; i < topLevelItemCount(); ++i) {
+        if (selectBitFieldRecursive(topLevelItem(i), field)) {
+            return;
+        }
+    }
+}
+
+bool PropertyTreeView::selectBitFieldRecursive(QTreeWidgetItem *item, const AnalysisBitField &field)
+{
+    if (item == nullptr) {
+        return false;
+    }
+
+    const QVariant value = item->data(0, BitFieldRole);
+    if (value.canConvert<AnalysisBitField>()) {
+        const AnalysisBitField candidate = value.value<AnalysisBitField>();
+        if (candidate.bitOffset == field.bitOffset
+            && candidate.bitLength == field.bitLength
+            && (candidate.name == field.name || candidate.path == field.path)) {
+            setCurrentItem(item);
+            scrollToItem(item, QAbstractItemView::PositionAtCenter);
+            return true;
+        }
+    }
+
+    for (int i = 0; i < item->childCount(); ++i) {
+        if (selectBitFieldRecursive(item->child(i), field)) {
+            item->setExpanded(true);
+            return true;
+        }
+    }
+    return false;
+}
+
 void PropertyTreeView::addFrameAnalysisSummary(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
 {
     auto *summaryRoot = new QTreeWidgetItem(parent, {tr("Summary"), analysis.frameType.isEmpty() ? QStringLiteral("-") : analysis.frameType});
@@ -237,6 +305,22 @@ void PropertyTreeView::addFrameAnalysisSummary(QTreeWidgetItem *parent, const Fr
     addPair(summaryRoot, tr("motion_vectors"), QString::number(analysis.motionVectors.size()));
     addPair(summaryRoot, tr("diagnostics"), QString::number(analysis.diagnostics.size()));
     addPair(summaryRoot, tr("bit_fields"), QString::number(analysis.bitFields.size()));
+
+    if (analysis.packet.streamPacketIndex >= 0 || analysis.packet.containerPacketIndex >= 0 || analysis.packet.size > 0) {
+        auto *packetRoot = new QTreeWidgetItem(parent, {tr("Packet"), QString()});
+        addPair(packetRoot, tr("stream_packet_index"), QString::number(analysis.packet.streamPacketIndex));
+        addPair(packetRoot, tr("container_packet_index"), QString::number(analysis.packet.containerPacketIndex));
+        addPair(packetRoot, tr("stream_index"), QString::number(analysis.packet.streamIndex));
+        addPair(packetRoot, tr("media_kind"), mediaKindName(analysis.packet.mediaKind));
+        addPair(packetRoot, tr("codec"), codecKindName(analysis.packet.codecKind));
+        addPair(packetRoot, tr("pts"), QString::number(analysis.packet.pts));
+        addPair(packetRoot, tr("dts"), QString::number(analysis.packet.dts));
+        addPair(packetRoot, tr("duration"), QString::number(analysis.packet.duration));
+        addPair(packetRoot, tr("pos"), QString::number(analysis.packet.position));
+        addPair(packetRoot, tr("size"), QString::number(analysis.packet.size));
+        addPair(packetRoot, tr("keyframe"), boolValue(analysis.packet.keyframe));
+        addPair(packetRoot, tr("raw_bytes"), tr("%1 bytes available").arg(analysis.packet.bytes.size()));
+    }
 }
 
 void PropertyTreeView::addOverlayAvailability(QTreeWidgetItem *parent, const FrameAnalysis &analysis)
@@ -286,6 +370,15 @@ void PropertyTreeView::addFrameAnalysisParameterSets(QTreeWidgetItem *parent, co
         auto *setItem = new QTreeWidgetItem(setsRoot, {parameterSet.kind, QString::number(parameterSet.id)});
         addPair(setItem, tr("summary"), parameterSet.summary);
         addPair(setItem, tr("bit_fields"), QString::number(parameterSet.bitFields.size()));
+        for (const AnalysisBitField &field : parameterSet.bitFields) {
+            auto *fieldItem = new QTreeWidgetItem(setItem, {field.name, field.value});
+            fieldItem->setData(0, BitFieldRole, QVariant::fromValue(field));
+            addPair(fieldItem, tr("path"), field.path);
+            addPair(fieldItem, tr("bit_offset"), QString::number(field.bitOffset));
+            addPair(fieldItem, tr("bit_length"), QString::number(field.bitLength));
+            addPair(fieldItem, tr("offset_basis"), field.offsetBasis);
+            addPair(fieldItem, tr("packet_bit_ranges"), packetBitRangesText(field.packetBitRanges));
+        }
     }
 }
 
@@ -364,9 +457,12 @@ void PropertyTreeView::addFrameAnalysisBitFields(QTreeWidgetItem *parent, const 
     auto *fieldsRoot = new QTreeWidgetItem(parent, {tr("Bit Fields"), QString::number(analysis.bitFields.size())});
     for (const AnalysisBitField &field : analysis.bitFields) {
         auto *fieldItem = new QTreeWidgetItem(fieldsRoot, {field.name, field.value});
+        fieldItem->setData(0, BitFieldRole, QVariant::fromValue(field));
         addPair(fieldItem, tr("path"), field.path);
         addPair(fieldItem, tr("bit_offset"), QString::number(field.bitOffset));
         addPair(fieldItem, tr("bit_length"), QString::number(field.bitLength));
+        addPair(fieldItem, tr("offset_basis"), field.offsetBasis);
+        addPair(fieldItem, tr("packet_bit_ranges"), packetBitRangesText(field.packetBitRanges));
     }
 }
 
@@ -394,7 +490,16 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
                 .arg(field.value)
                 .arg(field.bitOffset)
                 .arg(field.bitLength);
-            addPair(fieldsRoot, field.name, value);
+            QTreeWidgetItem *fieldItem = addPair(fieldsRoot, field.name, value);
+            fieldItem->setData(0, BitFieldRole, QVariant::fromValue(AnalysisBitField {
+                QString {},
+                field.name,
+                field.bitOffset,
+                field.bitLength,
+                field.value,
+                QStringLiteral("rbsp"),
+                field.packetBitRanges
+            }));
         }
     };
 

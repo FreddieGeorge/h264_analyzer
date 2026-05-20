@@ -91,6 +91,8 @@ set(ZSTREAMEYE_SOURCES
     src/core/StreamDocument.cpp
     src/ui/FrameListView.h
     src/ui/FrameListView.cpp
+    src/ui/BitstreamHexView.h
+    src/ui/BitstreamHexView.cpp
     src/ui/LogDock.h
     src/ui/LogDock.cpp
     src/ui/PropertyTreeView.h

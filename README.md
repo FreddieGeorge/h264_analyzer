@@ -25,6 +25,12 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Provide an MP3 frame-header parser skeleton for MPEG audio frame access units.
 - List parsed audio access units from discovered AAC/MP3 audio streams alongside
   video frames, and show their generic fields in the property tree.
+- Filter the access-unit list by discovered container stream, by video/audio
+  media kind, or to access units that carry diagnostics.
+- Preserve packet metadata and raw packet bytes on parsed access units so later
+  hex/bit views can trace fields back to packet evidence.
+- Show a read-only bitstream hex dock for the selected access unit's packet
+  bytes, with byte-range highlighting driven by syntax bit-field selection.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
@@ -38,7 +44,7 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Persist window layout, dock positions, overlay toggles, opacity, and recent open/export directories.
 - Export selected access-unit syntax JSON, access-unit list CSV, screenshots
   with overlays, and all decoded access-unit syntax JSON with schema/version
-  and stream metadata.
+  and stream/packet metadata.
 - Generate a Windows portable package that includes Qt, FFmpeg, and runtime DLLs.
 - Check GitHub Releases for updates from `Help -> Check for Updates`.
 
@@ -250,7 +256,15 @@ Key modules:
 - `DecodeWorker`: runs decoding on a background `QThread`.
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
 - `VideoCanvas`: renders video frames and analysis overlays.
-- `FrameListView` and `PropertyTreeView`: display parsed frame and syntax information.
+- `FrameListView` and `PropertyTreeView`: display parsed access units, packet
+  metadata, and syntax information.
+- `BitstreamHexView`: displays selected access-unit packet bytes in bounded
+  pages, highlights byte ranges for selected bit fields, shows a bit-level
+  mask preview for the selected range, and can select a covering syntax field
+  when the user clicks a hex byte. Bit fields carry an `offset_basis`; packet
+  byte highlighting follows packet-relative fields directly and uses normalized
+  packet bit ranges for H.264 RBSP-relative SPS/PPS/slice header and selected
+  macroblock syntax fields.
 
 Recommended next work:
 
@@ -260,10 +274,14 @@ Recommended next work:
    already in place.
 3. Expand parser coverage beyond the focused CAVLC P_8x8/P_8x8ref0 and
    non-direct B-slice fixtures; keep B_Direct/B_8x8/CABAC diagnostics precise.
-4. Add explicit stream selection and richer packet/access-unit browsing on top
-   of the AAC/MP3 skeletons; keep audio analysis separate from `VideoCanvas`.
-5. Expose richer residual coefficient details and broaden macroblock support.
-6. Add a bitstream hex dock linked to existing syntax field bit offsets.
+4. Add richer packet/access-unit browsing on top of the AAC/MP3 skeletons; keep
+   audio analysis separate from `VideoCanvas`. The current stream selector
+   filters the decoded access-unit list; it does not yet switch the FFmpeg
+   playback stream or provide audio-only analysis.
+5. Expand the bitstream hex dock with graphical sub-byte decoration and broader
+   offset normalization for macroblock fields and container/elementary-stream
+   wrappers.
+6. Expose richer residual coefficient details and broaden macroblock support.
 
 For future AI/coding agents, see [docs/ai-continuation-notes.md](docs/ai-continuation-notes.md).
 For the longer-term StreamEye-class roadmap, see [docs/ai-streameye-roadmap.md](docs/ai-streameye-roadmap.md).

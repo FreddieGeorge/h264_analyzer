@@ -2,6 +2,7 @@
 
 #include "core/AnalysisExportWriter.h"
 #include "core/DecodeWorker.h"
+#include "ui/BitstreamHexView.h"
 #include "ui/FrameListView.h"
 #include "ui/LogDock.h"
 #include "ui/PropertyTreeView.h"
@@ -9,6 +10,7 @@
 
 #include <QAction>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDesktopServices>
@@ -41,6 +43,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStringList>
 #include <QStatusBar>
 #include <QStyle>
@@ -268,6 +271,30 @@ QString motionVectorStatusText(const FrameAnalysis &analysis)
     return QObject::tr("MV: no supported vectors parsed for this frame.");
 }
 
+QString streamSelectorText(const MediaStreamInfo &stream)
+{
+    const QString codec = stream.codecName.isEmpty()
+        ? codecKindName(stream.codecKind)
+        : stream.codecName;
+    QString detail;
+    if (stream.mediaKind == MediaKind::Video) {
+        detail = QObject::tr("%1x%2").arg(stream.width).arg(stream.height);
+    } else if (stream.mediaKind == MediaKind::Audio) {
+        detail = QObject::tr("%1 Hz, %2 ch").arg(stream.sampleRate).arg(stream.channels);
+    }
+
+    return detail.isEmpty()
+        ? QObject::tr("Stream #%1 %2 %3")
+              .arg(stream.streamIndex)
+              .arg(mediaKindName(stream.mediaKind))
+              .arg(codec)
+        : QObject::tr("Stream #%1 %2 %3 (%4)")
+              .arg(stream.streamIndex)
+              .arg(mediaKindName(stream.mediaKind))
+              .arg(codec)
+              .arg(detail);
+}
+
 QString safeInstallerFileName(QString fileName)
 {
     if (fileName.isEmpty()) {
@@ -289,6 +316,7 @@ MainWindow::MainWindow(QWidget *parent)
     qRegisterMetaType<DecodedVideoFramePtr>("DecodedVideoFramePtr");
     qRegisterMetaType<FrameSyntaxInfo>("FrameSyntaxInfo");
     qRegisterMetaType<FrameAnalysis>("FrameAnalysis");
+    qRegisterMetaType<PacketRawData>("PacketRawData");
     qRegisterMetaType<FrameSeekCheckpoint>("FrameSeekCheckpoint");
 
     setWindowTitle(tr("ZStreamEye"));
@@ -339,13 +367,13 @@ void MainWindow::createActions()
     m_stopAction = new QAction(style()->standardIcon(QStyle::SP_MediaStop), tr("Stop"), this);
     connect(m_stopAction, &QAction::triggered, this, &MainWindow::stopPlayback);
 
-    m_exportFrameSyntaxJsonAction = new QAction(tr("Export Frame Syntax JSON"), this);
+    m_exportFrameSyntaxJsonAction = new QAction(tr("Export Selected Access Unit JSON"), this);
     connect(m_exportFrameSyntaxJsonAction, &QAction::triggered, this, &MainWindow::exportFrameSyntaxJson);
 
-    m_exportAllFrameSyntaxJsonAction = new QAction(tr("Export All Decoded Frame Syntax JSON"), this);
+    m_exportAllFrameSyntaxJsonAction = new QAction(tr("Export All Decoded Access Units JSON"), this);
     connect(m_exportAllFrameSyntaxJsonAction, &QAction::triggered, this, &MainWindow::exportAllFrameSyntaxJson);
 
-    m_exportFrameListCsvAction = new QAction(tr("Export Frame List CSV"), this);
+    m_exportFrameListCsvAction = new QAction(tr("Export Access Unit List CSV"), this);
     connect(m_exportFrameListCsvAction, &QAction::triggered, this, &MainWindow::exportFrameListCsv);
 
     m_exportScreenshotAction = new QAction(tr("Export Screenshot"), this);
@@ -390,7 +418,7 @@ void MainWindow::createDocks()
     m_videoCanvas->setShowMotionVectors(m_showMotionVectorsAction->isChecked());
 
     m_frameListView = new FrameListView;
-    m_frameDock = new QDockWidget(tr("FrameListView"), this);
+    m_frameDock = new QDockWidget(tr("AccessUnitListView"), this);
     m_frameDock->setObjectName(QStringLiteral("FrameListDock"));
     m_frameDock->setWidget(m_frameListView);
     addDockWidget(Qt::LeftDockWidgetArea, m_frameDock);
@@ -406,6 +434,9 @@ void MainWindow::createDocks()
                 m_currentAnalysis = analysis;
                 m_hasCurrentAnalysis = true;
                 m_propertyTreeView->showFrameAnalysis(analysis);
+                if (m_hexView != nullptr) {
+                    m_hexView->showPacket(analysis);
+                }
                 updateExportActionState();
                 statusBar()->showMessage(
                     tr("Selected %1 access unit %2 on stream %3")
@@ -418,6 +449,20 @@ void MainWindow::createDocks()
     m_propertyDock->setObjectName(QStringLiteral("PropertyDock"));
     m_propertyDock->setWidget(m_propertyTreeView);
     addDockWidget(Qt::RightDockWidgetArea, m_propertyDock);
+
+    m_hexView = new BitstreamHexView;
+    m_hexDock = new QDockWidget(tr("Bitstream Hex"), this);
+    m_hexDock->setObjectName(QStringLiteral("BitstreamHexDock"));
+    m_hexDock->setWidget(m_hexView);
+    addDockWidget(Qt::BottomDockWidgetArea, m_hexDock);
+    connect(m_propertyTreeView, &PropertyTreeView::bitFieldSelected,
+            m_hexView, [this](const AnalysisBitField &field) {
+                if (m_hexView != nullptr) {
+                    m_hexView->highlightBitField(field);
+                }
+            });
+    connect(m_hexView, &BitstreamHexView::bitFieldActivated,
+            m_propertyTreeView, &PropertyTreeView::selectBitField);
 
     m_logDock = new LogDock;
     m_logDockWidget = new QDockWidget(tr("LogDock"), this);
@@ -443,6 +488,7 @@ void MainWindow::createMenus()
     QMenu *viewMenu = menuBar()->addMenu(tr("&View"));
     m_docksMenu = viewMenu->addMenu(tr("&Docks"));
     m_docksMenu->addAction(m_frameDock->toggleViewAction());
+    m_docksMenu->addAction(m_hexDock->toggleViewAction());
     m_docksMenu->addAction(m_propertyDock->toggleViewAction());
     m_docksMenu->addAction(m_logDockWidget->toggleViewAction());
     viewMenu->addSeparator();
@@ -492,6 +538,36 @@ void MainWindow::createToolBars()
             m_videoCanvas->setOverlayOpacity(value / 100.0f);
         }
     });
+
+    auto *accessUnitToolBar = addToolBar(tr("Access Units"));
+    accessUnitToolBar->setObjectName(QStringLiteral("AccessUnitToolBar"));
+    accessUnitToolBar->addWidget(new QLabel(tr("Stream"), accessUnitToolBar));
+    m_streamSelector = new QComboBox(accessUnitToolBar);
+    m_streamSelector->setMinimumWidth(220);
+    accessUnitToolBar->addWidget(m_streamSelector);
+    accessUnitToolBar->addSeparator();
+    accessUnitToolBar->addWidget(new QLabel(tr("Show"), accessUnitToolBar));
+    m_accessUnitFilterSelector = new QComboBox(accessUnitToolBar);
+    m_accessUnitFilterSelector->addItem(tr("All access units"), static_cast<int>(FrameListView::AccessUnitFilter::All));
+    m_accessUnitFilterSelector->addItem(tr("Video only"), static_cast<int>(FrameListView::AccessUnitFilter::Video));
+    m_accessUnitFilterSelector->addItem(tr("Audio only"), static_cast<int>(FrameListView::AccessUnitFilter::Audio));
+    m_accessUnitFilterSelector->addItem(tr("Diagnostics only"), static_cast<int>(FrameListView::AccessUnitFilter::DiagnosticsOnly));
+    accessUnitToolBar->addWidget(m_accessUnitFilterSelector);
+
+    connect(m_streamSelector, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (m_frameListView == nullptr || m_streamSelector == nullptr || index < 0) {
+            return;
+        }
+        m_frameListView->setStreamFilter(m_streamSelector->itemData(index).toInt());
+    });
+    connect(m_accessUnitFilterSelector, &QComboBox::currentIndexChanged, this, [this](int index) {
+        if (m_frameListView == nullptr || m_accessUnitFilterSelector == nullptr || index < 0) {
+            return;
+        }
+        m_frameListView->setAccessUnitFilter(
+            static_cast<FrameListView::AccessUnitFilter>(m_accessUnitFilterSelector->itemData(index).toInt()));
+    });
+    resetAccessUnitFilters();
 }
 
 void MainWindow::openStream()
@@ -532,7 +608,11 @@ void MainWindow::openStreamFile(const QString &filePath)
         tr("%1\n\nDecoding video stream...")
             .arg(stream.fileName));
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
+    if (m_hexView != nullptr) {
+        m_hexView->clearPacket(tr("Select an access unit to inspect packet bytes."));
+    }
     m_frameListView->clearFrames();
+    resetAccessUnitFilters();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_frameCache.clear();
     m_frameAnalysisByIndex.clear();
@@ -576,6 +656,7 @@ void MainWindow::startDecoder(const QString &filePath,
             return;
         }
         m_document.updateStreamInfo(streamInfo);
+        populateStreamSelector(streamInfo);
         const QString streamSummary = tr("Codec: %1, %2x%3, %4 fps, %5")
                                           .arg(streamInfo.codecName)
                                           .arg(streamInfo.width)
@@ -814,7 +895,7 @@ void MainWindow::exportFrameSyntaxJson()
                                     .arg(m_currentAnalysis.frameIndex, 5, 10, QLatin1Char('0'));
     const QString filePath = QFileDialog::getSaveFileName(
         this,
-        tr("Export Frame Syntax JSON"),
+        tr("Export Selected Access Unit JSON"),
         QDir(defaultExportDirectory()).filePath(defaultName),
         tr("JSON Files (*.json);;All Files (*)"));
     if (filePath.isEmpty()) {
@@ -850,7 +931,7 @@ void MainWindow::exportAllFrameSyntaxJson()
 
     const QString filePath = QFileDialog::getSaveFileName(
         this,
-        tr("Export All Decoded Access Unit Syntax JSON"),
+        tr("Export All Decoded Access Units JSON"),
         QDir(defaultExportDirectory()).filePath(QStringLiteral("decoded-access-unit-syntax.json")),
         tr("JSON Files (*.json);;All Files (*)"));
     if (filePath.isEmpty()) {
@@ -902,7 +983,8 @@ void MainWindow::exportFrameListCsv()
     }
 
     QTextStream out(&file);
-    out << "index,stream_index,media_kind,access_unit_kind,type,pts,dts,poc,frame_num\n";
+    out << "index,stream_index,media_kind,access_unit_kind,type,pts,dts,poc,frame_num,"
+           "stream_packet_index,container_packet_index,packet_pos,packet_size,packet_duration,keyframe,raw_bytes_size\n";
     for (const FrameAnalysis &analysis : std::as_const(m_accessUnitAnalyses)) {
         if (analysis.frameIndex < 0) {
             continue;
@@ -915,7 +997,14 @@ void MainWindow::exportFrameListCsv()
             << csvEscape(QString::number(analysis.pts)) << ','
             << csvEscape(QString::number(analysis.dts)) << ','
             << csvEscape(analysis.poc >= 0 ? QString::number(analysis.poc) : QStringLiteral("-")) << ','
-            << csvEscape(analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-")) << '\n';
+            << csvEscape(analysis.frameNum >= 0 ? QString::number(analysis.frameNum) : QStringLiteral("-")) << ','
+            << csvEscape(QString::number(analysis.packet.streamPacketIndex)) << ','
+            << csvEscape(QString::number(analysis.packet.containerPacketIndex)) << ','
+            << csvEscape(QString::number(analysis.packet.position)) << ','
+            << csvEscape(QString::number(analysis.packet.size)) << ','
+            << csvEscape(QString::number(analysis.packet.duration)) << ','
+            << csvEscape(analysis.packet.keyframe ? QStringLiteral("true") : QStringLiteral("false")) << ','
+            << csvEscape(QString::number(analysis.packet.bytes.size())) << '\n';
     }
 
     m_lastExportDirectory = QFileInfo(filePath).absolutePath();
@@ -1364,6 +1453,9 @@ void MainWindow::handleAccessUnitAnalysis(const FrameAnalysis &analysis)
         m_currentAnalysis = analysis;
         m_hasCurrentAnalysis = true;
         m_propertyTreeView->showFrameAnalysis(analysis);
+        if (m_hexView != nullptr) {
+            m_hexView->showPacket(analysis);
+        }
     }
     updateExportActionState();
 }
@@ -1434,6 +1526,9 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
         m_hasCurrentAnalysis = true;
         m_videoCanvas->setFrame(cached.frame);
         m_videoCanvas->setAnalysisOverlay(cached.analysis);
+        if (m_hexView != nullptr) {
+            m_hexView->showPacket(cached.analysis);
+        }
         if (updatePropertyTree) {
             m_propertyTreeView->showFrameAnalysis(cached.analysis);
             updateOverlayStatusHint(cached.analysis);
@@ -1627,6 +1722,54 @@ void MainWindow::updateOverlayStatusHint(const FrameAnalysis &analysis)
                 .arg(minQp)
                 .arg(maxQp),
             4000);
+    }
+}
+
+void MainWindow::resetAccessUnitFilters()
+{
+    if (m_streamSelector != nullptr) {
+        const QSignalBlocker blocker(m_streamSelector);
+        m_streamSelector->clear();
+        m_streamSelector->addItem(tr("All streams"), -1);
+        m_streamSelector->setCurrentIndex(0);
+        m_streamSelector->setEnabled(false);
+    }
+    if (m_accessUnitFilterSelector != nullptr) {
+        const QSignalBlocker blocker(m_accessUnitFilterSelector);
+        m_accessUnitFilterSelector->setCurrentIndex(0);
+        m_accessUnitFilterSelector->setEnabled(false);
+    }
+    if (m_frameListView != nullptr) {
+        m_frameListView->setStreamFilter(-1);
+        m_frameListView->setAccessUnitFilter(FrameListView::AccessUnitFilter::All);
+    }
+}
+
+void MainWindow::populateStreamSelector(const StreamInfo &streamInfo)
+{
+    if (m_streamSelector == nullptr || m_accessUnitFilterSelector == nullptr) {
+        return;
+    }
+
+    const QVariant currentFilter = m_streamSelector->currentData();
+    const int previousStreamFilter = currentFilter.isValid() ? currentFilter.toInt() : -1;
+
+    const QSignalBlocker blocker(m_streamSelector);
+    m_streamSelector->clear();
+    m_streamSelector->addItem(tr("All streams"), -1);
+    int selectedIndex = 0;
+    for (const MediaStreamInfo &stream : streamInfo.streams) {
+        m_streamSelector->addItem(streamSelectorText(stream), stream.streamIndex);
+        if (previousStreamFilter >= 0 && stream.streamIndex == previousStreamFilter) {
+            selectedIndex = m_streamSelector->count() - 1;
+        }
+    }
+    m_streamSelector->setCurrentIndex(selectedIndex);
+    m_streamSelector->setEnabled(!streamInfo.streams.isEmpty());
+    m_accessUnitFilterSelector->setEnabled(!streamInfo.streams.isEmpty());
+
+    if (m_frameListView != nullptr) {
+        m_frameListView->setStreamFilter(m_streamSelector->itemData(selectedIndex).toInt());
     }
 }
 

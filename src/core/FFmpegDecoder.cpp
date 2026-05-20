@@ -73,6 +73,35 @@ QString channelLayoutName(const AVCodecParameters *parameters)
     }
     return QString {};
 }
+
+PacketRawData packetRawDataFromAvPacket(const AVPacket *packet,
+                                        int containerPacketIndex,
+                                        int streamPacketIndex,
+                                        int streamIndex,
+                                        MediaKind mediaKind,
+                                        CodecKind codecKind)
+{
+    PacketRawData rawData;
+    rawData.containerPacketIndex = containerPacketIndex;
+    rawData.streamPacketIndex = streamPacketIndex;
+    rawData.streamIndex = streamIndex;
+    rawData.mediaKind = mediaKind;
+    rawData.codecKind = codecKind;
+    if (packet == nullptr) {
+        return rawData;
+    }
+
+    rawData.pts = packet->pts;
+    rawData.dts = packet->dts;
+    rawData.duration = packet->duration;
+    rawData.position = packet->pos;
+    rawData.size = packet->size;
+    rawData.keyframe = (packet->flags & AV_PKT_FLAG_KEY) != 0;
+    if (packet->data != nullptr && packet->size > 0) {
+        rawData.bytes = QByteArray(reinterpret_cast<const char *>(packet->data), packet->size);
+    }
+    return rawData;
+}
 }
 
 FFmpegDecoder::FFmpegDecoder()
@@ -209,6 +238,7 @@ bool FFmpegDecoder::openFile(const QString &filePath)
 
     m_videoStreamIndex = ret;
     m_packetIndex = 0;
+    m_containerPacketIndex = 0;
     AVStream *videoStream = m_formatContext->streams[m_videoStreamIndex];
 
     m_codecContext = avcodec_alloc_context3(decoder);
@@ -315,6 +345,7 @@ bool FFmpegDecoder::seekToCheckpoint(const FrameSeekCheckpoint &checkpoint)
         m_parser->restoreState(checkpoint.parserState);
     }
     m_packetIndex = std::max(0, checkpoint.packetIndex);
+    m_containerPacketIndex = std::max(0, checkpoint.containerPacketIndex);
     m_draining = false;
     m_lastError.clear();
     return true;
@@ -362,6 +393,7 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
                 m_draining = true;
                 break;
             }
+            const int containerPacketIndex = m_containerPacketIndex++;
 
             if (m_packet->stream_index != m_videoStreamIndex) {
                 for (StreamPacketParser &packetParser : m_packetParsers) {
@@ -373,13 +405,20 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
                     }
 
                     const QByteArray packetData(reinterpret_cast<const char *>(m_packet->data), m_packet->size);
+                    const int packetIndex = packetParser.packetIndex++;
                     FrameAnalysis analysis = packetParser.parser->parsePacket(packetData,
                                                                               m_packet->pts,
                                                                               m_packet->dts,
-                                                                              packetParser.packetIndex++);
+                                                                              packetIndex);
                     analysis.streamIndex = packetParser.streamIndex;
                     analysis.mediaKind = packetParser.mediaKind;
                     analysis.accessUnitKind = AccessUnitKind::AudioFrame;
+                    analysis.packet = packetRawDataFromAvPacket(m_packet,
+                                                                containerPacketIndex,
+                                                                packetIndex,
+                                                                packetParser.streamIndex,
+                                                                packetParser.mediaKind,
+                                                                analysis.codecKind);
                     m_pendingAccessUnitAnalyses.append(analysis);
                     break;
                 }
@@ -397,9 +436,16 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
                 analysis.streamIndex = m_videoStreamIndex;
                 analysis.mediaKind = MediaKind::Video;
                 analysis.accessUnitKind = AccessUnitKind::VideoFrame;
+                analysis.packet = packetRawDataFromAvPacket(m_packet,
+                                                            containerPacketIndex,
+                                                            packetIndex,
+                                                            m_videoStreamIndex,
+                                                            MediaKind::Video,
+                                                            analysis.codecKind);
                 if (analysis.hasFrame) {
                     FrameSeekCheckpoint checkpoint;
                     checkpoint.packetIndex = packetIndex;
+                    checkpoint.containerPacketIndex = containerPacketIndex;
                     checkpoint.packetPosition = m_packet->pos;
                     checkpoint.packetPts = m_packet->pts;
                     checkpoint.packetDts = m_packet->dts;
@@ -466,6 +512,7 @@ void FFmpegDecoder::close()
     m_draining = false;
     m_videoStreamIndex = -1;
     m_packetIndex = 0;
+    m_containerPacketIndex = 0;
     m_streamInfo = StreamInfo {};
     m_pendingFrames.clear();
     m_pendingAccessUnitAnalyses.clear();

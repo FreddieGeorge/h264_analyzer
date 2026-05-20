@@ -31,6 +31,8 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
             bitField.bitOffset = field.bitOffset;
             bitField.bitLength = field.bitLength;
             bitField.value = field.value;
+            bitField.offsetBasis = QStringLiteral("rbsp");
+            bitField.packetBitRanges = field.packetBitRanges;
             analysis.bitFields.append(bitField);
         }
     };
@@ -67,7 +69,9 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
                                                field.name,
                                                field.bitOffset,
                                                field.bitLength,
-                                               field.value});
+                                               field.value,
+                                               QStringLiteral("rbsp"),
+                                               field.packetBitRanges});
             }
             analysis.parameterSets.append(parameterSet);
             appendBitFields(naluPath + QStringLiteral("/sps"), nalu.sps.fields);
@@ -84,7 +88,9 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
                                                field.name,
                                                field.bitOffset,
                                                field.bitLength,
-                                               field.value});
+                                               field.value,
+                                               QStringLiteral("rbsp"),
+                                               field.packetBitRanges});
             }
             analysis.parameterSets.append(parameterSet);
             appendBitFields(naluPath + QStringLiteral("/pps"), nalu.pps.fields);
@@ -107,6 +113,7 @@ FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo)
         for (const MacroblockInfo &mb : slice.macroblocks) {
             const int mbX = mb.address % picWidthInMbs;
             const int mbY = mb.address / picWidthInMbs;
+            appendBitFields(slicePath + QStringLiteral("/macroblocks/%1").arg(mb.address), mb.fields);
 
             AnalysisRegion region;
             region.kind = AnalysisRegionKind::Macroblock;

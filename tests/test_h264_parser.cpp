@@ -589,7 +589,19 @@ void testFrameAnalysisMirrorsH264SyntaxFixture()
 void testFrameAnalysisExportSchemaFixture()
 {
     H264Parser parser;
-    const FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 11, 7, 3);
+    FrameAnalysis analysis = parser.parsePacket(loadFixture(QStringLiteral("cavlc_p_motion_vector.hex")), 11, 7, 3);
+    analysis.packet.streamPacketIndex = 3;
+    analysis.packet.containerPacketIndex = 9;
+    analysis.packet.streamIndex = 0;
+    analysis.packet.mediaKind = MediaKind::Video;
+    analysis.packet.codecKind = CodecKind::H264;
+    analysis.packet.pts = 11;
+    analysis.packet.dts = 7;
+    analysis.packet.duration = 2;
+    analysis.packet.position = 1234;
+    analysis.packet.size = 42;
+    analysis.packet.keyframe = true;
+    analysis.packet.bytes = QByteArray::fromHex("00000165");
 
     StreamInfo stream;
     stream.fileName = QStringLiteral("fixture.264");
@@ -663,6 +675,33 @@ void testFrameAnalysisExportSchemaFixture()
     require(!frameAnalysis.value(QStringLiteral("regions")).toArray().isEmpty(), "frame_analysis regions");
     require(!frameAnalysis.value(QStringLiteral("motion_vectors")).toArray().isEmpty(),
             "frame_analysis motion vectors");
+    const QJsonArray bitFields = frameAnalysis.value(QStringLiteral("bit_fields")).toArray();
+    require(!bitFields.isEmpty(), "frame_analysis bit fields");
+    require(bitFields.first().toObject().value(QStringLiteral("offset_basis")).toString() == QStringLiteral("rbsp"),
+            "h264 bit fields export rbsp offset basis");
+    const QJsonArray packetBitRanges = bitFields.first().toObject().value(QStringLiteral("packet_bit_ranges")).toArray();
+    require(!packetBitRanges.isEmpty(), "h264 bit fields export packet bit ranges");
+    require(packetBitRanges.first().toObject().value(QStringLiteral("offset_basis")).toString() == QStringLiteral("packet"),
+            "h264 packet bit range basis");
+    bool hasMacroblockField = false;
+    for (const QJsonValue &fieldValue : bitFields) {
+        const QJsonObject field = fieldValue.toObject();
+        if (field.value(QStringLiteral("path")).toString().contains(QStringLiteral("macroblocks"))
+            && field.value(QStringLiteral("name")).toString() == QStringLiteral("mb_type")
+            && !field.value(QStringLiteral("packet_bit_ranges")).toArray().isEmpty()) {
+            hasMacroblockField = true;
+            break;
+        }
+    }
+    require(hasMacroblockField, "h264 macroblock bit fields export packet ranges");
+    const QJsonObject packet = frameAnalysis.value(QStringLiteral("packet")).toObject();
+    require(packet.value(QStringLiteral("packet_index")).toInt() == 3, "frame_analysis packet index");
+    require(packet.value(QStringLiteral("stream_packet_index")).toInt() == 3, "frame_analysis stream packet index");
+    require(packet.value(QStringLiteral("container_packet_index")).toInt() == 9, "frame_analysis container packet index");
+    require(packet.value(QStringLiteral("pos")).toInt() == 1234, "frame_analysis packet pos");
+    require(packet.value(QStringLiteral("size")).toInt() == 42, "frame_analysis packet size");
+    require(packet.value(QStringLiteral("keyframe")).toBool(), "frame_analysis packet keyframe");
+    require(packet.value(QStringLiteral("raw_bytes_size")).toInt() == 4, "frame_analysis raw byte size");
 
     const QJsonObject legacyFrame = selected.value(QStringLiteral("frame")).toObject();
     require(!legacyFrame.value(QStringLiteral("slices")).toArray().isEmpty(), "legacy frame slices");

@@ -17,6 +17,7 @@ struct SyntaxFieldInfo
     qsizetype bitOffset = 0;
     qsizetype bitLength = 0;
     QString value;
+    QVector<AnalysisBitRange> packetBitRanges;
 };
 
 struct ParserDiagnosticInfo
@@ -121,6 +122,7 @@ struct MacroblockInfo
     bool parsed = false;
     QString note;
     QVector<MotionVectorInfo> motionVectors;
+    QVector<SyntaxFieldInfo> fields;
 };
 
 struct SliceInfo
