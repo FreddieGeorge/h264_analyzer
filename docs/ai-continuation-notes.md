@@ -88,10 +88,11 @@ Implemented capabilities:
 - `AnalysisStats` aggregates decoded `FrameAnalysis` access units in
   `src/core/analysis`. `StatsDock` shows the current stream summary in the
   right dock area: access-unit media counts, decoded frame count, frame-type
-  counts, macroblock parsed/skipped counts, QP min/max/average, motion-vector
-  magnitude summaries, and diagnostic counts. `MainWindow` refreshes the dock
-  from `m_accessUnitAnalyses`, so it stays codec-neutral and does not scrape
-  UI text.
+  distribution, macroblock parsed/skipped counts, QP min/max/average, QP bucket
+  distribution, motion-vector magnitude summaries, and diagnostic
+  code/severity distribution. `MainWindow` refreshes the dock from
+  `m_accessUnitAnalyses`, so it stays codec-neutral and does not scrape UI
+  text.
 - `AnalysisBitField` now carries `offsetBasis`. AAC/MP3 header fields are
   packet-relative. H.264 SPS/PPS/slice fields are currently RBSP-relative
   because they come from the post-NAL-header, emulation-prevention-stripped
@@ -581,7 +582,8 @@ Suggested files:
 - Add search/filter in property tree.
 - Add bitstream hex view synchronized with syntax fields.
 - Add per-field bit offset navigation.
-- Expand `StatsDock` with chart views for QP distribution and frame-type distribution.
+- Expand `StatsDock` with graphical chart views for QP, frame-type, and
+  diagnostic distributions.
 - Add JSON import/replay mode for previously exported analysis.
 - Add command-line analysis mode for CI or batch use.
 

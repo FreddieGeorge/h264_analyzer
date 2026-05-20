@@ -234,9 +234,10 @@ Goal:
 
 Main tasks:
 
-- Extend the existing `AnalysisStats` / `StatsDock` foundation with frame type
-  distribution charts.
-- Add QP distribution and QP-over-time chart.
+- Extend the existing `AnalysisStats` / `StatsDock` foundation from simple
+  count/percentage distribution rows to graphical frame-type distribution
+  charts.
+- Add graphical QP distribution and QP-over-time chart.
 - Add bitrate per frame and instant bitrate chart.
 - Add macroblock/CTU/superblock type distribution.
 - Add motion vector magnitude/direction distribution.

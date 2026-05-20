@@ -1,9 +1,12 @@
 #include "ui/StatsDock.h"
 
 #include <QHeaderView>
+#include <QString>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 namespace
 {
@@ -18,6 +21,18 @@ QString percentText(int part, int total)
 QString averageText(double value)
 {
     return QString::number(value, 'f', 2);
+}
+
+QString distributionBar(int part, int total)
+{
+    constexpr int BarWidth = 12;
+    if (part <= 0 || total <= 0) {
+        return QString(BarWidth, QLatin1Char('.'));
+    }
+
+    const int filled = std::max(1, static_cast<int>((static_cast<double>(part) / total) * BarWidth + 0.5));
+    return QString(std::min(filled, BarWidth), QLatin1Char('#'))
+        + QString(BarWidth - std::min(filled, BarWidth), QLatin1Char('.'));
 }
 }
 
@@ -79,6 +94,17 @@ void StatsDock::setStats(const AnalysisStats &stats)
     addMetric(qp, tr("Range"), stats.qpValueCount > 0
               ? tr("%1 - %2").arg(stats.minQp).arg(stats.maxQp)
               : tr("-"));
+    QTreeWidgetItem *qpDistribution = addSection(tr("QP distribution"));
+    if (stats.qpBuckets.isEmpty()) {
+        addMetric(qpDistribution, tr("-"), tr("-"));
+    } else {
+        for (const AnalysisQpBucket &bucket : stats.qpBuckets) {
+            addDistributionMetric(qpDistribution,
+                                  tr("%1-%2").arg(bucket.minQp).arg(bucket.maxQp),
+                                  bucket.count,
+                                  stats.qpValueCount);
+        }
+    }
 
     QTreeWidgetItem *motion = addSection(tr("Motion vectors"));
     addMetric(motion, tr("Vectors"), QString::number(stats.motionVectorCount));
@@ -94,17 +120,22 @@ void StatsDock::setStats(const AnalysisStats &stats)
         addMetric(frameTypes, tr("-"), tr("-"));
     } else {
         for (const AnalysisFrameTypeCount &type : stats.frameTypes) {
-            addMetric(frameTypes, type.type, QString::number(type.count));
+            addDistributionMetric(frameTypes, type.type, type.count, stats.frameCount);
         }
     }
 
     QTreeWidgetItem *diagnostics = addSection(tr("Diagnostics"));
     addMetric(diagnostics, tr("Access units with diagnostics"), QString::number(stats.diagnosticAccessUnits));
     addMetric(diagnostics, tr("Diagnostics"), QString::number(stats.diagnosticCount));
+    QTreeWidgetItem *diagnosticDistribution = addSection(tr("Diagnostic distribution"));
+    if (stats.diagnostics.isEmpty()) {
+        addMetric(diagnosticDistribution, tr("-"), tr("-"));
+    }
     for (const AnalysisDiagnosticSummary &summary : stats.diagnostics) {
-        addMetric(diagnostics,
-                  tr("%1 / %2").arg(summary.severity, summary.code),
-                  QString::number(summary.count));
+        addDistributionMetric(diagnosticDistribution,
+                              tr("%1 / %2").arg(summary.severity, summary.code),
+                              summary.count,
+                              stats.diagnosticCount);
     }
 
     m_tree->expandAll();
@@ -120,4 +151,15 @@ QTreeWidgetItem *StatsDock::addSection(const QString &name, const QString &value
 void StatsDock::addMetric(QTreeWidgetItem *parent, const QString &name, const QString &value)
 {
     parent->addChild(new QTreeWidgetItem({name, value}));
+}
+
+void StatsDock::addDistributionMetric(QTreeWidgetItem *parent,
+                                      const QString &name,
+                                      int count,
+                                      int total)
+{
+    parent->addChild(new QTreeWidgetItem({
+        name,
+        tr("%1 (%2) %3").arg(count).arg(percentText(count, total), distributionBar(count, total))
+    }));
 }

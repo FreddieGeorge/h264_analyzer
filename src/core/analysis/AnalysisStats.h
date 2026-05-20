@@ -18,6 +18,13 @@ struct AnalysisFrameTypeCount
     int count = 0;
 };
 
+struct AnalysisQpBucket
+{
+    int minQp = 0;
+    int maxQp = 0;
+    int count = 0;
+};
+
 struct AnalysisStats
 {
     int totalAccessUnits = 0;
@@ -38,6 +45,7 @@ struct AnalysisStats
     int minQp = -1;
     int maxQp = -1;
     double averageQp = 0.0;
+    QVector<AnalysisQpBucket> qpBuckets;
 
     int motionVectorCount = 0;
     double averageMvMagnitudeQuarterPel = 0.0;

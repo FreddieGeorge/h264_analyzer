@@ -20,6 +20,10 @@ public:
 private:
     QTreeWidgetItem *addSection(const QString &name, const QString &value = QString());
     void addMetric(QTreeWidgetItem *parent, const QString &name, const QString &value);
+    void addDistributionMetric(QTreeWidgetItem *parent,
+                               const QString &name,
+                               int count,
+                               int total);
 
     QTreeWidget *m_tree = nullptr;
 };

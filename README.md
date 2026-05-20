@@ -36,8 +36,9 @@ The project currently supports video loading/decoding, controllable playback, H.
 - Show a read-only bitstream hex dock for the selected access unit's packet
   bytes, with byte-range highlighting driven by syntax bit-field selection.
 - Show an analysis statistics dock with access-unit counts, frame-type counts,
-  macroblock/QP summaries, motion-vector magnitude summaries, and diagnostic
-  counts derived from internal `FrameAnalysis` data.
+  frame-type distribution, macroblock/QP summaries, QP bucket distribution,
+  motion-vector magnitude summaries, and diagnostic distribution derived from
+  internal `FrameAnalysis` data.
 - Parse H.264 NALU, SPS, PPS, Slice Header, selected CAVLC macroblock fields, residual blocks, QP, and P-slice L0 motion vectors with the custom `H264Parser`.
 - Show frame syntax information in a dockable property tree.
 - Show overlay availability in the property tree, including QP range/constant
@@ -307,7 +308,9 @@ Key modules:
   sub-tree for common fields.
 - `AnalysisStats` and `StatsDock`: aggregate `FrameAnalysis` records into
   codec-neutral stream summaries for access units, frame types, macroblocks,
-  QP, motion vectors, and diagnostics.
+  QP, motion vectors, and diagnostics. The dock shows simple count/percentage
+  distribution rows for frame types, QP buckets, and diagnostic code/severity
+  groups.
 
 Recommended next work:
 
@@ -321,7 +324,7 @@ Recommended next work:
    audio analysis separate from `VideoCanvas`. The current stream selector
    filters the decoded access-unit list; it does not yet switch the FFmpeg
    playback stream or provide audio-only analysis.
-5. Expand the statistics dock with histograms/charts and exportable aggregate
+5. Expand the statistics dock with graphical histograms/charts and exportable aggregate
    summaries, keeping aggregation in `src/core/analysis`.
 6. Expand the bitstream hex dock with graphical sub-byte decoration and broader
    offset normalization for macroblock fields and container/elementary-stream

@@ -9,6 +9,8 @@
 
 namespace
 {
+constexpr int QpBucketSize = 6;
+
 QString normalizedFrameType(const QString &frameType)
 {
     return frameType.trimmed().isEmpty() ? QStringLiteral("-") : frameType.trimmed();
@@ -23,6 +25,13 @@ QString normalizedDiagnosticSeverity(const AnalysisDiagnostic &diagnostic)
 {
     return diagnostic.severity.trimmed().isEmpty() ? QStringLiteral("warning") : diagnostic.severity.trimmed();
 }
+
+AnalysisQpBucket qpBucketForValue(int qp)
+{
+    const int bucketIndex = qp / QpBucketSize;
+    const int minQp = bucketIndex * QpBucketSize;
+    return AnalysisQpBucket {minQp, minQp + QpBucketSize - 1, 0};
+}
 }
 
 AnalysisStats calculateAnalysisStats(const QVector<FrameAnalysis> &analyses)
@@ -32,6 +41,7 @@ AnalysisStats calculateAnalysisStats(const QVector<FrameAnalysis> &analyses)
 
     QMap<QString, int> frameTypeCounts;
     QMap<QString, AnalysisDiagnosticSummary> diagnosticCounts;
+    QMap<int, AnalysisQpBucket> qpBuckets;
     qint64 qpSum = 0;
     double mvMagnitudeSum = 0.0;
     double maxMvMagnitude = 0.0;
@@ -91,6 +101,12 @@ AnalysisStats calculateAnalysisStats(const QVector<FrameAnalysis> &analyses)
                 }
                 qpSum += region.qp;
                 ++stats.qpValueCount;
+
+                AnalysisQpBucket bucket = qpBucketForValue(region.qp);
+                AnalysisQpBucket &summary = qpBuckets[bucket.minQp];
+                summary.minQp = bucket.minQp;
+                summary.maxQp = bucket.maxQp;
+                ++summary.count;
             }
         }
 
@@ -113,6 +129,9 @@ AnalysisStats calculateAnalysisStats(const QVector<FrameAnalysis> &analyses)
 
     for (auto it = frameTypeCounts.cbegin(); it != frameTypeCounts.cend(); ++it) {
         stats.frameTypes.append(AnalysisFrameTypeCount {it.key(), it.value()});
+    }
+    for (auto it = qpBuckets.cbegin(); it != qpBuckets.cend(); ++it) {
+        stats.qpBuckets.append(it.value());
     }
     for (auto it = diagnosticCounts.cbegin(); it != diagnosticCounts.cend(); ++it) {
         stats.diagnostics.append(it.value());
