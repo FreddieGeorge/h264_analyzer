@@ -1,9 +1,9 @@
-#include "core/FFmpegDecoder.h"
+#include "core/decode/FFmpegDecoder.h"
 
-#include "core/AacAdtsParser.h"
-#include "core/H264FrameAnalysisAdapter.h"
-#include "core/HevcParser.h"
-#include "core/Mp3FrameParser.h"
+#include "core/parser/audio/AacAdtsParser.h"
+#include "core/parser/h264/H264FrameAnalysisAdapter.h"
+#include "core/parser/hevc/HevcParser.h"
+#include "core/parser/audio/Mp3FrameParser.h"
 
 #include <QDir>
 #include <QFile>

@@ -1,4 +1,4 @@
-#include "core/Mp3FrameParser.h"
+#include "core/parser/audio/Mp3FrameParser.h"
 
 #include <QString>
 

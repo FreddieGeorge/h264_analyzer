@@ -1,7 +1,7 @@
 #include "app/MainWindow.h"
 
-#include "core/AnalysisExportWriter.h"
-#include "core/DecodeWorker.h"
+#include "core/export/AnalysisExportWriter.h"
+#include "core/decode/DecodeWorker.h"
 #include "ui/BitstreamHexView.h"
 #include "ui/FrameListView.h"
 #include "ui/LogDock.h"

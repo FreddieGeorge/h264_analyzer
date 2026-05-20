@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/BitstreamParser.h"
+#include "core/parser/BitstreamParser.h"
 
 #include <QByteArray>
 #include <QVector>

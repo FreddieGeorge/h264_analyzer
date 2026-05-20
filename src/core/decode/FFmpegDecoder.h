@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/BitstreamParser.h"
-#include "core/H264Parser.h"
-#include "core/StreamDocument.h"
+#include "core/parser/BitstreamParser.h"
+#include "core/parser/h264/H264Parser.h"
+#include "core/model/StreamDocument.h"
 
 #include <QByteArray>
 #include <QMetaType>

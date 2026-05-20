@@ -1,4 +1,4 @@
-#include "core/MediaTypes.h"
+#include "core/model/MediaTypes.h"
 
 QString mediaKindName(MediaKind kind)
 {

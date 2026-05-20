@@ -1,6 +1,6 @@
-#include "core/H264Parser.h"
+#include "core/parser/h264/H264Parser.h"
 
-#include "core/H264FrameAnalysisAdapter.h"
+#include "core/parser/h264/H264FrameAnalysisAdapter.h"
 
 #include <QtEndian>
 

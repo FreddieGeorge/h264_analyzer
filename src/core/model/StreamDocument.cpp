@@ -1,4 +1,4 @@
-#include "core/StreamDocument.h"
+#include "core/model/StreamDocument.h"
 
 #include <QDir>
 #include <QFileInfo>

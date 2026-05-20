@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/FFmpegDecoder.h"
-#include "core/RebufferState.h"
-#include "core/StreamDocument.h"
+#include "core/decode/FFmpegDecoder.h"
+#include "core/buffering/RebufferState.h"
+#include "core/model/StreamDocument.h"
 
 #include <QMainWindow>
 #include <QPointer>

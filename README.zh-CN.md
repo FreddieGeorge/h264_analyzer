@@ -54,6 +54,15 @@ ZStreamEye/
 +-- src/
 |   +-- app/
 |   +-- core/
+|   |   +-- decode/
+|   |   +-- export/
+|   |   +-- model/
+|   |   +-- parser/
+|   |   |   +-- audio/
+|   |   |   +-- h264/
+|   |   |   +-- hevc/
+|   |   +-- buffering/
+|   +-- platform/
 |   +-- ui/
 +-- CMakeLists.txt
 +-- README.md
@@ -64,7 +73,12 @@ ZStreamEye/
 文件夹职责：
 
 - `src/app`：应用程序窗口、菜单、工具栏、面板布局、文件打开和工作流连接。
-- `src/core`：流文档模型、FFmpeg 解码器包装器、解码工作器、编解码器中性解析器接口和 H.264 语法解析器。
+- `src/core/model`：流元数据、媒体类型、帧分析数据和文档状态。
+- `src/core/parser`：编解码器中性解析器接口，以及 H.264、HEVC、AAC ADTS 和 MP3 解析器。
+- `src/core/decode`：FFmpeg 解码器包装器和解码工作器。
+- `src/core/export`：分析结果导出序列化。
+- `src/core/buffering`：缓冲和 seek 重新缓冲状态辅助逻辑。
+- `src/platform`：平台相关 launcher 和集成代码。
 - `src/ui`：可复用的 Qt 部件，如帧列表、属性树、日志面板和视频画布。
 - `scripts`：构建/部署辅助脚本。
 - `docs`：开发者笔记、部署笔记和 AI 续接路线图。

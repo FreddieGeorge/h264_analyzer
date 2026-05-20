@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/FrameAnalysis.h"
-#include "core/H264Parser.h"
-#include "core/StreamDocument.h"
+#include "core/model/FrameAnalysis.h"
+#include "core/parser/h264/H264Parser.h"
+#include "core/model/StreamDocument.h"
 
 #include <QJsonObject>
 #include <QString>

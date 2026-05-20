@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/FrameAnalysis.h"
-#include "core/H264Parser.h"
+#include "core/model/FrameAnalysis.h"
+#include "core/parser/h264/H264Parser.h"
 
 FrameAnalysis frameAnalysisFromH264Syntax(const FrameSyntaxInfo &syntaxInfo);
 FrameSyntaxInfo h264SyntaxFromFrameAnalysis(const FrameAnalysis &analysis);

@@ -1,4 +1,4 @@
-#include "core/CodecKind.h"
+#include "core/model/CodecKind.h"
 
 QString codecKindName(CodecKind codecKind)
 {

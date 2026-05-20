@@ -1,4 +1,4 @@
-#include "core/FrameAnalysis.h"
+#include "core/model/FrameAnalysis.h"
 
 QString analysisUnitKindName(AnalysisUnitKind kind)
 {

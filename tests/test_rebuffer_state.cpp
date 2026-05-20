@@ -1,4 +1,4 @@
-#include "core/RebufferState.h"
+#include "core/buffering/RebufferState.h"
 
 #include <cstdlib>
 #include <iostream>

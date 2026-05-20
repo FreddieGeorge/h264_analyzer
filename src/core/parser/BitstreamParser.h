@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/CodecKind.h"
-#include "core/FrameAnalysis.h"
+#include "core/model/CodecKind.h"
+#include "core/model/FrameAnalysis.h"
 
 #include <QByteArray>
 

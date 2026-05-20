@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core/CodecKind.h"
-#include "core/MediaTypes.h"
+#include "core/model/CodecKind.h"
+#include "core/model/MediaTypes.h"
 
 #include <QMetaType>
 #include <QByteArray>

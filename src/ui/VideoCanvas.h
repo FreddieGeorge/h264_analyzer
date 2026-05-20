@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/FFmpegDecoder.h"
+#include "core/decode/FFmpegDecoder.h"
 
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>

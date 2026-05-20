@@ -1,4 +1,4 @@
-#include "core/DecodeWorker.h"
+#include "core/decode/DecodeWorker.h"
 
 #include <QThread>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/FrameAnalysis.h"
+#include "core/model/FrameAnalysis.h"
 
 #include <QByteArray>
 #include <QPlainTextEdit>

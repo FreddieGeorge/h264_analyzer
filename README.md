@@ -66,6 +66,15 @@ ZStreamEye/
 +-- src/
 |   +-- app/
 |   +-- core/
+|   |   +-- decode/
+|   |   +-- export/
+|   |   +-- model/
+|   |   +-- parser/
+|   |   |   +-- audio/
+|   |   |   +-- h264/
+|   |   |   +-- hevc/
+|   |   +-- buffering/
+|   +-- platform/
 |   +-- ui/
 +-- CMakeLists.txt
 +-- README.md
@@ -76,7 +85,12 @@ ZStreamEye/
 Folder responsibilities:
 
 - `src/app`: application window, menu, toolbar, dock layout, file opening, and workflow wiring.
-- `src/core`: stream document model, FFmpeg decoder wrapper, decode worker, codec-neutral parser interface, and H.264 syntax parser.
+- `src/core/model`: stream metadata, media types, frame analysis data, and document state.
+- `src/core/parser`: codec-neutral parser interface plus H.264, HEVC, AAC ADTS, and MP3 parsers.
+- `src/core/decode`: FFmpeg decoder wrapper and decode worker.
+- `src/core/export`: analysis export serialization.
+- `src/core/buffering`: buffering and seek rebuffer state helpers.
+- `src/platform`: platform-specific launchers and integration code.
 - `src/ui`: reusable Qt widgets such as frame list, property tree, log dock, and video canvas.
 - `scripts`: build/deployment helper scripts.
 - `docs`: developer notes, deployment notes, and AI continuation roadmap.

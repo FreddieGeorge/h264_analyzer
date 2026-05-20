@@ -1,4 +1,4 @@
-#include "core/AacAdtsParser.h"
+#include "core/parser/audio/AacAdtsParser.h"
 
 #include <QString>
 
