@@ -72,8 +72,12 @@ Important H.264 files:
   mapping.
 - `H264CabacContextModel.*`: CABAC context-model initialization tables/helpers.
 - `H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
+- `H264CabacSyntaxReader.*`: narrow CABAC syntax-element readers. It currently
+  covers `mb_skip_flag`, `mb_type` prefix bins, and the narrow I-slice
+  `I_NxN` `mb_type` result without owning macroblock model mutation.
 - `H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
-  reports structured `cabac_unsupported`.
+  initializes CABAC state, reads the first supported syntax prefix where
+  possible, then reports structured unsupported/incomplete diagnostics.
 
 Current H.264 coverage:
 
@@ -178,18 +182,20 @@ The deployment script writes its own release build under
 
 Recommended next H.264 direction:
 
-1. Add `H264CabacSyntaxReader.*` for narrow syntax-element readers. Start with
-   `mb_skip_flag` and `mb_type`, returning small result structs instead of
+1. Extend `H264CabacSyntaxReader.*` beyond the current I_NxN-only `mb_type`
+   result. Next useful work is either the I_16x16/I_PCM branch or one narrow
+   P-slice `mb_type` path, still returning small result structs instead of
    mutating `MacroblockInfo` directly.
-2. Wire only one narrow CABAC path into `H264CabacMacroblockParser`, preserving
-   structured unsupported diagnostics for the first unimplemented syntax
-   element.
-3. Keep CABAC modules separate from CAVLC helpers. Reuse shared slice state via
+2. Expand CABAC context initialization beyond the currently covered low context
+   range before relying on B-slice `mb_skip_flag` or broader syntax elements.
+3. Wire only one narrow CABAC macroblock path at a time, preserving structured
+   unsupported diagnostics for the first unimplemented syntax element.
+4. Keep CABAC modules separate from CAVLC helpers. Reuse shared slice state via
    `H264SliceDataContext`, but keep CABAC-specific state and tables out of
    `H264MacroblockParser.cpp`.
-4. Broaden CAVLC residual and P/B motion-vector fixtures where they expose
+5. Broaden CAVLC residual and P/B motion-vector fixtures where they expose
    assumptions needed by CABAC integration.
-5. Preserve structured unsupported diagnostics for paths that are not ready.
+6. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:
 
