@@ -223,7 +223,7 @@ Done when:
 Use focused commits. Current high-value themes:
 
 ```text
-Expand CABAC I_16x16 or P mb_type syntax reader path
+Choose next CABAC P_8x8 syntax-to-model boundary
 Expand H264 residual coefficient fixtures
 Expand H264 P8x8 sub-macroblock fixtures
 Parse H264 B_Direct motion vectors

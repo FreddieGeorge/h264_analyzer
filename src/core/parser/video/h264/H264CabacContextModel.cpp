@@ -13,7 +13,7 @@ struct InitValue
 };
 
 constexpr int CabacInitTableCount = 4;
-constexpr int CabacCoveredContextCount = 24;
+constexpr int CabacCoveredContextCount = 60;
 constexpr int IntraInitTableIndex = 3;
 
 constexpr InitValue initValue(int m, int n)
@@ -52,7 +52,43 @@ constexpr std::array<InitRow, CabacCoveredContextCount> CabacInitValues {{
     InitRow {initValue(1, 62), initValue(5, 52), initValue(5, 57), invalidInitValue()},
     InitRow {initValue(12, 49), initValue(9, 50), initValue(6, 57), invalidInitValue()},
     InitRow {initValue(-4, 73), initValue(-3, 70), initValue(-17, 73), invalidInitValue()},
-    InitRow {initValue(17, 50), initValue(10, 54), initValue(14, 57), invalidInitValue()}
+    InitRow {initValue(17, 50), initValue(10, 54), initValue(14, 57), invalidInitValue()},
+    InitRow {initValue(18, 64), initValue(26, 34), initValue(20, 40), invalidInitValue()},
+    InitRow {initValue(9, 43), initValue(19, 22), initValue(20, 10), invalidInitValue()},
+    InitRow {initValue(29, 0), initValue(40, 0), initValue(29, 0), invalidInitValue()},
+    InitRow {initValue(26, 67), initValue(57, 2), initValue(54, 0), invalidInitValue()},
+    InitRow {initValue(16, 90), initValue(41, 36), initValue(37, 42), invalidInitValue()},
+    InitRow {initValue(9, 104), initValue(26, 69), initValue(12, 97), invalidInitValue()},
+    InitRow {initValue(-46, 127), initValue(-45, 127), initValue(-32, 127), invalidInitValue()},
+    InitRow {initValue(-20, 104), initValue(-15, 101), initValue(-22, 117), invalidInitValue()},
+    InitRow {initValue(1, 67), initValue(-4, 76), initValue(-2, 74), invalidInitValue()},
+    InitRow {initValue(-13, 78), initValue(-6, 71), initValue(-4, 85), invalidInitValue()},
+    InitRow {initValue(-11, 65), initValue(-13, 79), initValue(-24, 102), invalidInitValue()},
+    InitRow {initValue(1, 62), initValue(5, 52), initValue(5, 57), invalidInitValue()},
+    InitRow {initValue(-6, 86), initValue(6, 69), initValue(-6, 93), invalidInitValue()},
+    InitRow {initValue(-17, 95), initValue(-13, 90), initValue(-14, 88), invalidInitValue()},
+    InitRow {initValue(-6, 61), initValue(0, 52), initValue(-6, 44), invalidInitValue()},
+    InitRow {initValue(9, 45), initValue(8, 43), initValue(4, 55), invalidInitValue()},
+    InitRow {initValue(-3, 69), initValue(-2, 69), initValue(-11, 89), invalidInitValue()},
+    InitRow {initValue(-6, 81), initValue(-5, 82), initValue(-15, 103), invalidInitValue()},
+    InitRow {initValue(-11, 96), initValue(-10, 96), initValue(-21, 116), invalidInitValue()},
+    InitRow {initValue(6, 55), initValue(2, 59), initValue(19, 57), invalidInitValue()},
+    InitRow {initValue(7, 67), initValue(2, 75), initValue(20, 58), invalidInitValue()},
+    InitRow {initValue(-5, 86), initValue(-3, 87), initValue(4, 84), invalidInitValue()},
+    InitRow {initValue(2, 88), initValue(-3, 100), initValue(6, 96), invalidInitValue()},
+    InitRow {initValue(0, 58), initValue(1, 56), initValue(1, 63), invalidInitValue()},
+    InitRow {initValue(-3, 76), initValue(-3, 74), initValue(-5, 85), invalidInitValue()},
+    InitRow {initValue(-10, 94), initValue(-6, 85), initValue(-13, 106), invalidInitValue()},
+    InitRow {initValue(5, 54), initValue(0, 59), initValue(5, 63), invalidInitValue()},
+    InitRow {initValue(4, 69), initValue(-3, 81), initValue(6, 75), invalidInitValue()},
+    InitRow {initValue(-3, 81), initValue(-7, 86), initValue(-3, 90), invalidInitValue()},
+    InitRow {initValue(0, 88), initValue(-5, 95), initValue(-1, 101), invalidInitValue()},
+    InitRow {initValue(-7, 67), initValue(-1, 66), initValue(3, 55), invalidInitValue()},
+    InitRow {initValue(-5, 74), initValue(-1, 77), initValue(-4, 79), invalidInitValue()},
+    InitRow {initValue(-4, 74), initValue(1, 70), initValue(-2, 75), invalidInitValue()},
+    InitRow {initValue(-5, 80), initValue(-2, 86), initValue(-12, 97), invalidInitValue()},
+    InitRow {initValue(-7, 72), initValue(-5, 72), initValue(-7, 50), invalidInitValue()},
+    InitRow {initValue(1, 58), initValue(0, 61), initValue(1, 60), invalidInitValue()}
 }};
 }
 

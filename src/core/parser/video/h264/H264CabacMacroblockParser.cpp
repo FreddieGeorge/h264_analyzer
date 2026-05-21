@@ -4,6 +4,38 @@
 #include "core/parser/video/h264/H264CabacSyntaxReader.h"
 #include "core/parser/video/h264/H264SliceDataContext.h"
 
+#include <QStringList>
+#include <QVector>
+
+namespace
+{
+QString h264CabacPSubMbTypeName(int subMbType)
+{
+    switch (subMbType) {
+    case 0:
+        return QStringLiteral("P_L0_8x8");
+    case 1:
+        return QStringLiteral("P_L0_8x4");
+    case 2:
+        return QStringLiteral("P_L0_4x8");
+    default:
+        return QStringLiteral("P_L0_4x4");
+    }
+}
+
+QString h264CabacPSubMbTypeSummary(const QVector<int> &subMbTypes)
+{
+    QStringList parts;
+    for (int i = 0; i < subMbTypes.size(); ++i) {
+        parts.append(QStringLiteral("[%1]=%2 (%3)")
+                         .arg(i)
+                         .arg(h264CabacPSubMbTypeName(subMbTypes.at(i)))
+                         .arg(subMbTypes.at(i)));
+    }
+    return parts.join(QStringLiteral(", "));
+}
+}
+
 H264CabacUnsupportedResult h264CabacUnsupportedResult()
 {
     return {
@@ -29,11 +61,11 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            27);
+            39);
 
     H264CabacSyntaxResult firstSyntax;
     H264CabacMbTypeResult mbType;
-    if (context.isISlice) {
+    if (context.isISlice || context.isPSlice) {
         mbType = h264ReadCabacMbType(context.reader, decoder, contexts, context);
         firstSyntax.ok = mbType.ok;
         firstSyntax.value = mbType.prefixBin;
@@ -49,10 +81,76 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
         return;
     }
 
-    if (context.isISlice && mbType.complete) {
+    if (context.isPSlice && mbType.needsSubMacroblockTypes) {
+        const H264CabacSubMbTypesResult subMbTypes =
+            h264ReadCabacPSubMbTypes(context.reader, decoder, contexts, context, 4);
+        if (!subMbTypes.ok) {
+            context.appendDiagnostic(subMbTypes.diagnosticCode, subMbTypes.diagnosticMessage);
+            context.appendEstimatedRemainder(cabac.code, cabac.message);
+            return;
+        }
+        if (subMbTypes.complete) {
+            const H264CabacRefIdxListResult refIdx =
+                h264ReadCabacPSubMbRefIdxL0(context.reader, decoder, contexts, context, subMbTypes.subMbTypes.size());
+            if (!refIdx.ok) {
+                context.appendDiagnostic(refIdx.diagnosticCode, refIdx.diagnosticMessage);
+                context.appendEstimatedRemainder(cabac.code, cabac.message);
+                return;
+            }
+            const QString refIdxNote = refIdx.present
+                ? QStringLiteral(" ref_idx_l0 values were also decoded.")
+                : QStringLiteral(" ref_idx_l0 syntax was not present because only one L0 reference is active.");
+            const H264CabacMvdListResult mvd =
+                h264ReadCabacPSubMbMvdL0(context.reader, decoder, contexts, subMbTypes.subMbTypes);
+            if (!mvd.ok) {
+                context.appendDiagnostic(mvd.diagnosticCode, mvd.diagnosticMessage);
+                context.appendEstimatedRemainder(cabac.code, cabac.message);
+                return;
+            }
+            if (!mvd.complete) {
+                context.appendDiagnostic(mvd.diagnosticCode, mvd.diagnosticMessage);
+                context.appendEstimatedRemainder(cabac.code, cabac.message);
+                return;
+            }
+            context.appendDiagnostic(
+                QStringLiteral("cabac_sub_mb_type_parsed"),
+                QStringLiteral("CABAC mb_type decoded as P_8x8 and four sub_mb_type values were decoded: %1.%2 Zero mvd_l0 scaffolding decoded %3 partition delta pairs. Subsequent CABAC sub-macroblock motion/residual parsing is not implemented.")
+                    .arg(h264CabacPSubMbTypeSummary(subMbTypes.subMbTypes))
+                    .arg(refIdxNote)
+                    .arg(mvd.mvd.size()));
+            context.appendEstimatedRemainder(cabac.code, cabac.message);
+            return;
+        }
+
+        context.appendDiagnostic(subMbTypes.diagnosticCode, subMbTypes.diagnosticMessage);
+        context.appendEstimatedRemainder(cabac.code, cabac.message);
+        return;
+    }
+
+    if ((context.isISlice || context.isPSlice) && mbType.complete) {
+        QString mbTypeName;
+        if (context.isPSlice) {
+            if (mbType.mbType == 0) {
+                mbTypeName = QStringLiteral("P_L0_16x16");
+            } else if (mbType.mbType == 1) {
+                mbTypeName = QStringLiteral("P_L0_L0_16x8");
+            } else {
+                mbTypeName = QStringLiteral("P_L0_L0_8x16");
+            }
+        } else {
+            mbTypeName = mbType.mbType == 0
+                ? QStringLiteral("I_NxN")
+                : (mbType.mbType == 25 ? QStringLiteral("I_PCM") : QStringLiteral("I_16x16"));
+        }
+        const QString unsupportedPart = context.isPSlice
+            ? QStringLiteral("motion/residual")
+            : QStringLiteral("intra/residual");
         context.appendDiagnostic(
-            QStringLiteral("cabac_mb_type_i_nxn_parsed"),
-            QStringLiteral("CABAC mb_type decoded as I_NxN, but subsequent CABAC intra/residual parsing is not implemented."));
+            QStringLiteral("cabac_mb_type_parsed"),
+            QStringLiteral("CABAC mb_type decoded as %1 (%2), but subsequent CABAC %3 parsing is not implemented.")
+                .arg(mbTypeName)
+                .arg(mbType.mbType)
+                .arg(unsupportedPart));
         context.appendEstimatedRemainder(cabac.code, cabac.message);
         return;
     }

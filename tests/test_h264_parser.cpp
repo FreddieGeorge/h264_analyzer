@@ -1390,7 +1390,8 @@ void testUnsupportedCabacFixtureReportsDiagnostic()
     require(slice.cabacInitIdc == 0, "CABAC fixture cabac_init_idc");
     require(slice.macroblocks.size() == 1, "CABAC fixture estimated macroblock count");
     require(!slice.macroblocks.first().parsed, "CABAC fixture macroblock remains estimated");
-    require(hasDiagnosticCode(slice, QStringLiteral("cabac_macroblock_syntax_incomplete")),
+    require(hasDiagnosticCode(slice, QStringLiteral("cabac_macroblock_syntax_incomplete"))
+                || hasDiagnosticCode(slice, QStringLiteral("cabac_mb_type_parsed")),
             "CABAC fixture reports narrow syntax progress");
     require(hasDiagnosticCode(slice, QStringLiteral("cabac_unsupported")), "CABAC fixture diagnostic");
     require(!slice.macroblockParseWarnings.isEmpty(), "CABAC fixture warning text");
