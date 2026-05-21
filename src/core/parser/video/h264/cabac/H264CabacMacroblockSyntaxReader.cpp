@@ -274,3 +274,75 @@ H264CabacMbTypeResult h264ReadCabacMbType(BitReader &reader,
         : QStringLiteral("CABAC mb_type prefix was decoded, but this slice-type decision tree is not implemented.");
     return result;
 }
+
+H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternZero(BitReader &reader,
+                                                                    H264CabacDecoder &decoder,
+                                                                    H264CabacContextModelSet &contexts,
+                                                                    const H264SliceDataContext &sliceContext)
+{
+    H264CabacCodedBlockPatternResult result;
+    result.firstCtxIdx = 73;
+    result.codedBlockPatternLuma = 0;
+    result.codedBlockPatternChroma = 0;
+    result.codedBlockPattern = 0;
+
+    if (!sliceContext.isPSlice) {
+        result.diagnosticCode = QStringLiteral("cabac_slice_type_unsupported");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC coded_block_pattern zero reader currently only supports P-slice inter macroblocks.");
+        return result;
+    }
+
+    for (int luma8x8 = 0; luma8x8 < 4; ++luma8x8) {
+        const H264CabacSyntaxResult bin = decodeContextBin(
+            reader,
+            decoder,
+            contexts,
+            73,
+            QStringLiteral("coded_block_pattern_luma"));
+        if (!bin.ok) {
+            result.diagnosticCode = bin.diagnosticCode;
+            result.diagnosticMessage = bin.diagnosticMessage;
+            return result;
+        }
+        result.ok = true;
+        if (bin.value != 0) {
+            result.codedBlockPatternLuma |= (1 << luma8x8);
+            result.codedBlockPattern = result.codedBlockPatternLuma;
+            result.diagnosticCode = QStringLiteral("cabac_cbp_incomplete");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC non-zero coded_block_pattern luma is not implemented.");
+            return result;
+        }
+    }
+
+    if (sliceContext.chromaArrayType == 0) {
+        result.complete = true;
+        return result;
+    }
+
+    const H264CabacSyntaxResult chromaPresent = decodeContextBin(
+        reader,
+        decoder,
+        contexts,
+        77,
+        QStringLiteral("coded_block_pattern_chroma"));
+    if (!chromaPresent.ok) {
+        result.ok = false;
+        result.diagnosticCode = chromaPresent.diagnosticCode;
+        result.diagnosticMessage = chromaPresent.diagnosticMessage;
+        return result;
+    }
+    result.ok = true;
+    if (chromaPresent.value != 0) {
+        result.codedBlockPatternChroma = 1;
+        result.codedBlockPattern = result.codedBlockPatternLuma | (result.codedBlockPatternChroma << 4);
+        result.diagnosticCode = QStringLiteral("cabac_cbp_incomplete");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC non-zero coded_block_pattern chroma is not implemented.");
+        return result;
+    }
+
+    result.complete = true;
+    return result;
+}

@@ -589,6 +589,107 @@ void testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete()
             "CABAC macroblock syntax P_8x8 non-zero mvd diagnostic");
 }
 
+void testReadCodedBlockPatternZeroMonochrome()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(78);
+    contexts.setModel(73, {0, 0});
+
+    const H264CabacCodedBlockPatternResult result =
+        h264ReadCabacCodedBlockPatternZero(reader, decoder, contexts, context);
+    require(result.ok, "CABAC coded_block_pattern zero monochrome result");
+    require(result.complete, "CABAC coded_block_pattern zero monochrome complete");
+    require(result.codedBlockPattern == 0, "CABAC coded_block_pattern zero monochrome value");
+    require(result.codedBlockPatternLuma == 0, "CABAC coded_block_pattern zero monochrome luma");
+    require(result.codedBlockPatternChroma == 0, "CABAC coded_block_pattern zero monochrome chroma");
+    require(result.firstCtxIdx == 73, "CABAC coded_block_pattern zero first ctxIdx");
+}
+
+void testReadCodedBlockPatternZeroChroma()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(78);
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(77, {0, 0});
+
+    const H264CabacCodedBlockPatternResult result =
+        h264ReadCabacCodedBlockPatternZero(reader, decoder, contexts, context);
+    require(result.ok, "CABAC coded_block_pattern zero chroma result");
+    require(result.complete, "CABAC coded_block_pattern zero chroma complete");
+    require(result.codedBlockPattern == 0, "CABAC coded_block_pattern zero chroma value");
+    require(result.codedBlockPatternLuma == 0, "CABAC coded_block_pattern zero chroma luma");
+    require(result.codedBlockPatternChroma == 0, "CABAC coded_block_pattern zero chroma component");
+}
+
+void testReadCodedBlockPatternNonZeroLumaIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(78);
+    contexts.setModel(73, {0, 1});
+
+    const H264CabacCodedBlockPatternResult result =
+        h264ReadCabacCodedBlockPatternZero(reader, decoder, contexts, context);
+    require(result.ok, "CABAC coded_block_pattern non-zero luma prefix result");
+    require(!result.complete, "CABAC coded_block_pattern non-zero luma incomplete");
+    require(result.codedBlockPatternLuma != 0, "CABAC coded_block_pattern non-zero luma value");
+    require(result.diagnosticCode == QStringLiteral("cabac_cbp_incomplete"),
+            "CABAC coded_block_pattern non-zero luma diagnostic");
+}
+
+void testReadCodedBlockPatternNonZeroChromaIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(78);
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(77, {0, 1});
+
+    const H264CabacCodedBlockPatternResult result =
+        h264ReadCabacCodedBlockPatternZero(reader, decoder, contexts, context);
+    require(result.ok, "CABAC coded_block_pattern non-zero chroma prefix result");
+    require(!result.complete, "CABAC coded_block_pattern non-zero chroma incomplete");
+    require(result.codedBlockPatternChroma != 0, "CABAC coded_block_pattern non-zero chroma value");
+    require(result.diagnosticCode == QStringLiteral("cabac_cbp_incomplete"),
+            "CABAC coded_block_pattern non-zero chroma diagnostic");
+}
+
 void testAppendCabacP8x8MacroblockSyntaxSkeleton()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -796,6 +897,10 @@ int main()
     testReadCabacMacroblockSyntaxP8x8RefAbsent();
     testReadCabacMacroblockSyntaxP8x8RefZero();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
+    testReadCodedBlockPatternZeroMonochrome();
+    testReadCodedBlockPatternZeroChroma();
+    testReadCodedBlockPatternNonZeroLumaIncomplete();
+    testReadCodedBlockPatternNonZeroChromaIncomplete();
     testAppendCabacP8x8MacroblockSyntaxSkeleton();
     testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction();
     testReadISliceMbTypePrefix();

@@ -78,7 +78,9 @@ Important H.264 files:
 - `cabac/H264CabacMacroblockSyntaxReader.*`: CABAC macroblock-level syntax
   readers. It currently covers `mb_skip_flag`, `mb_type` prefix bins, I-slice
   `I_NxN`/`I_16x16`/`I_PCM`, and P-slice `P_L0_16x16`,
-  `P_L0_L0_16x8`, `P_L0_L0_8x16`, plus `P_8x8` detection.
+  `P_L0_L0_16x8`, `P_L0_L0_8x16`, plus `P_8x8` detection. It also has a
+  narrow `coded_block_pattern == 0` reader; non-zero luma/chroma CBP still
+  returns incomplete.
 - `cabac/H264CabacSubMacroblockSyntaxReader.*`: focused P sub-macroblock
   readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and narrow
   `mvd_l0 == 0` scaffolding.
@@ -113,7 +115,9 @@ Current H.264 limitations:
   `mb_type` and narrow P_8x8 `sub_mb_type`/`ref_idx_l0 == 0`/`mvd_l0 == 0`
   scaffolding. The P_8x8 path can append a partial macroblock skeleton with
   zero-MVD L0 motion vectors and MV-state updates, but it deliberately does not
-  mark the macroblock fully parsed or produce residual data yet.
+  mark the macroblock fully parsed or produce residual data yet. CBP reader
+  coverage is currently tested at the syntax-reader layer and is not wired into
+  the macroblock entry point until ctxIdx derivation/table coverage is broader.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
   dequantized, or transformed residual visualization.
 - B_Direct, B_8x8 sub-macroblock prediction, MBAFF/interlaced, and FMO remain
@@ -201,8 +205,8 @@ The deployment script writes its own release build under
 Recommended next H.264 direction:
 
 1. Decide the next CABAC P_8x8 step carefully: either expand syntax readers
-   toward non-zero `mvd_l0`, or start residual-header work by reading the next
-   narrow syntax element after the current zero-MVD P_8x8 path. Keep
+   toward non-zero `mvd_l0`, or wire the existing CBP-zero reader after adding
+   proper ctxIdx derivation/table coverage for contexts 73-77. Keep
    syntax-result structs separate from final model mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
@@ -217,6 +221,7 @@ Useful H.264 test areas:
 
 - `tests/test_h264_parser.cpp`
 - `tests/test_h264_cabac_decoder.cpp`
+- `tests/test_h264_cabac_syntax_reader.cpp`
 - `tests/fixtures/`
 - `tests/test_analysis_stats.cpp`
 

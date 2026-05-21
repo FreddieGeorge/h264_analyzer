@@ -21,3 +21,8 @@ H264CabacMbTypeResult h264ReadCabacMbType(BitReader &reader,
                                           H264CabacDecoder &decoder,
                                           H264CabacContextModelSet &contexts,
                                           const H264SliceDataContext &sliceContext);
+
+H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternZero(BitReader &reader,
+                                                                    H264CabacDecoder &decoder,
+                                                                    H264CabacContextModelSet &contexts,
+                                                                    const H264SliceDataContext &sliceContext);
