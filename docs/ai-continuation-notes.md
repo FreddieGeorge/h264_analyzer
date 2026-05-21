@@ -71,7 +71,9 @@ Important H.264 files:
 - `H264MacroblockTypes.*`: macroblock type naming and coded-block-pattern
   mapping.
 - `cabac/H264CabacContextModel.*`: CABAC context-model initialization
-  tables/helpers.
+  tables/helpers. The covered subset currently reaches ctxIdx 85, including
+  the coded-block-pattern, `mb_qp_delta`, and first residual coded-block-flag
+  contexts used by the narrow CABAC paths.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
   readers.
@@ -79,11 +81,19 @@ Important H.264 files:
   readers. It currently covers `mb_skip_flag`, `mb_type` prefix bins, I-slice
   `I_NxN`/`I_16x16`/`I_PCM`, and P-slice `P_L0_16x16`,
   `P_L0_L0_16x8`, `P_L0_L0_8x16`, plus `P_8x8` detection. It also has a
-  narrow `coded_block_pattern == 0` reader; non-zero luma/chroma CBP still
-  returns incomplete.
+  narrow `coded_block_pattern == 0` reader with luma ctxIdx derivation over
+  contexts 73-76 and first chroma context 77; non-zero luma/chroma CBP still
+  returns incomplete. It also has a narrow `mb_qp_delta == 0` reader for future
+  residual-bearing paths; non-zero `mb_qp_delta` returns incomplete.
 - `cabac/H264CabacSubMacroblockSyntaxReader.*`: focused P sub-macroblock
   readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and narrow
-  `mvd_l0 == 0` scaffolding.
+  `mvd_l0` scaffolding. MVD now covers zero and small non-zero components
+  (`abs(mvd_l0) <= 3` with bypass sign); larger absolute values still return
+  incomplete.
+- `cabac/H264CabacResidualSyntaxReader.*`: focused residual CABAC syntax
+  skeleton. It currently only reads a luma 4x4 `coded_block_flag == 0` using
+  ctxIdx 85. A non-zero coded-block flag returns incomplete; significant
+  coefficient and coefficient-level parsing are not implemented.
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
 - `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
@@ -109,15 +119,20 @@ Current H.264 limitations:
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
-  initialization currently covers ctxIdx 0-59, including B-slice skip/type
-  starter contexts and P-slice `ref_idx_l0` starter contexts. The CABAC
-  macroblock entry point has a syntax-result boundary for supported I/P
-  `mb_type` and narrow P_8x8 `sub_mb_type`/`ref_idx_l0 == 0`/`mvd_l0 == 0`
-  scaffolding. The P_8x8 path can append a partial macroblock skeleton with
-  zero-MVD L0 motion vectors and MV-state updates, but it deliberately does not
-  mark the macroblock fully parsed or produce residual data yet. CBP reader
-  coverage is currently tested at the syntax-reader layer and is not wired into
-  the macroblock entry point until ctxIdx derivation/table coverage is broader.
+  initialization currently covers ctxIdx 0-85, including B-slice skip/type
+  starter contexts, P-slice `ref_idx_l0` starter contexts, coded-block-pattern
+  contexts, `mb_qp_delta`, and the first residual `coded_block_flag` context.
+  The CABAC macroblock entry point has a syntax-result boundary for supported
+  I/P `mb_type` and narrow P_8x8
+  `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
+  now reads narrow `coded_block_pattern == 0` after MVD syntax and appends a
+  parsed no-residual macroblock with L0 motion vectors and MV-state updates
+  only when CBP zero completes. Non-zero CBP, MVD absolute values greater than
+  three, non-zero `mb_qp_delta`, and residual CABAC remain
+  unsupported/incomplete at the macroblock entry point. For inter CBP-zero
+  macroblocks, `mb_qp_delta` is not present and is deliberately not consumed.
+  Residual CABAC has a reader-layer skeleton for `coded_block_flag == 0`, but
+  it is not wired into macroblock parsing yet.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
   dequantized, or transformed residual visualization.
 - B_Direct, B_8x8 sub-macroblock prediction, MBAFF/interlaced, and FMO remain
@@ -204,17 +219,19 @@ The deployment script writes its own release build under
 
 Recommended next H.264 direction:
 
-1. Decide the next CABAC P_8x8 step carefully: either expand syntax readers
-   toward non-zero `mvd_l0`, or wire the existing CBP-zero reader after adding
-   proper ctxIdx derivation/table coverage for contexts 73-77. Keep
-   syntax-result structs separate from final model mutation.
+1. Wire the residual-CABAC `coded_block_flag == 0` skeleton into one
+   deliberately narrow CBP-nonzero path, likely starting with a P_8x8
+   macroblock that exposes a single luma residual block category while keeping
+   coefficient parsing out of scope. Keep syntax-result structs separate from
+   final model mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
 3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
-4. Broaden CAVLC residual and P/B motion-vector fixtures where they expose
-   assumptions needed by CABAC integration.
+4. After the first CBP-nonzero path exists, decide whether to broaden residual
+   coded-block-flag coverage across more block categories or to resume MVD/CBP
+   breadth on P/B paths.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:

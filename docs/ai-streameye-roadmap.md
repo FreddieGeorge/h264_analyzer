@@ -229,6 +229,8 @@ Use focused commits. Current high-value themes:
 Wire CABAC CBP-zero reader into P_8x8 macroblock path
 Expand CABAC ctxIdx table coverage for contexts 73-77
 Expand CABAC non-zero mvd_l0 syntax reader
+Add CABAC residual coded_block_flag zero skeleton
+Wire CABAC residual coded_block_flag zero into one narrow CBP-nonzero path
 Expand H264 residual coefficient fixtures
 Expand H264 P8x8 sub-macroblock fixtures
 Parse H264 B_Direct motion vectors

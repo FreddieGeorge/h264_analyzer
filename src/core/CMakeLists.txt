@@ -29,6 +29,8 @@ set(ZSTREAMEYE_CORE_SOURCES
     parser/video/h264/cabac/H264CabacMacroblockParser.cpp
     parser/video/h264/cabac/H264CabacMacroblockSyntaxReader.h
     parser/video/h264/cabac/H264CabacMacroblockSyntaxReader.cpp
+    parser/video/h264/cabac/H264CabacResidualSyntaxReader.h
+    parser/video/h264/cabac/H264CabacResidualSyntaxReader.cpp
     parser/video/h264/cabac/H264CabacSubMacroblockSyntaxReader.h
     parser/video/h264/cabac/H264CabacSubMacroblockSyntaxReader.cpp
     parser/video/h264/cabac/H264CabacSyntaxReader.h

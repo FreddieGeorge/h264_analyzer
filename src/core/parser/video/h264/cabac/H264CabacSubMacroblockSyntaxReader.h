@@ -32,7 +32,8 @@ H264CabacRefIdxListResult h264ReadCabacPSubMbRefIdxL0(BitReader &reader,
 H264CabacMvdResult h264ReadCabacMvdL0Component(BitReader &reader,
                                                H264CabacDecoder &decoder,
                                                H264CabacContextModelSet &contexts,
-                                               int component);
+                                               int component,
+                                               int ctxIdxInc = 0);
 
 H264CabacMvdListResult h264ReadCabacPSubMbMvdL0(BitReader &reader,
                                                 H264CabacDecoder &decoder,

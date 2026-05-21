@@ -58,6 +58,78 @@ int cabacMbTypePrefixCtxIdx(const H264SliceDataContext &context)
     return -1;
 }
 
+bool lumaCbpBitIsSet(const H264SliceDataContext &context,
+                     int address,
+                     int luma8x8,
+                     int currentCodedBlockPatternLuma)
+{
+    if (address == context.currentAddress) {
+        return ((currentCodedBlockPatternLuma >> luma8x8) & 0x01) != 0;
+    }
+
+    const MacroblockInfo *mb = macroblockAtAddress(context.slice, address);
+    return mb != nullptr && ((mb->codedBlockPatternLuma >> luma8x8) & 0x01) != 0;
+}
+
+int cbpLumaCondTermFlag(const H264SliceDataContext &context,
+                        int address,
+                        int luma8x8,
+                        int currentCodedBlockPatternLuma)
+{
+    if (address < 0) {
+        return 0;
+    }
+    const MacroblockInfo *mb = address == context.currentAddress
+        ? nullptr
+        : macroblockAtAddress(context.slice, address);
+    if (address != context.currentAddress && mb == nullptr) {
+        return 0;
+    }
+    if (mb != nullptr && mb->mbType == QStringLiteral("I_PCM")) {
+        return 0;
+    }
+    if (mb == nullptr || !mb->skipped) {
+        return lumaCbpBitIsSet(context, address, luma8x8, currentCodedBlockPatternLuma) ? 0 : 1;
+    }
+    return 1;
+}
+
+int cabacCbpLumaCtxIdx(const H264SliceDataContext &context,
+                       int luma8x8,
+                       int currentCodedBlockPatternLuma)
+{
+    const int mbX = context.currentAddress % context.slice.picWidthInMbs;
+    const int mbY = context.currentAddress / context.slice.picWidthInMbs;
+    const int x8 = luma8x8 % 2;
+    const int y8 = luma8x8 / 2;
+
+    int leftAddress = -1;
+    int leftLuma8x8 = -1;
+    if (x8 > 0) {
+        leftAddress = context.currentAddress;
+        leftLuma8x8 = luma8x8 - 1;
+    } else if (mbX > 0) {
+        leftAddress = context.currentAddress - 1;
+        leftLuma8x8 = luma8x8 + 1;
+    }
+
+    int topAddress = -1;
+    int topLuma8x8 = -1;
+    if (y8 > 0) {
+        topAddress = context.currentAddress;
+        topLuma8x8 = luma8x8 - 2;
+    } else if (mbY > 0) {
+        topAddress = context.currentAddress - context.slice.picWidthInMbs;
+        topLuma8x8 = luma8x8 + 2;
+    }
+
+    const int condTermFlagA =
+        cbpLumaCondTermFlag(context, leftAddress, leftLuma8x8, currentCodedBlockPatternLuma);
+    const int condTermFlagB =
+        cbpLumaCondTermFlag(context, topAddress, topLuma8x8, currentCodedBlockPatternLuma);
+    return 73 + condTermFlagA + 2 * condTermFlagB;
+}
+
 H264CabacSyntaxResult failedResult(const QString &code, const QString &message, int ctxIdx = -1)
 {
     H264CabacSyntaxResult result;
@@ -294,11 +366,13 @@ H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternZero(BitReader &r
     }
 
     for (int luma8x8 = 0; luma8x8 < 4; ++luma8x8) {
+        const int ctxIdx =
+            cabacCbpLumaCtxIdx(sliceContext, luma8x8, result.codedBlockPatternLuma);
         const H264CabacSyntaxResult bin = decodeContextBin(
             reader,
             decoder,
             contexts,
-            73,
+            ctxIdx,
             QStringLiteral("coded_block_pattern_luma"));
         if (!bin.ok) {
             result.diagnosticCode = bin.diagnosticCode;
@@ -344,5 +418,37 @@ H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternZero(BitReader &r
     }
 
     result.complete = true;
+    return result;
+}
+
+H264CabacMbQpDeltaResult h264ReadCabacMbQpDeltaZero(BitReader &reader,
+                                                    H264CabacDecoder &decoder,
+                                                    H264CabacContextModelSet &contexts)
+{
+    H264CabacMbQpDeltaResult result;
+    result.firstCtxIdx = 60;
+
+    const H264CabacSyntaxResult firstBin = decodeContextBin(
+        reader,
+        decoder,
+        contexts,
+        result.firstCtxIdx,
+        QStringLiteral("mb_qp_delta"));
+    if (!firstBin.ok) {
+        result.diagnosticCode = firstBin.diagnosticCode;
+        result.diagnosticMessage = firstBin.diagnosticMessage;
+        return result;
+    }
+
+    result.ok = true;
+    if (firstBin.value != 0) {
+        result.diagnosticCode = QStringLiteral("cabac_mb_qp_delta_incomplete");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC non-zero mb_qp_delta is not implemented.");
+        return result;
+    }
+
+    result.complete = true;
+    result.mbQpDelta = 0;
     return result;
 }

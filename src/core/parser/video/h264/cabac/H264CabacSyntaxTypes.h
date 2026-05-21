@@ -36,6 +36,26 @@ struct H264CabacCodedBlockPatternResult
     QString diagnosticMessage;
 };
 
+struct H264CabacMbQpDeltaResult
+{
+    bool ok = false;
+    bool complete = false;
+    int mbQpDelta = 0;
+    int firstCtxIdx = -1;
+    QString diagnosticCode;
+    QString diagnosticMessage;
+};
+
+struct H264CabacResidualBlockResult
+{
+    bool ok = false;
+    bool complete = false;
+    int codedBlockFlag = -1;
+    int ctxIdx = -1;
+    QString diagnosticCode;
+    QString diagnosticMessage;
+};
+
 struct H264CabacSubMbTypeResult
 {
     bool ok = false;

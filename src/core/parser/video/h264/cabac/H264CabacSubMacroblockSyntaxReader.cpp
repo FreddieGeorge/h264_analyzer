@@ -3,6 +3,8 @@
 #include "core/parser/video/h264/H264SliceDataContext.h"
 #include "core/parser/video/h264/cabac/H264CabacDecoder.h"
 
+#include <cstdlib>
+
 namespace
 {
 H264CabacSubMbTypeResult failedSubMbTypeResult(const QString &code, const QString &message, int ctxIdx = -1)
@@ -45,6 +47,44 @@ int pSubMbPartitionCount(int subMbType)
     default:
         return 0;
     }
+}
+
+int mvdComponentValue(const QVector<H264CabacMvdPair> &subMacroblockMvd,
+                      const QVector<bool> &subMacroblockMvdValid,
+                      int subIndex,
+                      int component)
+{
+    if (subIndex < 0 || subIndex >= subMacroblockMvd.size()
+        || subIndex >= subMacroblockMvdValid.size() || !subMacroblockMvdValid.at(subIndex)) {
+        return 0;
+    }
+
+    const H264CabacMvdPair pair = subMacroblockMvd.at(subIndex);
+    return component == 0 ? pair.x : pair.y;
+}
+
+int mvdCtxIdxIncFromNeighborAbsMvd(int neighborAbsMvd)
+{
+    if (neighborAbsMvd < 3) {
+        return 0;
+    }
+    if (neighborAbsMvd <= 32) {
+        return 1;
+    }
+    return 2;
+}
+
+int p8x8MvdCtxIdxInc(const QVector<H264CabacMvdPair> &subMacroblockMvd,
+                     const QVector<bool> &subMacroblockMvdValid,
+                     int subIndex,
+                     int component)
+{
+    const int leftSubIndex = (subIndex % 2) == 1 ? subIndex - 1 : -1;
+    const int topSubIndex = subIndex >= 2 ? subIndex - 2 : -1;
+    const int neighborAbsMvd =
+        std::abs(mvdComponentValue(subMacroblockMvd, subMacroblockMvdValid, leftSubIndex, component))
+        + std::abs(mvdComponentValue(subMacroblockMvd, subMacroblockMvdValid, topSubIndex, component));
+    return mvdCtxIdxIncFromNeighborAbsMvd(neighborAbsMvd);
 }
 }
 
@@ -248,9 +288,16 @@ H264CabacRefIdxListResult h264ReadCabacPSubMbRefIdxL0(BitReader &reader,
 H264CabacMvdResult h264ReadCabacMvdL0Component(BitReader &reader,
                                                H264CabacDecoder &decoder,
                                                H264CabacContextModelSet &contexts,
-                                               int component)
+                                               int component,
+                                               int ctxIdxInc)
 {
-    const int ctxIdx = component == 0 ? 40 : 47;
+    if (component < 0 || component > 1 || ctxIdxInc < 0 || ctxIdxInc > 2) {
+        return failedMvdResult(
+            QStringLiteral("cabac_mvd_context_invalid"),
+            QStringLiteral("CABAC mvd_l0 context derivation produced an invalid component or ctxIdxInc."));
+    }
+
+    const int ctxIdx = (component == 0 ? 40 : 47) + ctxIdxInc;
     if (!contexts.isInitialized(ctxIdx)) {
         return failedMvdResult(
             QStringLiteral("cabac_context_uninitialized"),
@@ -276,9 +323,67 @@ H264CabacMvdResult h264ReadCabacMvdL0Component(BitReader &reader,
         return result;
     }
 
-    result.diagnosticCode = QStringLiteral("cabac_mvd_incomplete");
-    result.diagnosticMessage =
-        QStringLiteral("CABAC non-zero mvd_l0 is not implemented.");
+    const int suffixCtxIdx = (component == 0 ? 40 : 47) + 3;
+    if (!contexts.isInitialized(suffixCtxIdx)) {
+        return failedMvdResult(
+            QStringLiteral("cabac_context_uninitialized"),
+            QStringLiteral("CABAC context %1 for non-zero mvd_l0 is not initialized in the covered context table.")
+                .arg(suffixCtxIdx),
+            suffixCtxIdx);
+    }
+
+    if (!decoder.decodeBin(reader, contexts, suffixCtxIdx, &bin)) {
+        return failedMvdResult(
+            QStringLiteral("cabac_bin_decode_failed"),
+            QStringLiteral("CABAC bin decoding failed while reading non-zero mvd_l0."),
+            suffixCtxIdx);
+    }
+    int absMvd = 1;
+    if (bin != 0) {
+        const int extensionCtxIdx = (component == 0 ? 40 : 47) + 4;
+        if (!contexts.isInitialized(extensionCtxIdx)) {
+            return failedMvdResult(
+                QStringLiteral("cabac_context_uninitialized"),
+                QStringLiteral("CABAC context %1 for small non-zero mvd_l0 is not initialized in the covered context table.")
+                    .arg(extensionCtxIdx),
+                extensionCtxIdx);
+        }
+
+        if (!decoder.decodeBin(reader, contexts, extensionCtxIdx, &bin)) {
+            return failedMvdResult(
+                QStringLiteral("cabac_bin_decode_failed"),
+                QStringLiteral("CABAC bin decoding failed while reading small non-zero mvd_l0."),
+                extensionCtxIdx);
+        }
+        if (bin == 0) {
+            absMvd = 2;
+        } else {
+            if (!decoder.decodeBin(reader, contexts, extensionCtxIdx, &bin)) {
+                return failedMvdResult(
+                    QStringLiteral("cabac_bin_decode_failed"),
+                    QStringLiteral("CABAC bin decoding failed while reading small non-zero mvd_l0."),
+                    extensionCtxIdx);
+            }
+            if (bin == 0) {
+                absMvd = 3;
+            } else {
+                result.diagnosticCode = QStringLiteral("cabac_mvd_incomplete");
+                result.diagnosticMessage =
+                    QStringLiteral("CABAC mvd_l0 absolute values greater than three are not implemented.");
+                return result;
+            }
+        }
+    }
+
+    int sign = 0;
+    if (!decoder.decodeBypassBin(reader, &sign)) {
+        return failedMvdResult(
+            QStringLiteral("cabac_bin_decode_failed"),
+            QStringLiteral("CABAC bypass sign decoding failed while reading small non-zero mvd_l0."),
+            ctxIdx);
+    }
+    result.complete = true;
+    result.value = sign == 0 ? absMvd : -absMvd;
     return result;
 }
 
@@ -288,6 +393,8 @@ H264CabacMvdListResult h264ReadCabacPSubMbMvdL0(BitReader &reader,
                                                 const QVector<int> &subMbTypes)
 {
     H264CabacMvdListResult result;
+    QVector<H264CabacMvdPair> subMacroblockMvd(4);
+    QVector<bool> subMacroblockMvdValid(4, false);
     for (int subIndex = 0; subIndex < subMbTypes.size(); ++subIndex) {
         const int partitionCount = pSubMbPartitionCount(subMbTypes.at(subIndex));
         if (partitionCount <= 0) {
@@ -300,8 +407,12 @@ H264CabacMvdListResult h264ReadCabacPSubMbMvdL0(BitReader &reader,
         }
 
         for (int partition = 0; partition < partitionCount; ++partition) {
+            const int mvdXCtxIdxInc =
+                subMbTypes.at(subIndex) == 0
+                    ? p8x8MvdCtxIdxInc(subMacroblockMvd, subMacroblockMvdValid, subIndex, 0)
+                    : 0;
             const H264CabacMvdResult mvdX =
-                h264ReadCabacMvdL0Component(reader, decoder, contexts, 0);
+                h264ReadCabacMvdL0Component(reader, decoder, contexts, 0, mvdXCtxIdxInc);
             if (!mvdX.ok) {
                 result.diagnosticCode = mvdX.diagnosticCode;
                 result.diagnosticMessage = QStringLiteral("CABAC mvd_l0[%1][%2][0] failed: %3")
@@ -320,8 +431,12 @@ H264CabacMvdListResult h264ReadCabacPSubMbMvdL0(BitReader &reader,
                 return result;
             }
 
+            const int mvdYCtxIdxInc =
+                subMbTypes.at(subIndex) == 0
+                    ? p8x8MvdCtxIdxInc(subMacroblockMvd, subMacroblockMvdValid, subIndex, 1)
+                    : 0;
             const H264CabacMvdResult mvdY =
-                h264ReadCabacMvdL0Component(reader, decoder, contexts, 1);
+                h264ReadCabacMvdL0Component(reader, decoder, contexts, 1, mvdYCtxIdxInc);
             if (!mvdY.ok) {
                 result.diagnosticCode = mvdY.diagnosticCode;
                 result.diagnosticMessage = QStringLiteral("CABAC mvd_l0[%1][%2][1] failed: %3")
@@ -340,7 +455,12 @@ H264CabacMvdListResult h264ReadCabacPSubMbMvdL0(BitReader &reader,
                 return result;
             }
 
-            result.mvd.append({mvdX.value, mvdY.value});
+            const H264CabacMvdPair pair {mvdX.value, mvdY.value};
+            result.mvd.append(pair);
+            if (subIndex < subMacroblockMvd.size()) {
+                subMacroblockMvd[subIndex] = pair;
+                subMacroblockMvdValid[subIndex] = true;
+            }
         }
     }
 
