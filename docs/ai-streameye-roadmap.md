@@ -1,376 +1,188 @@
 # AI Roadmap Toward a StreamEye-Class Analyzer
 
-This document is a staged roadmap for future AI/coding agents. It focuses on
-how to evolve this project from a H.264-focused analyzer toward a broader
-professional bitstream analysis tool.
+This staged roadmap describes how to grow ZStreamEye from a H.264-focused
+desktop analyzer into a broader professional bitstream analysis tool. Keep
+current implementation details in `docs/ai-continuation-notes.md`; keep this
+file focused on direction and sequencing.
 
-The current project already has:
+Current foundation:
 
-- Qt 6 desktop UI with frame list, property tree, log dock, and OpenGL canvas.
+- Qt 6 desktop UI with frame/access-unit list, property tree, log dock, stats
+  dock, bitstream hex dock, and OpenGL canvas.
 - FFmpeg background decoding through `DecodeWorker`.
-- A codec-neutral parser interface (`IBitstreamParser`, `CodecKind`).
-- A codec-neutral `FrameAnalysis` model used by decoder handoff, overlays,
-  property tree summary sections, and JSON export.
-- Media/access-unit identifiers (`MediaKind`, `AccessUnitKind`) carried by
-  `StreamInfo` and `FrameAnalysis`, with JSON schema v3 fields for future
-  video/audio stream analysis.
-- A direct H.264 parser (`H264Parser`) for Annex B and AVCC packets.
-- A H.264-to-`FrameAnalysis` adapter that keeps rich H.264 syntax details
-  nested as codec-specific data.
-- A parser directory split by media kind: audio parsers under
-  `src/core/parser/audio`, video parsers under `src/core/parser/video`, with
-  H.264 in `video/h264` and HEVC in `video/hevc`.
-- Codec-neutral parser helpers under `src/core/util` for bit reading, Annex B
-  byte-stream helpers, big-endian length reads, EBSP/RBSP conversion, and
-  packet bit-range mapping for hex highlighting.
-- A wired HEVC/H.265 parser skeleton that identifies NAL units, VPS/SPS/PPS,
-  VCL access units, and unsupported slice diagnostics through the generic
-  `FrameAnalysis` path.
-- HEVC `Type` labels in the access-unit list are coarse today: `IRAP` for
-  intra random access points and `VCL` for other video-coding-layer access
-  units. Full I/P/B-style labels belong with future HEVC slice-header work.
-- An AAC ADTS parser skeleton that emits audio access-unit metadata, ADTS
-  header bit fields, and structured malformed-packet diagnostics.
-- An MP3 frame-header parser skeleton plus generic audio access-unit list,
-  property-tree display, and JSON export coverage for audio `FrameAnalysis`.
-- Access-unit list filtering by discovered stream, media kind, and diagnostics.
-- Packet metadata and raw packet bytes carried by `FrameAnalysis` for parsed
-  access units, with stream/container packet indexes and packet metadata
-  exported to JSON/CSV.
-- A read-only bitstream hex dock that follows selected access-unit raw packet
-  bytes, renders bounded pages, highlights byte ranges for selected syntax bit
-  fields, and supports a first byte-to-field reverse selection path.
-- H.264 SPS/PPS/Slice Header parsing.
-- Partial CAVLC macroblock parsing, residual block counting, QP, P-slice L0 MV overlay, focused P_8x8/P_8x8ref0 sub-macroblock MV coverage, and focused non-direct B-slice L0/L1/Bi MV parsing.
-- Property-tree/status-bar explanations for overlay availability, including QP
-  constant/range notes and motion-vector unsupported reasons.
-- Seek checkpoints for rebuffering from keyframe/IDR positions.
-- JSON/CSV/screenshot exports, persisted UI settings, Windows CI, and release workflow.
+- Codec-neutral parser and analysis models: `IBitstreamParser`,
+  `FrameAnalysis`, `MediaKind`, `AccessUnitKind`, and `StreamInfo`.
+- Direct H.264 parser for Annex B and AVCC packets, with partial CAVLC
+  macroblock/residual/MV coverage and structured unsupported diagnostics.
+- Shallow HEVC, AAC ADTS, and MP3 parser skeletons that validate the generic
+  access-unit path.
+- JSON/CSV/screenshot exports, persisted UI settings, Windows CI, and release
+  packaging.
 
 ## Guiding Principle
 
 Do not chase StreamEye by adding isolated UI buttons. Build depth first:
 
 1. Make H.264 analysis correct and trusted.
-2. Extract codec-neutral analysis models.
-3. Add bit/hex synchronization and statistics.
+2. Keep generic UI/export/statistics paths codec-neutral.
+3. Add bit/hex synchronization and useful statistics.
 4. Add quality comparison.
 5. Deepen HEVC and add more codecs.
-6. Add explicit audio stream selection and deeper access-unit analysis.
+6. Add explicit audio/container workflows.
 7. Add automation, reports, and product hardening.
 
 ## Stage 1: Deepen H.264 Correctness
 
-Goal:
+Goal: make H.264 overlays and macroblock data trustworthy instead of estimated.
 
-- Make H.264 overlays and macroblock data trustworthy instead of estimated.
+Key work:
 
-Main tasks:
+- Broaden CAVLC residual, P_8x8/P_8x8ref0, and B-slice motion-vector coverage.
+- Add B_Direct, B_8x8, MBAFF/interlaced, and FMO support or precise diagnostics.
+- Add CABAC only in layers: context models, arithmetic decoder, syntax helpers,
+  then macroblock integration.
+- Preserve structured diagnostics for malformed, truncated, and unsupported
+  streams.
 
-- Expand P_8x8 / P_8x8ref0 sub-macroblock prediction parsing beyond the current focused CAVLC L0 fixtures.
-- Expand B-slice L0/L1/bi/direct motion vectors beyond the current focused
-  non-direct CAVLC fixtures.
-- Add CABAC macroblock parsing after CAVLC paths are stable.
-- Add MBAFF/interlaced handling or precise structured diagnostics.
-- Add FMO diagnostics or support where practical.
-- Expose residual coefficient details, not only residual block/coeff counts.
-- Add more malformed/truncated stream diagnostics.
+Done when:
 
-Current status:
+- QP heatmap and MV overlay distinguish parsed data from unsupported data.
+- Unsupported syntax reports stable diagnostics instead of generic notes.
+- Regression fixtures cover I/P/B, residuals, P_8x8, B-slice modes, CABAC
+  unsupported/supported paths, and truncation.
 
-- Common CAVLC I/P macroblocks, QP, residual block/coefficient counts, and
-  P-slice L0 motion vectors are partially parsed, including focused
-  P_8x8/P_8x8ref0 sub-macroblock L0 vectors and focused non-direct B-slice
-  L0/L1/Bi vectors.
-- The UI now distinguishes available overlay data from unsupported or missing
-  analysis data through `PropertyTreeView` and status bar hints rather than
-  canvas text.
-- Unsupported CABAC, B_Direct, and B_8x8 macroblock/MV paths have regression
-  coverage and report structured diagnostics.
-- Truncated slice headers have regression coverage and report
-  `slice_header_truncated` without inventing macroblock data.
-- Truncated P-slice `slice_data` has regression coverage and reports
-  `slice_data_truncated` while preserving estimated macroblock data.
-- Malformed AVCC length-prefixed packets have regression coverage and report
-  `avcc_nalu_length_exceeds_packet` at frame level.
-- Truncated SPS/PPS NALUs have regression coverage and report
-  `sps_truncated` / `pps_truncated` without caching invalid parameter sets.
+## Stage 2: Keep FrameAnalysis Codec-Neutral
 
-Acceptance criteria:
+Goal: avoid forcing all analysis through H.264-shaped structs.
 
-- QP heatmap uses parsed macroblock data for supported streams.
-- MV overlay distinguishes parsed vectors from unavailable/unsupported data in
-  user-visible property/status summaries.
-- Unsupported syntax produces structured diagnostics, not generic notes.
-- Regression fixtures cover I/P/B, P_8x8, CABAC unsupported/supported, and truncation.
+Current status: mostly complete for the existing H.264, HEVC skeleton, AAC, and
+MP3 paths.
 
-Suggested files:
+Key work:
 
-- `src/core/parser/video/h264/H264*.cpp`
-- `src/core/util/*`
-- `src/ui/VideoCanvas.*`
-- `src/ui/PropertyTreeView.*`
-- `tests/test_h264_parser.cpp`
-- `tests/fixtures/`
+- Continue shrinking direct H.264 includes outside codec-specific UI/export
+  code.
+- Keep codec-specific details nested below stable generic `FrameAnalysis` data.
+- Use new non-H.264 parser work to prove the generic UI/export path degrades
+  gracefully.
 
-## Stage 2: Introduce Codec-Neutral FrameAnalysis
+Done when:
 
-Goal:
+- `FFmpegDecoder` and `DecodeWorker` can hand off access units without
+  UI-facing codec branches.
+- H.264 still displays rich details, but generic views consume generic fields.
 
-- Stop forcing all analysis through H.264-shaped `NaluInfo`, `SliceInfo`, and `MacroblockInfo`.
+## Stage 3: Improve Bitstream Hex And Bit-Offset Navigation
 
-Current status:
+Goal: provide StreamEye-style syntax-to-bitstream traceability.
 
-- Mostly complete for the H.264 path.
-- `IBitstreamParser::parsePacket()` returns `FrameAnalysis`.
-- `FFmpegDecoder` and `DecodeWorker` hand off `FrameAnalysis` without needing
-  H.264 UI payload types.
-- `VideoCanvas`, `FrameListView`, JSON export, and the top-level property tree
-  consume codec-neutral fields.
-- H.264-specific details are retained under codec-specific data and rendered
-  below `Codec Details`.
-- Export JSON schema v2 includes a stable `frame_analysis` section while
-  preserving H.264 details for compatibility.
-- The current schema v3 path also includes media/access-unit fields and packet
-  metadata for parsed access units.
+Current status: `BitstreamHexView` exists and can highlight selected packet
+byte ranges from `AnalysisBitField` metadata.
 
-Remaining polish:
+Key work:
 
-- Continue shrinking direct H.264 includes outside codec-specific UI/export code.
-- Add a non-H.264 parser skeleton once the next codec work begins, to verify
-  that the generic UI/export path degrades gracefully.
-
-Main tasks:
-
-- Add a codec-neutral model, for example:
-
-```text
-FrameAnalysis
-  codec
-  frameIndex
-  pts/dts
-  frameType
-  units[]          // NALU, OBU, tile group, etc.
-  parameterSets[]  // SPS/PPS/VPS/sequence header, etc.
-  regions[]        // macroblock, CTU, superblock
-  motionVectors[]
-  diagnostics[]
-  bitFields[]
-```
-
-- Make `IBitstreamParser::parsePacket()` return or populate `FrameAnalysis`.
-- Keep H.264-specific rich structs internally or behind codec-specific details.
-- Update UI/export paths to consume codec-neutral fields where possible.
-- Keep existing H.264 UI behavior during migration.
-
-Acceptance criteria:
-
-- H.264 still displays the same information after the migration.
-- `FFmpegDecoder` and `DecodeWorker` do not need codec-specific branches for UI handoff.
-- Export JSON includes a stable codec-neutral schema section.
-- H.264-specific fields are nested under codec-specific details, not mixed into every generic model.
-
-Suggested files:
-
-- `src/core/parser/BitstreamParser.*`
-- New `src/core/model/FrameAnalysis.*`
-- `src/core/parser/video/h264/H264*.cpp`
-- `src/core/decode/FFmpegDecoder.*`
-- `src/app/MainWindow.*`
-- `src/ui/PropertyTreeView.*`
-
-## Stage 3: Add Bitstream Hex And Bit-Offset Navigation
-
-Goal:
-
-- Give users StreamEye-style syntax-to-bitstream traceability.
-
-Current status:
-
-- `FrameAnalysis` now carries raw packet bytes and packet metadata, so a future
-  hex/bitstream dock can start from decoded access-unit evidence instead of
-  re-reading UI text.
-- `BitstreamHexView` displays selected packet bytes in 4096-byte pages,
-  highlights byte ranges from `AnalysisBitField` selection, shows an ASCII bit
-  mask preview for the selected range, and can select a covering syntax field
-  when a user clicks a hex byte. If several fields overlap the byte, the user
-  can choose one from a menu. `AnalysisBitField::offsetBasis` distinguishes
-  packet-relative AAC/MP3 header fields from H.264 RBSP-relative fields, and
-  H.264 SPS/PPS/slice header fields plus selected macroblock syntax fields now
-  carry normalized packet bit ranges via an EBSP/RBSP mapping table. Remaining
-  work is graphical sub-byte decoration and broader coverage for residual
-  syntax fields and container vs elementary-stream wrappers. H.264 summary rows
-  in `PropertyTreeView` are the primary click targets for hex navigation; do
-  not require users to expand separate bit-position rows for common syntax
+- Expand exact bit offsets for macroblock, residual, and container-wrapper
   fields.
+- Add clearer sub-byte visualization in the hex dock.
+- Make property-tree selection and hex selection round-trip for common syntax
+  fields.
+- Include useful bit-offset metadata in exports.
 
-Main tasks:
+Done when:
 
-- Add a hex/bitstream dock view.
-- Store exact byte/bit offsets for syntax fields.
-- Clicking a property tree field should highlight the bit range.
-- Clicking a NALU/block/field in the hex view should select related syntax.
-- Support Annex B and length-prefixed packet offsets.
-- Include bit offset metadata in JSON export.
-
-Acceptance criteria:
-
-- SPS/PPS/Slice Header fields can navigate to exact bit ranges.
-- Macroblock/slice data ranges are at least coarsely highlighted.
-- Hex view remains responsive on large streams through paging or lazy loading.
-
-Suggested files:
-
-- New `src/ui/BitstreamHexView.*`
-- `src/core/parser/video/h264/H264*.cpp`
-- `src/core/model/FrameAnalysis.*`
-- `src/app/MainWindow.*`
+- SPS/PPS/slice fields navigate to exact bit ranges.
+- Macroblock and residual syntax ranges are highlighted where parser coverage
+  exists.
+- Large streams remain responsive through paging or lazy loading.
 
 ## Stage 4: Add Analysis Charts And Statistics
 
-Goal:
+Goal: provide useful encoder-analysis summaries before quality metrics.
 
-- Provide useful encoder-analysis summaries before adding reference-quality metrics.
+Key work:
 
-Main tasks:
-
-- Extend the existing `AnalysisStats` / `StatsDock` foundation from simple
-  count/percentage distribution rows to graphical frame-type distribution
+- Extend `AnalysisStats` / `StatsDock` from distribution rows to graphical
   charts.
-- Add graphical QP distribution and QP-over-time chart.
-- Add bitrate per frame and instant bitrate chart.
-- Add macroblock/CTU/superblock type distribution.
-- Add motion vector magnitude/direction distribution.
-- Add residual coefficient/block count distribution.
+- Add QP distribution and QP-over-time charts.
+- Add bitrate, frame-type, macroblock/CTU/superblock type, MV magnitude, and
+  residual summaries.
 - Add GOP structure timeline.
 
-Acceptance criteria:
+Done when:
 
 - Charts are derived from internal analysis data, not UI text.
-- CSV/JSON exports include the same statistics.
-- Large streams stay responsive through bounded caches or background aggregation.
-
-Suggested files:
-
-- `src/core/analysis/AnalysisStats.*`
-- `src/ui/StatsDock.*`
-- `src/app/MainWindow.*`
-- `src/core/decode/DecodeWorker.*`
+- CSV/JSON exports expose the same aggregate statistics.
+- Large streams stay responsive through bounded caches or background
+  aggregation.
 
 ## Stage 5: Add Reference Comparison And Quality Metrics
 
-Goal:
+Goal: move toward StreamEye Studio-style quality analysis.
 
-- Move toward StreamEye Studio-style quality analysis.
+Key work:
 
-Main tasks:
-
-- Add reference YUV loading.
-- Synchronize decoded frame and reference frame by index/PTS.
-- Add PSNR.
-- Add SSIM.
-- Add frame difference view.
-- Add heatmap/subtraction/split comparison modes.
+- Add reference YUV loading and frame synchronization by index/PTS.
+- Add PSNR, SSIM, frame difference view, and heatmap/split comparison modes.
 - Later add VMAF/libvmaf, MS-SSIM, VIF, and batch quality reports.
 
-Acceptance criteria:
+Done when:
 
-- User can load encoded stream plus reference YUV and inspect per-frame metrics.
-- Metrics are exportable as CSV/JSON.
-- Pixel format, bit depth, resolution, and frame count mismatches are reported clearly.
+- Users can load encoded stream plus reference YUV and inspect per-frame
+  metrics.
+- Metrics export to CSV/JSON.
+- Pixel format, bit depth, resolution, and frame-count mismatches are reported
+  clearly.
 
-Suggested files:
+## Stage 6: Deepen HEVC/H.265
 
-- New `src/core/ReferenceFrameReader.*`
-- New `src/core/QualityMetrics.*`
-- `src/ui/VideoCanvas.*`
-- `src/app/MainWindow.*`
+Goal: become a multi-codec analyzer instead of a H.264-only tool.
 
-## Stage 6: Add HEVC/H.265 Parser Module
+Prerequisite: Stage 2 should stay solid enough that HEVC does not add
+codec-specific shortcuts to generic UI/export code.
 
-Goal:
+Key work:
 
-- Become a multi-codec analyzer instead of a H.264-only tool.
+- Extend the existing `HevcParser` from NALU/VPS/SPS/PPS/VCL classification to
+  SPS dimensions, slice segment headers, and slice-type labels.
+- Add CTU grid, QP map, basic CU/PU/TU structure, L0/L1 MVs, reference picture
+  sets, and DPB summaries.
 
-Prerequisite:
+Done when:
 
-- Stage 2 should be mostly complete before starting this.
-
-Main tasks:
-
-- Add `HevcParser` implementing `IBitstreamParser`.
-- Parse Annex B and hvcC/length-prefixed HEVC data.
-- Parse VPS/SPS/PPS.
-- Parse slice segment headers.
-- Add CTU grid.
-- Add QP map.
-- Add CU/PU/TU basic structure.
-- Add L0/L1 motion vectors.
-- Add reference picture set and DPB basics.
-
-Acceptance criteria:
-
-- HEVC streams decode and show basic frame/syntax info.
-- HEVC access-unit `Type` values progress from coarse `IRAP` / `VCL` labels to
-  slice-header-derived frame-type labels where the syntax supports it.
+- HEVC streams show basic frame/syntax info through generic UI/export paths.
 - CTU-level grid/QP overlay works for supported streams.
 - H.264 behavior remains unchanged.
 
-Suggested files:
-
-- New `src/core/parser/video/hevc/HevcParser.*`
-- `src/core/parser/BitstreamParser.*`
-- `src/core/model/FrameAnalysis.*`
-- `src/ui/VideoCanvas.*`
-- `tests/fixtures/hevc/`
-
 ## Stage 7: Add Container And Stream-Level Analysis
 
-Goal:
+Goal: connect elementary-stream analysis with container and transport context.
 
-- Connect elementary-stream analysis with container and transport context.
+Current status: parsed access units already preserve packet index, stream
+index, PTS/DTS, duration, byte position, size, keyframe flag, media kind, codec
+kind, and raw packet bytes.
 
-Current status:
+Key work:
 
-- Parsed access units preserve container packet index, per-stream packet index,
-  stream index, PTS/DTS, duration, byte position, size, keyframe flag, media
-  kind, codec kind, and raw packet bytes. The UI and exports expose packet
-  metadata, but there is not yet a dedicated container timeline or
-  decoded-frame-to-packet navigation view.
+- Add a container timeline and decoded-frame-to-packet navigation.
+- Add MP4/MKV/TS packet mapping, extraction helpers, and TS/PES continuity or
+  timestamp diagnostics where practical.
+- Add explicit audio/container workflows without tying them to `VideoCanvas`.
 
-Main tasks:
-
-- Show packet offset, DTS/PTS, duration, keyframe flags, and stream index.
-- Add MP4/MKV/TS frame-to-packet mapping.
-- Add elementary stream extraction helpers.
-- Add TS/PES continuity and timestamp diagnostics where practical.
-- Add DASH/HLS input exploration later.
-
-Acceptance criteria:
+Done when:
 
 - A decoded frame can be traced back to container packets.
-- Container timeline and decoded frame timeline are visible.
+- Container and decoded-frame timelines are both visible.
 - Timestamp discontinuities or missing keyframe indexes are diagnosed.
-
-Suggested files:
-
-- `src/core/decode/FFmpegDecoder.*`
-- New `src/core/ContainerAnalysis.*`
-- `src/ui/FrameListView.*`
-- `src/app/MainWindow.*`
 
 ## Stage 8: Add CLI, Batch Reports, And Automation
 
-Goal:
+Goal: make the analyzer useful in CI, encoder regression, and batch workflows.
 
-- Make the analyzer useful in CI, encoder regression, and batch workflows.
-
-Main tasks:
+Key work:
 
 - Add command-line analysis mode.
 - Export JSON/CSV/HTML reports without opening the GUI.
-- Add compare mode for two encodes.
-- Add quality metric batch mode.
+- Add compare mode for two encodes and batch quality metrics.
 - Add deterministic exit codes for pass/warn/fail.
 
 Example future commands:
@@ -380,69 +192,47 @@ ZStreamEyeCLI analyze input.264 --json report.json
 ZStreamEyeCLI compare encoded.mp4 reference.yuv --metrics psnr,ssim
 ```
 
-Acceptance criteria:
+Done when:
 
 - Parser tests can run against a fixture corpus from the CLI.
 - CI can fail on parse crashes or configured conformance errors.
 - GUI and CLI share parser/export code.
 
-Suggested files:
-
-- New `src/cli/`
-- New shared export/analysis modules under `src/core/`
-- `CMakeLists.txt`
-- `.github/workflows/`
-
 ## Stage 9: Product Hardening
 
-Goal:
+Goal: improve robustness, performance, and release confidence.
 
-- Improve robustness, performance, and release confidence.
+Key work:
 
-Main tasks:
-
-- Add large-file indexing cache.
-- Add seek/rebuffer cancellation and progress.
-- Add bounded syntax cache separate from decoded frame cache.
+- Add large-file indexing cache and bounded syntax caches.
+- Harden seek/rebuffer cancellation, progress, and stale-callback handling.
 - Add background parse/aggregation queues.
-- Add crash-safe malformed stream handling.
-- Add a legally redistributable regression corpus.
-- Add Linux CI when Qt/FFmpeg packages are stable enough.
-- Add release signing/installer later if needed.
+- Add crash-safe malformed-stream handling and a redistributable regression
+  corpus.
+- Add Linux CI and release signing later when practical.
 
-Acceptance criteria:
+Done when:
 
 - Long streams remain usable.
 - Repeated seek/click workflows do not queue stale work.
 - Malformed streams produce diagnostics rather than crashes.
 - CI covers parser, packaging, and representative fixture smoke tests.
 
-Suggested files:
+## Suggested Next Commit Themes
 
-- `src/core/decode/DecodeWorker.*`
-- `src/core/decode/FFmpegDecoder.*`
-- `src/app/MainWindow.*`
-- `.github/workflows/`
-- `scripts/`
-
-## Suggested Next Commit Order
-
-The project has already completed most of the codec-neutral `FrameAnalysis`
-migration and basic overlay explainability, so the next work should emphasize
-release confidence, real-stream seek/rebuffer smoke coverage, and H.264
-trustworthiness before starting a full HEVC parser. Good focused commits:
+Use focused commits. Current high-value themes:
 
 ```text
-Add packaged Windows layout smoke validation
-Add repeated old-frame rebuffer UI smoke coverage
-Expose H264 residual coefficient details
+Add CABAC syntax reader scaffolding
+Expand H264 residual coefficient fixtures
 Expand H264 P8x8 sub-macroblock fixtures
 Parse H264 B_Direct motion vectors
 Parse H264 B_8x8 sub-macroblock motion vectors
-Add bitstream hex dock skeleton
-Link property fields to bit offsets
-Add QP and frame-type statistics dock
-Add HEVC parser skeleton with graceful unsupported UI
+Improve macroblock/residual bit-offset highlighting
+Add QP and frame-type charts
+Add repeated old-frame rebuffer UI smoke coverage
+Add packaged Windows layout smoke validation
+Deepen HEVC parser skeleton
 ```
 
 ## Notes For Future Agents
@@ -451,5 +241,7 @@ Add HEVC parser skeleton with graceful unsupported UI
 - Keep heavy parsing and seeking off the UI thread.
 - Add fixtures before or alongside parser behavior changes.
 - Do not rely on FFmpeg's H.264 parser for syntax analysis.
-- Prefer codec-neutral UI/export paths, with codec-specific details nested below.
-- If a stream is unsupported, log structured diagnostics and keep playback usable.
+- Prefer codec-neutral UI/export paths, with codec-specific details nested
+  below.
+- If a stream is unsupported, log structured diagnostics and keep playback
+  usable.

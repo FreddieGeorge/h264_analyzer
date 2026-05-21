@@ -252,7 +252,7 @@ SliceInfo H264Parser::parseSliceHeader(const QByteArray &rbsp, int nalUnitType, 
     }
 
     if (pps.entropyCodingModeFlag && normalizedSliceType != 2 && normalizedSliceType != 4) {
-        readUEField(QStringLiteral("cabac_init_idc"));
+        slice.cabacInitIdc = static_cast<int>(readUEField(QStringLiteral("cabac_init_idc")));
     }
     slice.sliceQpDelta = readSEField(QStringLiteral("slice_qp_delta"));
     if (normalizedSliceType == 3 || normalizedSliceType == 4) {

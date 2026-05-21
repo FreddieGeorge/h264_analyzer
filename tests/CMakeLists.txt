@@ -10,6 +10,7 @@ target_compile_definitions(ZStreamEyeParserTests PRIVATE
     H264_ANALYZER_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
+add_zstreameye_core_test(ZStreamEyeH264CabacDecoderTests test_h264_cabac_decoder.cpp)
 add_zstreameye_core_test(ZStreamEyeHevcParserTests test_hevc_parser.cpp)
 add_zstreameye_core_test(ZStreamEyeAacAdtsParserTests test_aac_adts_parser.cpp)
 add_zstreameye_core_test(ZStreamEyeMp3FrameParserTests test_mp3_frame_parser.cpp)

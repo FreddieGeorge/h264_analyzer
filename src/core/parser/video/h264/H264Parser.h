@@ -175,6 +175,7 @@ struct SliceInfo
     bool longTermReferenceFlag = false;
     bool adaptiveRefPicMarkingModeFlag = false;
     QString decRefPicMarkingSummary;
+    int cabacInitIdc = -1;
     int sliceQpDelta = 0;
     int derivedQp = 26;
     int picWidthInMbs = 0;
@@ -252,11 +253,6 @@ private:
     PpsInfo parsePps(const QByteArray &rbsp) const;
     SliceInfo parseSliceHeader(const QByteArray &rbsp, int nalUnitType, int nalRefIdc) const;
     void parseSliceData(BitReader &reader, SliceInfo &slice, const PpsInfo &pps, const SpsInfo &sps) const;
-
-    static int codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType);
-    static QString intraMbTypeName(int mbType);
-    static QString pMbTypeName(int mbType);
-    static QString bMbTypeName(int mbType);
 
     QHash<int, SpsInfo> m_spsById;
     QHash<int, PpsInfo> m_ppsById;

@@ -646,6 +646,7 @@ void PropertyTreeView::addH264Details(QTreeWidgetItem *parent, const FrameSyntax
         addPair(sliceItem, tr("ref_pic_list_modification"), slice.refPicListModificationSummary.isEmpty() ? QStringLiteral("-") : slice.refPicListModificationSummary);
         addPair(sliceItem, tr("pred_weight_table"), slice.predWeightTablePresent ? slice.predWeightTableSummary : presentValue(false));
         addPair(sliceItem, tr("dec_ref_pic_marking"), slice.decRefPicMarkingPresent ? slice.decRefPicMarkingSummary : presentValue(false));
+        addSyntaxPair(sliceItem, slice.fields, QStringLiteral("cabac_init_idc"), slice.cabacInitIdc >= 0 ? QString::number(slice.cabacInitIdc) : QStringLiteral("-"));
         addSyntaxPair(sliceItem, slice.fields, QStringLiteral("slice_qp_delta"), QString::number(slice.sliceQpDelta));
         addPair(sliceItem, tr("derived QP"), QString::number(slice.derivedQp));
         addPair(sliceItem, tr("macroblocks_parsed"), boolValue(slice.macroblocksParsed));

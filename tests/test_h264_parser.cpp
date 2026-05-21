@@ -1387,6 +1387,7 @@ void testUnsupportedCabacFixtureReportsDiagnostic()
     const FrameSyntaxInfo frame = parser.parsePacketSyntax(loadFixture(QStringLiteral("unsupported_cabac_p.hex")), 0, 0, 0);
     const SliceInfo &slice = firstSlice(frame, "CABAC fixture has slice");
     require(slice.sliceTypeName == QStringLiteral("P"), "CABAC fixture slice type");
+    require(slice.cabacInitIdc == 0, "CABAC fixture cabac_init_idc");
     require(slice.macroblocks.size() == 1, "CABAC fixture estimated macroblock count");
     require(!slice.macroblocks.first().parsed, "CABAC fixture macroblock remains estimated");
     require(hasDiagnosticCode(slice, QStringLiteral("cabac_unsupported")), "CABAC fixture diagnostic");

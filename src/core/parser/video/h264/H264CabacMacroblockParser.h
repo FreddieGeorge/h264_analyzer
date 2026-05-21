@@ -2,6 +2,8 @@
 
 #include <QString>
 
+struct H264SliceDataContext;
+
 struct H264CabacUnsupportedResult
 {
     QString code;
@@ -9,3 +11,4 @@ struct H264CabacUnsupportedResult
 };
 
 H264CabacUnsupportedResult h264CabacUnsupportedResult();
+void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context);

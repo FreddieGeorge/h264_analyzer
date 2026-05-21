@@ -1,6 +1,6 @@
-#include "core/parser/video/h264/H264Parser.h"
+#include "core/parser/video/h264/H264MacroblockTypes.h"
 
-int H264Parser::codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType)
+int h264CodedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int chromaArrayType)
 {
     static constexpr int codedBlockPatternChromaTable[48][2] = {
         {0, 47}, {16, 31}, {1, 15}, {2, 0}, {4, 23}, {8, 27}, {32, 29}, {3, 30},
@@ -29,7 +29,7 @@ int H264Parser::codedBlockPatternFromCodeNum(quint32 codeNum, bool intra, int ch
     return codedBlockPatternMonoTable[codeNum][intra ? 1 : 0];
 }
 
-QString H264Parser::intraMbTypeName(int mbType)
+QString h264IntraMbTypeName(int mbType)
 {
     if (mbType == 0) {
         return QStringLiteral("I_NxN");
@@ -43,7 +43,7 @@ QString H264Parser::intraMbTypeName(int mbType)
     return QStringLiteral("I_Unknown(%1)").arg(mbType);
 }
 
-QString H264Parser::pMbTypeName(int mbType)
+QString h264PMbTypeName(int mbType)
 {
     switch (mbType) {
     case 0: return QStringLiteral("P_L0_16x16");
@@ -55,7 +55,7 @@ QString H264Parser::pMbTypeName(int mbType)
     }
 }
 
-QString H264Parser::bMbTypeName(int mbType)
+QString h264BMbTypeName(int mbType)
 {
     switch (mbType) {
     case 0: return QStringLiteral("B_Direct_16x16");

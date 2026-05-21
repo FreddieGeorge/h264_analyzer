@@ -162,6 +162,7 @@ QJsonObject sliceToJson(const SliceInfo &slice)
         {QStringLiteral("pic_parameter_set_id"), slice.picParameterSetId},
         {QStringLiteral("frame_num"), slice.frameNum},
         {QStringLiteral("pic_order_cnt_lsb"), slice.picOrderCntLsb},
+        {QStringLiteral("cabac_init_idc"), slice.cabacInitIdc},
         {QStringLiteral("slice_qp_delta"), slice.sliceQpDelta},
         {QStringLiteral("derived_qp"), slice.derivedQp},
         {QStringLiteral("pic_width_in_mbs"), slice.picWidthInMbs},
