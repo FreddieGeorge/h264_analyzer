@@ -1,4 +1,4 @@
-#include "core/parser/video/h264/H264CavlcResidualParser.h"
+#include "core/parser/video/h264/cavlc/H264CavlcResidualParser.h"
 
 #include <algorithm>
 

@@ -60,27 +60,31 @@ Important H.264 files:
   CAVLC/CABAC dispatch, and top-level unsupported/truncation handling.
 - `H264SliceDataContext.h`: internal shared macroblock parsing context,
   diagnostics helpers, and small bit-field readers.
-- `H264CavlcMacroblockParser.*`: CAVLC macroblock syntax orchestration,
+- `cavlc/H264CavlcMacroblockParser.*`: CAVLC macroblock syntax orchestration,
   including macroblock type, intra/P/B syntax, and coded-block pattern flow.
-- `H264CavlcMacroblockResidualParser.*`: macroblock-level CAVLC residual
+- `cavlc/H264CavlcMacroblockResidualParser.*`: macroblock-level CAVLC residual
   prediction/dispatch and coefficient-state updates.
-- `H264CavlcResidualParser.*`: CAVLC residual block parsing and coefficient
+- `cavlc/H264CavlcResidualParser.*`: CAVLC residual block parsing and coefficient
   summaries.
 - `H264MotionVectorParser.*`: motion-vector prediction, MV state updates, and
   supported P/B partition mapping.
 - `H264MacroblockTypes.*`: macroblock type naming and coded-block-pattern
   mapping.
-- `H264CabacContextModel.*`: CABAC context-model initialization tables/helpers.
-- `H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
-- `H264CabacSyntaxReader.*`: narrow CABAC syntax-element readers. It currently
-  covers `mb_skip_flag`, `mb_type` prefix bins, and I-slice `I_NxN`,
-  `I_16x16`, `I_PCM`, plus P-slice `P_L0_16x16`, `P_L0_L0_16x8`, and
-  `P_L0_L0_8x16` `mb_type` results. It also recognizes `P_8x8` as needing
-  sub-macroblock syntax and can read P-slice `P_L0_8x8`, `P_L0_8x4`,
-  `P_L0_4x8`, and `P_L0_4x4` `sub_mb_type` results, plus narrow
-  `ref_idx_l0 == 0` and `mvd_l0 == 0` scaffolding for P sub-macroblocks. It
-  does not own macroblock model mutation.
-- `H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
+- `cabac/H264CabacContextModel.*`: CABAC context-model initialization
+  tables/helpers.
+- `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
+- `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
+  readers.
+- `cabac/H264CabacMacroblockSyntaxReader.*`: CABAC macroblock-level syntax
+  readers. It currently covers `mb_skip_flag`, `mb_type` prefix bins, I-slice
+  `I_NxN`/`I_16x16`/`I_PCM`, and P-slice `P_L0_16x16`,
+  `P_L0_L0_16x8`, `P_L0_L0_8x16`, plus `P_8x8` detection.
+- `cabac/H264CabacSubMacroblockSyntaxReader.*`: focused P sub-macroblock
+  readers for `sub_mb_type`, narrow `ref_idx_l0 == 0`, and narrow
+  `mvd_l0 == 0` scaffolding.
+- `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
+  keep it thin.
+- `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
   initializes CABAC state, reads the first supported syntax prefix where
   possible, then reports structured unsupported/incomplete diagnostics.
 
@@ -99,8 +103,8 @@ Current H.264 limitations:
 
 - CABAC macroblock parsing is not implemented. Groundwork includes
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
-  CABAC unsupported entry point, `H264CabacContextModel.*`, and
-  `H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
+  CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
+  `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
   initialization currently covers ctxIdx 0-59, including B-slice skip/type
   starter contexts and P-slice `ref_idx_l0` starter contexts.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
@@ -196,9 +200,9 @@ Recommended next H.264 direction:
    mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
-3. Keep CABAC modules separate from CAVLC helpers. Reuse shared slice state via
-   `H264SliceDataContext`, but keep CABAC-specific state and tables out of
-   `H264MacroblockParser.cpp`.
+3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
+   Reuse shared slice state via `H264SliceDataContext`, but keep
+   entropy-specific state and tables out of `H264MacroblockParser.cpp`.
 4. Broaden CAVLC residual and P/B motion-vector fixtures where they expose
    assumptions needed by CABAC integration.
 5. Preserve structured unsupported diagnostics for paths that are not ready.

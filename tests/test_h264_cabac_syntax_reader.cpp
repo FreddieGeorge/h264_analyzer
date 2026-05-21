@@ -1,5 +1,5 @@
-#include "core/parser/video/h264/H264CabacDecoder.h"
-#include "core/parser/video/h264/H264CabacSyntaxReader.h"
+#include "core/parser/video/h264/cabac/H264CabacDecoder.h"
+#include "core/parser/video/h264/cabac/H264CabacSyntaxReader.h"
 #include "core/parser/video/h264/H264SliceDataContext.h"
 
 #include <QByteArray>

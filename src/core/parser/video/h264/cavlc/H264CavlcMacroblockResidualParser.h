@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/parser/video/h264/H264CavlcMacroblockParser.h"
+#include "core/parser/video/h264/cavlc/H264CavlcMacroblockParser.h"
 
 bool h264ParseCavlcMacroblockResidual(H264SliceDataContext &context,
                                       MacroblockInfo &mb,

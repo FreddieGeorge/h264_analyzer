@@ -1,6 +1,6 @@
-#include "core/parser/video/h264/H264CavlcMacroblockParser.h"
+#include "core/parser/video/h264/cavlc/H264CavlcMacroblockParser.h"
 
-#include "core/parser/video/h264/H264CavlcMacroblockResidualParser.h"
+#include "core/parser/video/h264/cavlc/H264CavlcMacroblockResidualParser.h"
 #include "core/parser/video/h264/H264MacroblockTypes.h"
 
 #include <array>

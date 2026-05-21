@@ -41,6 +41,9 @@ Key work:
 - Add B_Direct, B_8x8, MBAFF/interlaced, and FMO support or precise diagnostics.
 - Add CABAC only in layers: context models, arithmetic decoder, syntax helpers,
   then macroblock integration.
+- Keep H.264 entropy modules separated under `h264/cabac/` and `h264/cavlc/`;
+  shared slice state, macroblock type helpers, and motion-vector helpers should
+  stay outside those folders.
 - Preserve structured diagnostics for malformed, truncated, and unsupported
   streams.
 

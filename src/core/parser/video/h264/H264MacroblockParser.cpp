@@ -1,7 +1,7 @@
 #include "core/parser/video/h264/H264Parser.h"
 
-#include "core/parser/video/h264/H264CabacMacroblockParser.h"
-#include "core/parser/video/h264/H264CavlcMacroblockParser.h"
+#include "core/parser/video/h264/cabac/H264CabacMacroblockParser.h"
+#include "core/parser/video/h264/cavlc/H264CavlcMacroblockParser.h"
 
 void H264Parser::parseSliceData(BitReader &bitReader, SliceInfo &sliceInfo, const PpsInfo &ppsInfo, const SpsInfo &spsInfo) const
 {

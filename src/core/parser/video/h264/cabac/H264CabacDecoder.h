@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/parser/video/h264/H264CabacContextModel.h"
+#include "core/parser/video/h264/cabac/H264CabacContextModel.h"
 #include "core/util/BitReader.h"
 
 #include <cstdint>

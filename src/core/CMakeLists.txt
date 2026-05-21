@@ -21,20 +21,24 @@ set(ZSTREAMEYE_CORE_SOURCES
     parser/audio/AacAdtsParser.cpp
     parser/audio/Mp3FrameParser.h
     parser/audio/Mp3FrameParser.cpp
-    parser/video/h264/H264CabacContextModel.h
-    parser/video/h264/H264CabacContextModel.cpp
-    parser/video/h264/H264CabacDecoder.h
-    parser/video/h264/H264CabacDecoder.cpp
-    parser/video/h264/H264CabacMacroblockParser.h
-    parser/video/h264/H264CabacMacroblockParser.cpp
-    parser/video/h264/H264CabacSyntaxReader.h
-    parser/video/h264/H264CabacSyntaxReader.cpp
-    parser/video/h264/H264CavlcMacroblockParser.h
-    parser/video/h264/H264CavlcMacroblockParser.cpp
-    parser/video/h264/H264CavlcMacroblockResidualParser.h
-    parser/video/h264/H264CavlcMacroblockResidualParser.cpp
-    parser/video/h264/H264CavlcResidualParser.h
-    parser/video/h264/H264CavlcResidualParser.cpp
+    parser/video/h264/cabac/H264CabacContextModel.h
+    parser/video/h264/cabac/H264CabacContextModel.cpp
+    parser/video/h264/cabac/H264CabacDecoder.h
+    parser/video/h264/cabac/H264CabacDecoder.cpp
+    parser/video/h264/cabac/H264CabacMacroblockParser.h
+    parser/video/h264/cabac/H264CabacMacroblockParser.cpp
+    parser/video/h264/cabac/H264CabacMacroblockSyntaxReader.h
+    parser/video/h264/cabac/H264CabacMacroblockSyntaxReader.cpp
+    parser/video/h264/cabac/H264CabacSubMacroblockSyntaxReader.h
+    parser/video/h264/cabac/H264CabacSubMacroblockSyntaxReader.cpp
+    parser/video/h264/cabac/H264CabacSyntaxReader.h
+    parser/video/h264/cabac/H264CabacSyntaxTypes.h
+    parser/video/h264/cavlc/H264CavlcMacroblockParser.h
+    parser/video/h264/cavlc/H264CavlcMacroblockParser.cpp
+    parser/video/h264/cavlc/H264CavlcMacroblockResidualParser.h
+    parser/video/h264/cavlc/H264CavlcMacroblockResidualParser.cpp
+    parser/video/h264/cavlc/H264CavlcResidualParser.h
+    parser/video/h264/cavlc/H264CavlcResidualParser.cpp
     parser/video/h264/H264FrameAnalysisAdapter.h
     parser/video/h264/H264FrameAnalysisAdapter.cpp
     parser/video/h264/H264MacroblockParser.cpp
