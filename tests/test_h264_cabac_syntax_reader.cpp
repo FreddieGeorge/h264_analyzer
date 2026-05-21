@@ -1,4 +1,5 @@
 #include "core/parser/video/h264/cabac/H264CabacDecoder.h"
+#include "core/parser/video/h264/cabac/H264CabacMacroblockParser.h"
 #include "core/parser/video/h264/cabac/H264CabacSyntaxReader.h"
 #include "core/parser/video/h264/H264SliceDataContext.h"
 
@@ -493,6 +494,173 @@ void testReadPSubMbMvdZero4x4()
     require(result.mvd[15].x == 0 && result.mvd[15].y == 0, "CABAC P sub_mb mvd zero last pair");
 }
 
+void testReadCabacMacroblockSyntaxP8x8RefAbsent()
+{
+    BitReader reader(QByteArray::fromHex("000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 ref absent result");
+    require(result.complete, "CABAC macroblock syntax P_8x8 ref absent complete");
+    require(result.parsedSubMacroblockSyntax, "CABAC macroblock syntax P_8x8 sub syntax flag");
+    require(result.mbType == 3, "CABAC macroblock syntax P_8x8 mb_type");
+    require(result.subMbTypes.size() == 4, "CABAC macroblock syntax P_8x8 sub_mb_type count");
+    require(!result.refIdxL0Present, "CABAC macroblock syntax P_8x8 ref_idx_l0 absent");
+    require(result.refIdxL0.size() == 4, "CABAC macroblock syntax P_8x8 default ref_idx count");
+    require(result.mvdL0.size() == 4, "CABAC macroblock syntax P_8x8 mvd pair count");
+}
+
+void testReadCabacMacroblockSyntaxP8x8RefZero()
+{
+    BitReader reader(QByteArray::fromHex("00000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    slice.numRefIdxL0ActiveMinus1 = 1;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(54, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 ref zero result");
+    require(result.complete, "CABAC macroblock syntax P_8x8 ref zero complete");
+    require(result.refIdxL0Present, "CABAC macroblock syntax P_8x8 ref_idx_l0 present");
+    require(result.refIdxL0.size() == 4, "CABAC macroblock syntax P_8x8 ref_idx_l0 count");
+    require(result.refIdxL0[0] == 0 && result.refIdxL0[3] == 0,
+            "CABAC macroblock syntax P_8x8 ref_idx_l0 zero values");
+    require(result.mvdL0.size() == 4, "CABAC macroblock syntax P_8x8 ref zero mvd pair count");
+}
+
+void testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(60);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 1});
+    contexts.setModel(47, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 non-zero mvd prefix result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 non-zero mvd incomplete");
+    require(result.diagnosticCode == QStringLiteral("cabac_mvd_incomplete"),
+            "CABAC macroblock syntax P_8x8 non-zero mvd diagnostic");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxSkeleton()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 syntax skeleton append result");
+    require(context.currentAddress == 1, "CABAC P_8x8 syntax skeleton advances address");
+    require(slice.macroblocks.size() == 1, "CABAC P_8x8 syntax skeleton macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.address == 0, "CABAC P_8x8 syntax skeleton address");
+    require(mb.mbType == QStringLiteral("P_8x8"), "CABAC P_8x8 syntax skeleton type");
+    require(mb.predictionMode == QStringLiteral("Pred_L0 sub-macroblock"),
+            "CABAC P_8x8 syntax skeleton prediction mode");
+    require(!mb.parsed, "CABAC P_8x8 syntax skeleton remains partial");
+    require(mb.motionVectors.size() == 4, "CABAC P_8x8 syntax skeleton motion-vector count");
+    require(mb.motionVectors.first().list == 0, "CABAC P_8x8 syntax skeleton L0 motion vector");
+    require(mb.motionVectors.first().referenceIndex == 0, "CABAC P_8x8 syntax skeleton ref_idx_l0");
+    require(mb.motionVectors.first().mvXQuarterPel == 0 && mb.motionVectors.first().mvYQuarterPel == 0,
+            "CABAC P_8x8 syntax skeleton zero predicted motion vector");
+    require(context.mvStatesL0[0].valid, "CABAC P_8x8 syntax skeleton updates L0 MV state");
+    require(mb.note.contains(QStringLiteral("residual CABAC parsing")),
+            "CABAC P_8x8 syntax skeleton note describes remaining work");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 1);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+    context.mvStatesL0[0] = {true, 0, 3, -1};
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 syntax skeleton neighbor append result");
+    require(slice.macroblocks.size() == 1, "CABAC P_8x8 syntax skeleton neighbor macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.address == 1, "CABAC P_8x8 syntax skeleton neighbor address");
+    require(mb.motionVectors.size() == 4, "CABAC P_8x8 syntax skeleton neighbor motion-vector count");
+    require(mb.motionVectors.first().mvXQuarterPel == 3 && mb.motionVectors.first().mvYQuarterPel == -1,
+            "CABAC P_8x8 syntax skeleton uses neighboring MV prediction");
+    require(context.mvStatesL0[1].valid, "CABAC P_8x8 syntax skeleton neighbor updates L0 MV state");
+    require(context.mvStatesL0[1].mvX == 3 && context.mvStatesL0[1].mvY == -1,
+            "CABAC P_8x8 syntax skeleton neighbor state value");
+}
+
 void testReadISliceMbTypePrefix()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -625,6 +793,11 @@ int main()
     testReadMvdComponentIncomplete();
     testReadPSubMbMvdZero8x8();
     testReadPSubMbMvdZero4x4();
+    testReadCabacMacroblockSyntaxP8x8RefAbsent();
+    testReadCabacMacroblockSyntaxP8x8RefZero();
+    testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
+    testAppendCabacP8x8MacroblockSyntaxSkeleton();
+    testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction();
     testReadISliceMbTypePrefix();
     testReadISliceMbTypeINxN();
     testReadISliceMbTypeI16x16();

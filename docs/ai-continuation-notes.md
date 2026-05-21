@@ -85,8 +85,10 @@ Important H.264 files:
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
 - `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
-  initializes CABAC state, reads the first supported syntax prefix where
-  possible, then reports structured unsupported/incomplete diagnostics.
+  initializes CABAC state, collects supported syntax into
+  `H264CabacMacroblockSyntaxResult`, can append a partial P_8x8
+  `MacroblockInfo` skeleton for decoded sub-macroblock syntax, then reports
+  structured unsupported/incomplete diagnostics.
 
 Current H.264 coverage:
 
@@ -101,12 +103,17 @@ Current H.264 coverage:
 
 Current H.264 limitations:
 
-- CABAC macroblock parsing is not implemented. Groundwork includes
+- CABAC macroblock model parsing is not implemented. Groundwork includes
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
   initialization currently covers ctxIdx 0-59, including B-slice skip/type
-  starter contexts and P-slice `ref_idx_l0` starter contexts.
+  starter contexts and P-slice `ref_idx_l0` starter contexts. The CABAC
+  macroblock entry point has a syntax-result boundary for supported I/P
+  `mb_type` and narrow P_8x8 `sub_mb_type`/`ref_idx_l0 == 0`/`mvd_l0 == 0`
+  scaffolding. The P_8x8 path can append a partial macroblock skeleton with
+  zero-MVD L0 motion vectors and MV-state updates, but it deliberately does not
+  mark the macroblock fully parsed or produce residual data yet.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
   dequantized, or transformed residual visualization.
 - B_Direct, B_8x8 sub-macroblock prediction, MBAFF/interlaced, and FMO remain
@@ -193,11 +200,10 @@ The deployment script writes its own release build under
 
 Recommended next H.264 direction:
 
-1. Decide the next CABAC P_8x8 step carefully: either keep expanding syntax
-   readers toward non-zero `mvd_l0`, or add a very narrow macroblock-parser
-   skeleton that reports parsed P_8x8 syntax without generating final
-   `MotionVectorInfo`. Keep result structs separate from `MacroblockInfo`
-   mutation.
+1. Decide the next CABAC P_8x8 step carefully: either expand syntax readers
+   toward non-zero `mvd_l0`, or start residual-header work by reading the next
+   narrow syntax element after the current zero-MVD P_8x8 path. Keep
+   syntax-result structs separate from final model mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
 3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
