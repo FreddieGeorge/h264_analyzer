@@ -56,6 +56,32 @@ struct H264CabacResidualBlockResult
     QString diagnosticMessage;
 };
 
+struct H264CabacResidualLuma4x4Result
+{
+    bool ok = false;
+    bool complete = false;
+    QVector<int> blockIndices;
+    QVector<int> codedBlockFlags;
+    int firstCtxIdx = -1;
+    int incompleteBlockIndex = -1;
+    QString incompleteStage;
+    QString diagnosticCode;
+    QString diagnosticMessage;
+};
+
+struct H264CabacResidualChromaDcResult
+{
+    bool ok = false;
+    bool complete = false;
+    QVector<int> components;
+    QVector<int> codedBlockFlags;
+    int firstCtxIdx = -1;
+    int incompleteComponent = -1;
+    QString incompleteStage;
+    QString diagnosticCode;
+    QString diagnosticMessage;
+};
+
 struct H264CabacSubMbTypeResult
 {
     bool ok = false;

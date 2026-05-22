@@ -27,6 +27,12 @@ H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternZero(BitReader &r
                                                                     H264CabacContextModelSet &contexts,
                                                                     const H264SliceDataContext &sliceContext);
 
+H264CabacCodedBlockPatternResult h264ReadCabacCodedBlockPatternP8x8Narrow(
+    BitReader &reader,
+    H264CabacDecoder &decoder,
+    H264CabacContextModelSet &contexts,
+    const H264SliceDataContext &sliceContext);
+
 H264CabacMbQpDeltaResult h264ReadCabacMbQpDeltaZero(BitReader &reader,
                                                     H264CabacDecoder &decoder,
                                                     H264CabacContextModelSet &contexts);

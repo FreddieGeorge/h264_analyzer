@@ -572,13 +572,14 @@ void testReadCabacMacroblockSyntaxP8x8RefAbsent()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(78);
+    H264CabacContextModelSet contexts(98);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
     contexts.setModel(21, {0, 0});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
     contexts.setModel(60, {0, 1});
     setCbpZeroContexts(contexts);
 
@@ -611,13 +612,14 @@ void testReadCabacMacroblockSyntaxP8x8RefZero()
     slice.numRefIdxL0ActiveMinus1 = 1;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(78);
+    H264CabacContextModelSet contexts(98);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
     contexts.setModel(21, {0, 0});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
     contexts.setModel(54, {0, 0});
     setCbpZeroContexts(contexts);
 
@@ -633,7 +635,7 @@ void testReadCabacMacroblockSyntaxP8x8RefZero()
     require(result.mvdL0.size() == 4, "CABAC macroblock syntax P_8x8 ref zero mvd pair count");
 }
 
-void testReadCabacMacroblockSyntaxP8x8NonZeroCbpIncomplete()
+void testReadCabacMacroblockSyntaxP8x8ChromaAcResidualIncomplete()
 {
     BitReader reader(QByteArray::fromHex("00000000000000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
@@ -646,23 +648,294 @@ void testReadCabacMacroblockSyntaxP8x8NonZeroCbpIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(78);
+    H264CabacContextModelSet contexts(98);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
     contexts.setModel(21, {0, 0});
     contexts.setModel(40, {0, 0});
     contexts.setModel(47, {0, 0});
-    contexts.setModel(73, {0, 1});
+    contexts.setModel(60, {0, 0});
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(74, {0, 0});
+    contexts.setModel(75, {0, 0});
+    contexts.setModel(76, {0, 0});
+    contexts.setModel(77, {0, 1});
+    contexts.setModel(81, {0, 1});
+    contexts.setModel(97, {0, 0});
 
     const H264CabacMacroblockSyntaxResult result =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
-    require(result.ok, "CABAC macroblock syntax P_8x8 non-zero CBP prefix result");
-    require(!result.complete, "CABAC macroblock syntax P_8x8 non-zero CBP incomplete");
-    require(result.parsedSubMacroblockSyntax, "CABAC macroblock syntax P_8x8 non-zero CBP keeps motion flag");
-    require(!result.parsedCodedBlockPatternZero, "CABAC macroblock syntax P_8x8 non-zero CBP zero flag absent");
-    require(result.diagnosticCode == QStringLiteral("cabac_cbp_incomplete"),
-            "CABAC macroblock syntax P_8x8 non-zero CBP diagnostic");
+    require(result.ok, "CABAC macroblock syntax P_8x8 chroma AC residual prefix result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 chroma AC residual incomplete");
+    require(result.parsedSubMacroblockSyntax, "CABAC macroblock syntax P_8x8 chroma AC residual keeps motion flag");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 chroma AC residual keeps CBP");
+    require(result.codedBlockPatternChroma == 2,
+            "CABAC macroblock syntax P_8x8 chroma AC residual CBP value");
+    require(result.residualChromaDcComponents.size() == 2,
+            "CABAC macroblock syntax P_8x8 chroma AC residual preserves DC components");
+    require(result.residualChromaDcCodedBlockFlags[0] == 0
+                && result.residualChromaDcCodedBlockFlags[1] == 0,
+            "CABAC macroblock syntax P_8x8 chroma AC residual preserves DC CBF values");
+    require(result.residualIncompleteCategory == QStringLiteral("chroma_ac"),
+            "CABAC macroblock syntax P_8x8 chroma AC residual incomplete category");
+    require(result.residualIncompleteStage == QStringLiteral("coded_block_flag"),
+            "CABAC macroblock syntax P_8x8 chroma AC residual incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 chroma AC residual diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("chroma AC")),
+            "CABAC macroblock syntax P_8x8 chroma AC residual message");
+}
+
+void testReadCabacMacroblockSyntaxP8x8SingleLumaResidualCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(74, {0, 0});
+    contexts.setModel(75, {0, 0});
+    contexts.setModel(76, {0, 1});
+    contexts.setModel(85, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 single-luma residual result");
+    require(result.complete, "CABAC macroblock syntax P_8x8 single-luma residual complete");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 single-luma CBP parsed");
+    require(!result.parsedCodedBlockPatternZero,
+            "CABAC macroblock syntax P_8x8 single-luma CBP non-zero flag");
+    require(result.parsedResidualCodedBlockFlagsZero,
+            "CABAC macroblock syntax P_8x8 single-luma residual CBF-zero flag");
+    require(result.codedBlockPatternLuma == 8,
+            "CABAC macroblock syntax P_8x8 single-luma CBP bit");
+    require(result.mbQpDelta == 0, "CABAC macroblock syntax P_8x8 single-luma mb_qp_delta");
+    require(result.residualLuma4x4BlockIndices.size() == 4,
+            "CABAC macroblock syntax P_8x8 single-luma residual block count");
+    require(result.residualLuma4x4BlockIndices[0] == 12
+                && result.residualLuma4x4BlockIndices[3] == 15,
+            "CABAC macroblock syntax P_8x8 single-luma residual block indices");
+    require(result.residualCodedBlockFlags[0] == 0 && result.residualCodedBlockFlags[3] == 0,
+            "CABAC macroblock syntax P_8x8 single-luma residual CBF values");
+}
+
+void testReadCabacMacroblockSyntaxP8x8MultiLumaResidualCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    contexts.setModel(73, {0, 1});
+    contexts.setModel(85, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 multi-luma residual result");
+    require(result.complete, "CABAC macroblock syntax P_8x8 multi-luma residual complete");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 multi-luma CBP parsed");
+    require(result.parsedResidualCodedBlockFlagsZero,
+            "CABAC macroblock syntax P_8x8 multi-luma residual CBF-zero flag");
+    require(result.codedBlockPatternLuma == 15,
+            "CABAC macroblock syntax P_8x8 multi-luma CBP bits");
+    require(result.residualLuma4x4BlockIndices.size() == 16,
+            "CABAC macroblock syntax P_8x8 multi-luma residual block count");
+    require(result.residualLuma4x4BlockIndices[0] == 0
+                && result.residualLuma4x4BlockIndices[15] == 15,
+            "CABAC macroblock syntax P_8x8 multi-luma residual block indices");
+    require(result.residualCodedBlockFlags[0] == 0 && result.residualCodedBlockFlags[15] == 0,
+            "CABAC macroblock syntax P_8x8 multi-luma residual CBF values");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(98);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    for (int ctxIdx = 73; ctxIdx <= 76; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+    contexts.setModel(77, {0, 1});
+    contexts.setModel(81, {0, 0});
+    contexts.setModel(97, {0, 0});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 chroma DC residual result");
+    require(result.complete, "CABAC macroblock syntax P_8x8 chroma DC residual complete");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 chroma DC CBP parsed");
+    require(result.parsedResidualCodedBlockFlagsZero,
+            "CABAC macroblock syntax P_8x8 chroma DC residual CBF-zero flag");
+    require(result.codedBlockPatternLuma == 0,
+            "CABAC macroblock syntax P_8x8 chroma DC luma CBP zero");
+    require(result.codedBlockPatternChroma == 1,
+            "CABAC macroblock syntax P_8x8 chroma DC CBP value");
+    require(result.codedBlockPattern == 16,
+            "CABAC macroblock syntax P_8x8 chroma DC combined CBP value");
+    require(result.residualChromaDcComponents.size() == 2,
+            "CABAC macroblock syntax P_8x8 chroma DC residual component count");
+    require(result.residualChromaDcComponents[0] == 0
+                && result.residualChromaDcComponents[1] == 1,
+            "CABAC macroblock syntax P_8x8 chroma DC residual components");
+    require(result.residualChromaDcCodedBlockFlags[0] == 0
+                && result.residualChromaDcCodedBlockFlags[1] == 0,
+            "CABAC macroblock syntax P_8x8 chroma DC residual CBF values");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(98);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    for (int ctxIdx = 73; ctxIdx <= 76; ++ctxIdx) {
+        contexts.setModel(ctxIdx, {0, 0});
+    }
+    contexts.setModel(77, {0, 1});
+    contexts.setModel(81, {0, 0});
+    contexts.setModel(97, {0, 1});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF prefix result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF keeps CBP");
+    require(result.residualChromaDcComponents.size() == 1,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial component count");
+    require(result.residualChromaDcCodedBlockFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial flag count");
+    require(result.residualChromaDcComponents[0] == 0,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial component");
+    require(result.residualChromaDcCodedBlockFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF partial flag");
+    require(result.residualIncompleteComponent == 0,
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete component");
+    require(result.residualIncompleteCategory == QStringLiteral("chroma_dc"),
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete category");
+    require(result.residualIncompleteStage == QStringLiteral("significant_coeff_flag"),
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("chroma_dc coded_block_flag[0]")),
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF indexed message");
+    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
+            "CABAC macroblock syntax P_8x8 chroma DC non-zero CBF stage message");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    slice.numRefIdxL0ActiveMinus1 = 0;
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(74, {0, 0});
+    contexts.setModel(75, {0, 0});
+    contexts.setModel(76, {0, 1});
+    contexts.setModel(85, {0, 1});
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 residual non-zero CBF prefix result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete");
+    require(result.parsedCodedBlockPattern, "CABAC macroblock syntax P_8x8 residual non-zero CBF keeps CBP");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF diagnostic");
+    require(result.residualLuma4x4BlockIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF partial block count");
+    require(result.residualCodedBlockFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF partial flag count");
+    require(result.residualLuma4x4BlockIndices[0] == 12,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF partial block index");
+    require(result.residualCodedBlockFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF partial flag");
+    require(result.residualIncompleteBlockIndex == 12,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete block index");
+    require(result.residualIncompleteStage == QStringLiteral("significant_coeff_flag"),
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete stage");
+    require(result.diagnosticMessage.contains(QStringLiteral("coded_block_flag[12]")),
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF indexed message");
+    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF stage message");
 }
 
 void testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd()
@@ -914,6 +1187,143 @@ void testReadResidualCodedBlockFlagNonZeroIncomplete()
     require(result.ctxIdx == 85, "CABAC residual coded_block_flag non-zero ctxIdx");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual coded_block_flag non-zero diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("luma4x4 coded_block_flag")),
+            "CABAC residual coded_block_flag non-zero category message");
+    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
+            "CABAC residual coded_block_flag non-zero next-stage message");
+}
+
+void testReadResidualLuma4x4CodedBlockFlagNonZeroPartial()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(85, {0, 1});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 non-zero CBF partial result");
+    require(!result.complete, "CABAC residual luma4x4 non-zero CBF partial incomplete");
+    require(result.blockIndices.size() == 1, "CABAC residual luma4x4 non-zero CBF partial block count");
+    require(result.codedBlockFlags.size() == 1, "CABAC residual luma4x4 non-zero CBF partial flag count");
+    require(result.blockIndices[0] == 12, "CABAC residual luma4x4 non-zero CBF partial block index");
+    require(result.codedBlockFlags[0] == 1, "CABAC residual luma4x4 non-zero CBF partial flag");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 non-zero CBF partial incomplete block index");
+    require(result.incompleteStage == QStringLiteral("significant_coeff_flag"),
+            "CABAC residual luma4x4 non-zero CBF partial incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 non-zero CBF partial diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("coded_block_flag[12]")),
+            "CABAC residual luma4x4 non-zero CBF partial indexed message");
+    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
+            "CABAC residual luma4x4 non-zero CBF partial stage message");
+}
+
+void testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(85, {0, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 CBF-zero group result");
+    require(result.complete, "CABAC residual luma4x4 CBF-zero group complete");
+    require(result.blockIndices.size() == 4, "CABAC residual luma4x4 CBF-zero block count");
+    require(result.blockIndices[0] == 12 && result.blockIndices[3] == 15,
+            "CABAC residual luma4x4 CBF-zero block indices");
+    require(result.codedBlockFlags[0] == 0 && result.codedBlockFlags[3] == 0,
+            "CABAC residual luma4x4 CBF-zero values");
+    require(result.firstCtxIdx == 85, "CABAC residual luma4x4 CBF-zero first ctxIdx");
+}
+
+void testReadResidualLuma4x4CodedBlockFlagsZeroAllLuma8x8()
+{
+    BitReader reader(QByteArray::fromHex("000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(86);
+    contexts.setModel(85, {0, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 15);
+    require(result.ok, "CABAC residual luma4x4 all-CBF-zero group result");
+    require(result.complete, "CABAC residual luma4x4 all-CBF-zero group complete");
+    require(result.blockIndices.size() == 16, "CABAC residual luma4x4 all-CBF-zero block count");
+    require(result.blockIndices[0] == 0 && result.blockIndices[15] == 15,
+            "CABAC residual luma4x4 all-CBF-zero block indices");
+    require(result.codedBlockFlags[0] == 0 && result.codedBlockFlags[15] == 0,
+            "CABAC residual luma4x4 all-CBF-zero values");
+}
+
+void testReadResidualChromaDcCodedBlockFlagsZero()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(98);
+    contexts.setModel(97, {0, 0});
+
+    const H264CabacResidualChromaDcResult result =
+        h264ReadCabacResidualChromaDcCodedBlockFlagsZero(reader, decoder, contexts, 1, 1);
+    require(result.ok, "CABAC residual chroma DC CBF-zero result");
+    require(result.complete, "CABAC residual chroma DC CBF-zero complete");
+    require(result.firstCtxIdx == 97, "CABAC residual chroma DC CBF-zero first ctxIdx");
+    require(result.components.size() == 2, "CABAC residual chroma DC CBF-zero component count");
+    require(result.components[0] == 0 && result.components[1] == 1,
+            "CABAC residual chroma DC CBF-zero components");
+    require(result.codedBlockFlags[0] == 0 && result.codedBlockFlags[1] == 0,
+            "CABAC residual chroma DC CBF-zero values");
+}
+
+void testReadResidualChromaDcCodedBlockFlagsZeroWithChromaAcPresent()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(98);
+    contexts.setModel(97, {0, 0});
+
+    const H264CabacResidualChromaDcResult result =
+        h264ReadCabacResidualChromaDcCodedBlockFlagsZero(reader, decoder, contexts, 1, 2);
+    require(result.ok, "CABAC residual chroma DC CBF-zero with AC result");
+    require(result.complete, "CABAC residual chroma DC CBF-zero with AC complete");
+    require(result.components.size() == 2,
+            "CABAC residual chroma DC CBF-zero with AC component count");
+    require(result.codedBlockFlags[0] == 0 && result.codedBlockFlags[1] == 0,
+            "CABAC residual chroma DC CBF-zero with AC values");
+}
+
+void testReadResidualChromaDcCodedBlockFlagNonZeroPartial()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(98);
+    contexts.setModel(97, {0, 1});
+
+    const H264CabacResidualChromaDcResult result =
+        h264ReadCabacResidualChromaDcCodedBlockFlagsZero(reader, decoder, contexts, 1, 1);
+    require(result.ok, "CABAC residual chroma DC non-zero CBF partial result");
+    require(!result.complete, "CABAC residual chroma DC non-zero CBF partial incomplete");
+    require(result.components.size() == 1, "CABAC residual chroma DC non-zero CBF partial component count");
+    require(result.codedBlockFlags.size() == 1, "CABAC residual chroma DC non-zero CBF partial flag count");
+    require(result.components[0] == 0, "CABAC residual chroma DC non-zero CBF partial component");
+    require(result.codedBlockFlags[0] == 1, "CABAC residual chroma DC non-zero CBF partial flag");
+    require(result.incompleteComponent == 0,
+            "CABAC residual chroma DC non-zero CBF partial incomplete component");
+    require(result.incompleteStage == QStringLiteral("significant_coeff_flag"),
+            "CABAC residual chroma DC non-zero CBF partial incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual chroma DC non-zero CBF partial diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("chroma_dc coded_block_flag[0]")),
+            "CABAC residual chroma DC non-zero CBF partial indexed message");
+    require(result.diagnosticMessage.contains(QStringLiteral("significant_coeff_flag")),
+            "CABAC residual chroma DC non-zero CBF partial stage message");
 }
 
 void testAppendCabacP8x8MacroblockSyntaxSkeleton()
@@ -930,6 +1340,7 @@ void testAppendCabacP8x8MacroblockSyntaxSkeleton()
     syntax.ok = true;
     syntax.complete = true;
     syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
     syntax.parsedCodedBlockPatternZero = true;
     syntax.mbType = 3;
     syntax.subMbTypes = {0, 0, 0, 0};
@@ -960,6 +1371,144 @@ void testAppendCabacP8x8MacroblockSyntaxSkeleton()
             "CABAC P_8x8 syntax skeleton note describes no residual");
 }
 
+void testAppendCabacP8x8MacroblockSyntaxSkeletonWithResidualCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
+    syntax.parsedResidualCodedBlockFlagsZero = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+    syntax.codedBlockPattern = 8;
+    syntax.codedBlockPatternLuma = 8;
+    syntax.codedBlockPatternChroma = 0;
+    syntax.residualLuma4x4BlockIndices = {12, 13, 14, 15};
+    syntax.residualCodedBlockFlags = {0, 0, 0, 0};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 residual CBF-zero skeleton append result");
+    require(slice.macroblocks.size() == 1,
+            "CABAC P_8x8 residual CBF-zero skeleton macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.parsed, "CABAC P_8x8 residual CBF-zero skeleton parsed flag");
+    require(mb.residualParsed, "CABAC P_8x8 residual CBF-zero skeleton residual parsed flag");
+    require(mb.codedBlockPatternLuma == 8,
+            "CABAC P_8x8 residual CBF-zero skeleton luma CBP");
+    require(mb.residualBlocks.size() == 4,
+            "CABAC P_8x8 residual CBF-zero skeleton residual block count");
+    require(mb.residualBlocks.first().kind == QStringLiteral("luma4x4"),
+            "CABAC P_8x8 residual CBF-zero skeleton residual kind");
+    require(mb.residualBlocks.first().blockIndex == 12
+                && mb.residualBlocks.last().blockIndex == 15,
+            "CABAC P_8x8 residual CBF-zero skeleton residual indices");
+    require(mb.residualCoefficientCount == 0,
+            "CABAC P_8x8 residual CBF-zero skeleton coefficient count");
+    require(mb.note.contains(QStringLiteral("coded_block_flag")),
+            "CABAC P_8x8 residual CBF-zero skeleton note");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxSkeletonWithMultiResidualCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
+    syntax.parsedResidualCodedBlockFlagsZero = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+    syntax.codedBlockPattern = 15;
+    syntax.codedBlockPatternLuma = 15;
+    syntax.codedBlockPatternChroma = 0;
+    for (int blockIndex = 0; blockIndex < 16; ++blockIndex) {
+        syntax.residualLuma4x4BlockIndices.append(blockIndex);
+        syntax.residualCodedBlockFlags.append(0);
+    }
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 multi residual CBF-zero skeleton append result");
+    require(slice.macroblocks.size() == 1,
+            "CABAC P_8x8 multi residual CBF-zero skeleton macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.codedBlockPatternLuma == 15,
+            "CABAC P_8x8 multi residual CBF-zero skeleton luma CBP");
+    require(mb.residualBlocks.size() == 16,
+            "CABAC P_8x8 multi residual CBF-zero skeleton residual block count");
+    require(mb.residualBlocks.first().blockIndex == 0
+                && mb.residualBlocks.last().blockIndex == 15,
+            "CABAC P_8x8 multi residual CBF-zero skeleton residual indices");
+    require(mb.residualCoefficientCount == 0,
+            "CABAC P_8x8 multi residual CBF-zero skeleton coefficient count");
+}
+
+void testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCbfZero()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacMacroblockSyntaxResult syntax;
+    syntax.ok = true;
+    syntax.complete = true;
+    syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
+    syntax.parsedResidualCodedBlockFlagsZero = true;
+    syntax.mbType = 3;
+    syntax.subMbTypes = {0, 0, 0, 0};
+    syntax.refIdxL0 = {0, 0, 0, 0};
+    syntax.mvdL0 = {{0, 0}, {0, 0}, {0, 0}, {0, 0}};
+    syntax.codedBlockPattern = 16;
+    syntax.codedBlockPatternLuma = 0;
+    syntax.codedBlockPatternChroma = 1;
+    syntax.residualChromaDcComponents = {0, 1};
+    syntax.residualChromaDcCodedBlockFlags = {0, 0};
+
+    require(h264AppendCabacMacroblockSyntaxSkeleton(context, syntax),
+            "CABAC P_8x8 chroma DC CBF-zero skeleton append result");
+    require(slice.macroblocks.size() == 1,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton macroblock count");
+    const MacroblockInfo &mb = slice.macroblocks.first();
+    require(mb.codedBlockPatternLuma == 0,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton luma CBP");
+    require(mb.codedBlockPatternChroma == 1,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton chroma CBP");
+    require(mb.residualBlocks.size() == 2,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton residual block count");
+    require(mb.residualBlocks.first().kind == QStringLiteral("chroma_dc"),
+            "CABAC P_8x8 chroma DC CBF-zero skeleton residual kind");
+    require(mb.residualBlocks.first().component == 0
+                && mb.residualBlocks.last().component == 1,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton residual components");
+    require(mb.residualCoefficientCount == 0,
+            "CABAC P_8x8 chroma DC CBF-zero skeleton coefficient count");
+}
+
 void testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -975,6 +1524,7 @@ void testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction()
     syntax.ok = true;
     syntax.complete = true;
     syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
     syntax.parsedCodedBlockPatternZero = true;
     syntax.mbType = 3;
     syntax.subMbTypes = {0, 0, 0, 0};
@@ -1011,6 +1561,7 @@ void testAppendCabacP8x8MacroblockSyntaxSkeletonAppliesMvd()
     syntax.ok = true;
     syntax.complete = true;
     syntax.parsedSubMacroblockSyntax = true;
+    syntax.parsedCodedBlockPattern = true;
     syntax.parsedCodedBlockPatternZero = true;
     syntax.mbType = 3;
     syntax.subMbTypes = {0, 0, 0, 0};
@@ -1169,7 +1720,12 @@ int main()
     testReadPSubMbMvdZero4x4();
     testReadCabacMacroblockSyntaxP8x8RefAbsent();
     testReadCabacMacroblockSyntaxP8x8RefZero();
-    testReadCabacMacroblockSyntaxP8x8NonZeroCbpIncomplete();
+    testReadCabacMacroblockSyntaxP8x8ChromaAcResidualIncomplete();
+    testReadCabacMacroblockSyntaxP8x8SingleLumaResidualCbfZero();
+    testReadCabacMacroblockSyntaxP8x8MultiLumaResidualCbfZero();
+    testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfZero();
+    testReadCabacMacroblockSyntaxP8x8ChromaDcResidualCbfNonZeroIncomplete();
+    testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
     testReadCodedBlockPatternZeroMonochrome();
@@ -1180,7 +1736,16 @@ int main()
     testReadMbQpDeltaNonZeroIncomplete();
     testReadResidualCodedBlockFlagZeroLuma4x4();
     testReadResidualCodedBlockFlagNonZeroIncomplete();
+    testReadResidualLuma4x4CodedBlockFlagNonZeroPartial();
+    testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
+    testReadResidualLuma4x4CodedBlockFlagsZeroAllLuma8x8();
+    testReadResidualChromaDcCodedBlockFlagsZero();
+    testReadResidualChromaDcCodedBlockFlagsZeroWithChromaAcPresent();
+    testReadResidualChromaDcCodedBlockFlagNonZeroPartial();
     testAppendCabacP8x8MacroblockSyntaxSkeleton();
+    testAppendCabacP8x8MacroblockSyntaxSkeletonWithResidualCbfZero();
+    testAppendCabacP8x8MacroblockSyntaxSkeletonWithMultiResidualCbfZero();
+    testAppendCabacP8x8MacroblockSyntaxSkeletonWithChromaDcCbfZero();
     testAppendCabacP8x8MacroblockSyntaxSkeletonUsesNeighborPrediction();
     testAppendCabacP8x8MacroblockSyntaxSkeletonAppliesMvd();
     testReadISliceMbTypePrefix();

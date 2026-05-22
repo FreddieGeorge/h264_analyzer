@@ -9,8 +9,21 @@ int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
     switch (category) {
     case H264CabacResidualBlockCategory::Luma4x4:
         return 85;
+    case H264CabacResidualBlockCategory::ChromaDc:
+        return 97;
     }
     return -1;
+}
+
+QString residualBlockCategoryName(H264CabacResidualBlockCategory category)
+{
+    switch (category) {
+    case H264CabacResidualBlockCategory::Luma4x4:
+        return QStringLiteral("luma4x4");
+    case H264CabacResidualBlockCategory::ChromaDc:
+        return QStringLiteral("chroma_dc");
+    }
+    return QStringLiteral("unknown");
 }
 
 H264CabacResidualBlockResult failedResidualBlockResult(const QString &code,
@@ -19,6 +32,28 @@ H264CabacResidualBlockResult failedResidualBlockResult(const QString &code,
 {
     H264CabacResidualBlockResult result;
     result.ctxIdx = ctxIdx;
+    result.diagnosticCode = code;
+    result.diagnosticMessage = message;
+    return result;
+}
+
+H264CabacResidualLuma4x4Result failedResidualLuma4x4Result(const QString &code,
+                                                           const QString &message,
+                                                           int ctxIdx = -1)
+{
+    H264CabacResidualLuma4x4Result result;
+    result.firstCtxIdx = ctxIdx;
+    result.diagnosticCode = code;
+    result.diagnosticMessage = message;
+    return result;
+}
+
+H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code,
+                                                             const QString &message,
+                                                             int ctxIdx = -1)
+{
+    H264CabacResidualChromaDcResult result;
+    result.firstCtxIdx = ctxIdx;
     result.diagnosticCode = code;
     result.diagnosticMessage = message;
     return result;
@@ -61,8 +96,123 @@ H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     if (bin != 0) {
         result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
         result.diagnosticMessage =
-            QStringLiteral("CABAC non-zero residual coded_block_flag is not implemented.");
+            QStringLiteral("CABAC %1 coded_block_flag is 1; significant_coeff_flag parsing is not implemented.")
+                .arg(residualBlockCategoryName(category));
         return result;
+    }
+
+    result.complete = true;
+    return result;
+}
+
+H264CabacResidualChromaDcResult h264ReadCabacResidualChromaDcCodedBlockFlagsZero(
+    BitReader &reader,
+    H264CabacDecoder &decoder,
+    H264CabacContextModelSet &contexts,
+    int chromaArrayType,
+    int codedBlockPatternChroma)
+{
+    H264CabacResidualChromaDcResult result;
+    result.firstCtxIdx = 97;
+
+    if (codedBlockPatternChroma == 0) {
+        result.ok = true;
+        result.complete = true;
+        return result;
+    }
+    if (chromaArrayType != 1) {
+        return failedResidualChromaDcResult(
+            QStringLiteral("cabac_residual_incomplete"),
+            QStringLiteral("CABAC chroma DC coded_block_flag zero reader currently only supports 4:2:0 chroma."),
+            result.firstCtxIdx);
+    }
+    if (codedBlockPatternChroma != 1 && codedBlockPatternChroma != 2) {
+        return failedResidualChromaDcResult(
+            QStringLiteral("cabac_residual_incomplete"),
+            QStringLiteral("CABAC chroma DC coded_block_flag zero reader only supports coded_block_pattern_chroma 1 or 2."),
+            result.firstCtxIdx);
+    }
+
+    for (int component = 0; component < 2; ++component) {
+        const H264CabacResidualBlockResult block =
+            h264ReadCabacResidualCodedBlockFlagZero(
+                reader,
+                decoder,
+                contexts,
+                H264CabacResidualBlockCategory::ChromaDc);
+        if (!block.ok) {
+            result.diagnosticCode = block.diagnosticCode;
+            result.diagnosticMessage = QStringLiteral("CABAC chroma_dc coded_block_flag[%1] failed: %2")
+                                           .arg(component)
+                                           .arg(block.diagnosticMessage);
+            return result;
+        }
+        result.ok = true;
+        result.components.append(component);
+        result.codedBlockFlags.append(block.codedBlockFlag);
+        if (!block.complete) {
+            result.incompleteComponent = component;
+            result.incompleteStage = QStringLiteral("significant_coeff_flag");
+            result.diagnosticCode = block.diagnosticCode;
+            result.diagnosticMessage =
+                QStringLiteral("CABAC chroma_dc coded_block_flag[%1] is 1; significant_coeff_flag parsing is not implemented.")
+                    .arg(component);
+            return result;
+        }
+    }
+
+    result.complete = true;
+    return result;
+}
+
+H264CabacResidualLuma4x4Result h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(
+    BitReader &reader,
+    H264CabacDecoder &decoder,
+    H264CabacContextModelSet &contexts,
+    int codedBlockPatternLuma)
+{
+    H264CabacResidualLuma4x4Result result;
+    result.firstCtxIdx = 85;
+
+    if (codedBlockPatternLuma <= 0 || codedBlockPatternLuma > 0x0f) {
+        return failedResidualLuma4x4Result(
+            QStringLiteral("cabac_residual_incomplete"),
+            QStringLiteral("CABAC narrow residual path only supports luma coded_block_pattern bits."),
+            result.firstCtxIdx);
+    }
+
+    for (int luma8x8 = 0; luma8x8 < 4; ++luma8x8) {
+        if (((codedBlockPatternLuma >> luma8x8) & 0x01) == 0) {
+            continue;
+        }
+        for (int i4x4 = 0; i4x4 < 4; ++i4x4) {
+            const int blockIndex = luma8x8 * 4 + i4x4;
+            const H264CabacResidualBlockResult block =
+                h264ReadCabacResidualCodedBlockFlagZero(
+                    reader,
+                    decoder,
+                    contexts,
+                    H264CabacResidualBlockCategory::Luma4x4);
+            if (!block.ok) {
+                result.diagnosticCode = block.diagnosticCode;
+                result.diagnosticMessage = QStringLiteral("CABAC luma4x4 coded_block_flag[%1] failed: %2")
+                                               .arg(blockIndex)
+                                               .arg(block.diagnosticMessage);
+                return result;
+            }
+            result.ok = true;
+            result.blockIndices.append(blockIndex);
+            result.codedBlockFlags.append(block.codedBlockFlag);
+            if (!block.complete) {
+                result.incompleteBlockIndex = blockIndex;
+                result.incompleteStage = QStringLiteral("significant_coeff_flag");
+                result.diagnosticCode = block.diagnosticCode;
+                result.diagnosticMessage =
+                    QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1; significant_coeff_flag parsing is not implemented.")
+                        .arg(blockIndex);
+                return result;
+            }
+        }
     }
 
     result.complete = true;

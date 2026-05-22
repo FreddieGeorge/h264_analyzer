@@ -100,6 +100,36 @@ void appendCabacP8x8ZeroMvdMotionVectors(H264SliceDataContext &context,
     h264SetMvState(mb, context.mvStatesL0, context.mvStatesL1);
 }
 
+void appendCabacResidualZeroBlocks(MacroblockInfo &mb,
+                                   H264MacroblockCoeffState &coeffState,
+                                   const H264CabacMacroblockSyntaxResult &syntax)
+{
+    for (int blockIndex : syntax.residualLuma4x4BlockIndices) {
+        ResidualBlockInfo block;
+        block.kind = QStringLiteral("luma4x4");
+        block.component = 0;
+        block.blockIndex = blockIndex;
+        block.maxCoefficientCount = 16;
+        block.totalCoefficientCount = 0;
+        mb.residualBlocks.append(block);
+        ++mb.residualBlockCount;
+        if (blockIndex >= 0 && blockIndex < static_cast<int>(coeffState.luma.size())) {
+            coeffState.luma[blockIndex] = 0;
+        }
+    }
+
+    for (int component : syntax.residualChromaDcComponents) {
+        ResidualBlockInfo block;
+        block.kind = QStringLiteral("chroma_dc");
+        block.component = component;
+        block.blockIndex = 0;
+        block.maxCoefficientCount = 4;
+        block.totalCoefficientCount = 0;
+        mb.residualBlocks.append(block);
+        ++mb.residualBlockCount;
+    }
+}
+
 }
 
 H264CabacUnsupportedResult h264CabacUnsupportedResult()
@@ -174,7 +204,7 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
             }
             result.parsedSubMacroblockSyntax = true;
             const H264CabacCodedBlockPatternResult cbp =
-                h264ReadCabacCodedBlockPatternZero(context.reader, decoder, contexts, context);
+                h264ReadCabacCodedBlockPatternP8x8Narrow(context.reader, decoder, contexts, context);
             if (!cbp.ok) {
                 result.ok = false;
                 copyDiagnostic(result, cbp.diagnosticCode, cbp.diagnosticMessage);
@@ -187,7 +217,81 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                 copyDiagnostic(result, cbp.diagnosticCode, cbp.diagnosticMessage);
                 return result;
             }
-            result.parsedCodedBlockPatternZero = true;
+            result.parsedCodedBlockPattern = true;
+            result.parsedCodedBlockPatternZero = cbp.codedBlockPattern == 0;
+            if (cbp.codedBlockPattern != 0) {
+                const H264CabacMbQpDeltaResult mbQpDelta =
+                    h264ReadCabacMbQpDeltaZero(context.reader, decoder, contexts);
+                if (!mbQpDelta.ok) {
+                    result.ok = false;
+                    copyDiagnostic(result, mbQpDelta.diagnosticCode, mbQpDelta.diagnosticMessage);
+                    return result;
+                }
+                if (!mbQpDelta.complete) {
+                    copyDiagnostic(result, mbQpDelta.diagnosticCode, mbQpDelta.diagnosticMessage);
+                    return result;
+                }
+                result.mbQpDelta = mbQpDelta.mbQpDelta;
+
+                if (cbp.codedBlockPatternLuma != 0) {
+                    const H264CabacResidualLuma4x4Result residual =
+                        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(
+                            context.reader,
+                            decoder,
+                            contexts,
+                            cbp.codedBlockPatternLuma);
+                    if (!residual.ok) {
+                        result.ok = false;
+                        copyDiagnostic(result, residual.diagnosticCode, residual.diagnosticMessage);
+                        return result;
+                    }
+                    result.residualLuma4x4BlockIndices = residual.blockIndices;
+                    result.residualCodedBlockFlags = residual.codedBlockFlags;
+                    result.residualIncompleteBlockIndex = residual.incompleteBlockIndex;
+                    result.residualIncompleteCategory =
+                        residual.incompleteBlockIndex >= 0 ? QStringLiteral("luma4x4") : QString();
+                    result.residualIncompleteStage = residual.incompleteStage;
+                    if (!residual.complete) {
+                        copyDiagnostic(result, residual.diagnosticCode, residual.diagnosticMessage);
+                        return result;
+                    }
+                }
+                if (cbp.codedBlockPatternChroma != 0) {
+                    const H264CabacResidualChromaDcResult residual =
+                        h264ReadCabacResidualChromaDcCodedBlockFlagsZero(
+                            context.reader,
+                            decoder,
+                            contexts,
+                            context.chromaArrayType,
+                            cbp.codedBlockPatternChroma);
+                    if (!residual.ok) {
+                        result.ok = false;
+                        copyDiagnostic(result, residual.diagnosticCode, residual.diagnosticMessage);
+                        return result;
+                    }
+                    result.residualChromaDcComponents = residual.components;
+                    result.residualChromaDcCodedBlockFlags = residual.codedBlockFlags;
+                    result.residualIncompleteComponent = residual.incompleteComponent;
+                    result.residualIncompleteCategory =
+                        residual.incompleteComponent >= 0 ? QStringLiteral("chroma_dc") : result.residualIncompleteCategory;
+                    result.residualIncompleteStage =
+                        residual.incompleteStage.isEmpty() ? result.residualIncompleteStage : residual.incompleteStage;
+                    if (!residual.complete) {
+                        copyDiagnostic(result, residual.diagnosticCode, residual.diagnosticMessage);
+                        return result;
+                    }
+                    if (cbp.codedBlockPatternChroma == 2) {
+                        result.residualIncompleteCategory = QStringLiteral("chroma_ac");
+                        result.residualIncompleteStage = QStringLiteral("coded_block_flag");
+                        copyDiagnostic(
+                            result,
+                            QStringLiteral("cabac_residual_incomplete"),
+                            QStringLiteral("CABAC chroma AC coded_block_flag parsing is not implemented."));
+                        return result;
+                    }
+                }
+                result.parsedResidualCodedBlockFlagsZero = true;
+            }
             result.complete = true;
             return result;
         }
@@ -213,7 +317,10 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
 bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
                                              const H264CabacMacroblockSyntaxResult &syntax)
 {
-    if (!syntax.parsedSubMacroblockSyntax || !syntax.parsedCodedBlockPatternZero || syntax.mbType != 3 || !context.isPSlice) {
+    if (!syntax.parsedSubMacroblockSyntax || !syntax.parsedCodedBlockPattern || syntax.mbType != 3 || !context.isPSlice) {
+        return false;
+    }
+    if (!syntax.parsedCodedBlockPatternZero && !syntax.parsedResidualCodedBlockFlagsZero) {
         return false;
     }
 
@@ -225,12 +332,20 @@ bool h264AppendCabacMacroblockSyntaxSkeleton(H264SliceDataContext &context,
     mb.codedBlockPatternLuma = syntax.codedBlockPatternLuma;
     mb.codedBlockPatternChroma = syntax.codedBlockPatternChroma;
     mb.qp = context.currentQp;
+    mb.mbQpDelta = syntax.mbQpDelta;
     mb.residualParsed = true;
     mb.parsed = true;
     appendCabacP8x8ZeroMvdMotionVectors(context, mb, syntax);
-    mb.note = QStringLiteral("CABAC P_8x8 motion syntax parsed with zero-MVD L0 vectors; coded_block_pattern is zero, so no residual blocks are present.");
 
-    context.coeffStates[mb.address] = H264MacroblockCoeffState {};
+    H264MacroblockCoeffState coeffState;
+    if (syntax.parsedResidualCodedBlockFlagsZero) {
+        appendCabacResidualZeroBlocks(mb, coeffState, syntax);
+        mb.note = QStringLiteral("CABAC P_8x8 motion syntax parsed; covered luma4x4/chroma DC residual coded_block_flag values are zero.");
+    } else {
+        mb.note = QStringLiteral("CABAC P_8x8 motion syntax parsed with L0 vectors; coded_block_pattern is zero, so no residual blocks are present.");
+    }
+
+    context.coeffStates[mb.address] = coeffState;
     context.currentAddress = mb.address + 1;
     context.slice.macroblocks.append(mb);
     return true;
@@ -253,7 +368,7 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            77);
+            97);
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
@@ -264,7 +379,12 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
     }
 
     if (syntax.parsedSubMacroblockSyntax) {
-        if (!syntax.parsedCodedBlockPatternZero) {
+        if (!syntax.parsedCodedBlockPattern) {
+            context.appendDiagnostic(syntax.diagnosticCode, syntax.diagnosticMessage);
+            context.appendEstimatedRemainder(cabac.code, cabac.message);
+            return;
+        }
+        if (!syntax.complete) {
             context.appendDiagnostic(syntax.diagnosticCode, syntax.diagnosticMessage);
             context.appendEstimatedRemainder(cabac.code, cabac.message);
             return;
@@ -273,12 +393,23 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
         const QString refIdxNote = syntax.refIdxL0Present
             ? QStringLiteral(" ref_idx_l0 values were also decoded.")
             : QStringLiteral(" ref_idx_l0 syntax was not present because only one L0 reference is active.");
-        context.appendDiagnostic(
-            QStringLiteral("cabac_sub_mb_type_parsed"),
-            QStringLiteral("CABAC mb_type decoded as P_8x8 and four sub_mb_type values were decoded: %1.%2 Zero mvd_l0 decoded %3 partition delta pairs, and coded_block_pattern is zero, so no residual blocks are present. Subsequent CABAC macroblocks in this slice are not implemented.")
-                .arg(h264CabacPSubMbTypeSummary(syntax.subMbTypes))
-                .arg(refIdxNote)
-                .arg(syntax.mvdL0.size()));
+        if (syntax.parsedResidualCodedBlockFlagsZero) {
+            context.appendDiagnostic(
+                QStringLiteral("cabac_sub_mb_type_parsed"),
+                QStringLiteral("CABAC mb_type decoded as P_8x8 and four sub_mb_type values were decoded: %1.%2 mvd_l0 decoded %3 partition delta pairs; %4 luma4x4 and %5 chroma DC coded_block_flag zero values were decoded. Subsequent CABAC macroblocks in this slice are not implemented.")
+                    .arg(h264CabacPSubMbTypeSummary(syntax.subMbTypes))
+                    .arg(refIdxNote)
+                    .arg(syntax.mvdL0.size())
+                    .arg(syntax.residualLuma4x4BlockIndices.size())
+                    .arg(syntax.residualChromaDcComponents.size()));
+        } else {
+            context.appendDiagnostic(
+                QStringLiteral("cabac_sub_mb_type_parsed"),
+                QStringLiteral("CABAC mb_type decoded as P_8x8 and four sub_mb_type values were decoded: %1.%2 mvd_l0 decoded %3 partition delta pairs, and coded_block_pattern is zero, so no residual blocks are present. Subsequent CABAC macroblocks in this slice are not implemented.")
+                    .arg(h264CabacPSubMbTypeSummary(syntax.subMbTypes))
+                    .arg(refIdxNote)
+                    .arg(syntax.mvdL0.size()));
+        }
         context.appendEstimatedRemainder(cabac.code, cabac.message);
         return;
     }

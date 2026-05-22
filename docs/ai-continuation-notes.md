@@ -71,9 +71,9 @@ Important H.264 files:
 - `H264MacroblockTypes.*`: macroblock type naming and coded-block-pattern
   mapping.
 - `cabac/H264CabacContextModel.*`: CABAC context-model initialization
-  tables/helpers. The covered subset currently reaches ctxIdx 85, including
-  the coded-block-pattern, `mb_qp_delta`, and first residual coded-block-flag
-  contexts used by the narrow CABAC paths.
+  tables/helpers. The covered subset currently reaches ctxIdx 97, including
+  the coded-block-pattern, `mb_qp_delta`, luma4x4 coded-block-flag, and chroma
+  DC coded-block-flag contexts used by the narrow CABAC paths.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
   readers.
@@ -91,8 +91,12 @@ Important H.264 files:
   (`abs(mvd_l0) <= 3` with bypass sign); larger absolute values still return
   incomplete.
 - `cabac/H264CabacResidualSyntaxReader.*`: focused residual CABAC syntax
-  skeleton. It currently only reads a luma 4x4 `coded_block_flag == 0` using
-  ctxIdx 85. A non-zero coded-block flag returns incomplete; significant
+  skeleton. It currently reads luma 4x4 `coded_block_flag == 0` using ctxIdx 85
+  for luma 8x8 groups selected by the luma `coded_block_pattern_luma` bits, and
+  chroma DC `coded_block_flag == 0` using ctxIdx 97 for 4:2:0
+  `coded_block_pattern_chroma == 1`. A non-zero coded-block flag returns
+  `cabac_residual_incomplete` with the luma4x4 block index or chroma component,
+  plus `significant_coeff_flag` as the next unsupported stage; significant
   coefficient and coefficient-level parsing are not implemented.
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
@@ -119,20 +123,29 @@ Current H.264 limitations:
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
-  initialization currently covers ctxIdx 0-85, including B-slice skip/type
+  initialization currently covers ctxIdx 0-97, including B-slice skip/type
   starter contexts, P-slice `ref_idx_l0` starter contexts, coded-block-pattern
-  contexts, `mb_qp_delta`, and the first residual `coded_block_flag` context.
+  contexts, `mb_qp_delta`, and the luma4x4/chroma DC residual
+  `coded_block_flag` contexts.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
-  now reads narrow `coded_block_pattern == 0` after MVD syntax and appends a
-  parsed no-residual macroblock with L0 motion vectors and MV-state updates
-  only when CBP zero completes. Non-zero CBP, MVD absolute values greater than
-  three, non-zero `mb_qp_delta`, and residual CABAC remain
+  now reads narrow `coded_block_pattern` after MVD syntax. It appends a parsed
+  macroblock when CBP is zero, and also for one deliberately narrow CBP-nonzero
+  case: luma-only CBP with one or more luma CBP bits and all selected luma4x4
+  `coded_block_flag` values equal zero, or 4:2:0 `coded_block_pattern_chroma`
+  equal to 1 with both chroma DC `coded_block_flag` values equal zero. Both
+  non-zero paths require `mb_qp_delta == 0`. If any covered coded-block flag is
+  one, parsing returns `cabac_residual_incomplete` after preserving the partial
+  CBF indices/components, CBF values, incomplete block/component, category, and
+  next unsupported stage on the syntax result. For
+  `coded_block_pattern_chroma == 2`, the narrow path now preserves chroma DC
+  CBF-zero state, then returns `cabac_residual_incomplete` with category
+  `chroma_ac` and next stage `coded_block_flag`; chroma AC CBF parsing is still
+  not implemented. Non-4:2:0 chroma residual, MVD absolute values greater than
+  three, non-zero `mb_qp_delta`, and coefficient parsing remain
   unsupported/incomplete at the macroblock entry point. For inter CBP-zero
   macroblocks, `mb_qp_delta` is not present and is deliberately not consumed.
-  Residual CABAC has a reader-layer skeleton for `coded_block_flag == 0`, but
-  it is not wired into macroblock parsing yet.
 - CAVLC residual summaries are focused analysis data, not full inverse-scan,
   dequantized, or transformed residual visualization.
 - B_Direct, B_8x8 sub-macroblock prediction, MBAFF/interlaced, and FMO remain
@@ -219,11 +232,13 @@ The deployment script writes its own release build under
 
 Recommended next H.264 direction:
 
-1. Wire the residual-CABAC `coded_block_flag == 0` skeleton into one
-   deliberately narrow CBP-nonzero path, likely starting with a P_8x8
-   macroblock that exposes a single luma residual block category while keeping
-   coefficient parsing out of scope. Keep syntax-result structs separate from
-   final model mutation.
+1. Broaden the newly wired residual-CABAC path one step at a time. Current
+   macroblock coverage is limited to P_8x8 with luma-only CBF-zero residuals or
+   4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
+   plus a structured chroma AC incomplete boundary for
+   `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`;
+   coefficient syntax is still out of scope. Keep syntax-result structs
+   separate from final model mutation.
 2. Wire only one narrow CABAC macroblock path at a time, preserving structured
    unsupported diagnostics for the first unimplemented syntax element.
 3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.

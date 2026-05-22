@@ -20,7 +20,9 @@ struct H264CabacMacroblockSyntaxResult
     bool ok = false;
     bool complete = false;
     bool parsedSubMacroblockSyntax = false;
+    bool parsedCodedBlockPattern = false;
     bool parsedCodedBlockPatternZero = false;
+    bool parsedResidualCodedBlockFlagsZero = false;
     int mbType = -1;
     int firstSyntaxCtxIdx = -1;
     QString firstSyntaxName;
@@ -31,6 +33,15 @@ struct H264CabacMacroblockSyntaxResult
     int codedBlockPattern = -1;
     int codedBlockPatternLuma = -1;
     int codedBlockPatternChroma = -1;
+    int mbQpDelta = 0;
+    QVector<int> residualLuma4x4BlockIndices;
+    QVector<int> residualCodedBlockFlags;
+    QVector<int> residualChromaDcComponents;
+    QVector<int> residualChromaDcCodedBlockFlags;
+    int residualIncompleteBlockIndex = -1;
+    int residualIncompleteComponent = -1;
+    QString residualIncompleteCategory;
+    QString residualIncompleteStage;
     QString diagnosticCode;
     QString diagnosticMessage;
 };
