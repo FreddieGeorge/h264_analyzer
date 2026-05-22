@@ -65,6 +65,31 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
     return result;
 }
 
+bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
+                                       H264CabacDecoder &decoder,
+                                       int blockIndex,
+                                       int scanIndex,
+                                       H264CabacResidualLuma4x4Result &result)
+{
+    int sign = 0;
+    if (!decoder.decodeBypassBin(reader, &sign)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC bypass decoding failed while reading luma4x4 coeff_sign_flag[%1][%2].")
+                .arg(blockIndex)
+                .arg(scanIndex);
+        return false;
+    }
+
+    result.coeffSignFlags.append(sign);
+    result.incompleteStage = QStringLiteral("residual_coefficients");
+    result.diagnosticMessage =
+        QStringLiteral("CABAC luma4x4 coeff_sign_flag[%1][%2] was decoded; completing non-zero residual coefficients is not implemented.")
+            .arg(blockIndex)
+            .arg(scanIndex);
+    return true;
+}
+
 bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
                                                     H264CabacDecoder &decoder,
                                                     H264CabacContextModelSet &contexts,
@@ -100,12 +125,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     result.incompleteScanIndex = scanIndex;
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
     if (bin == 0) {
-        result.incompleteStage = QStringLiteral("coeff_sign_flag");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] first prefix bin is 0; coeff_sign_flag parsing is not implemented.")
-                .arg(blockIndex)
-                .arg(scanIndex);
-        return true;
+        return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
     }
 
     if (!contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1NextCtxIdx)) {
@@ -129,17 +149,11 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     }
 
     result.coeffAbsLevelPrefixNextBins.append(nextBin);
-    result.incompleteStage = nextBin == 0
-        ? QStringLiteral("coeff_sign_flag")
-        : QStringLiteral("coeff_abs_level_minus1");
     if (nextBin == 0) {
-        result.diagnosticMessage =
-            QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] next prefix bin is 0; coeff_sign_flag parsing is not implemented.")
-                .arg(blockIndex)
-                .arg(scanIndex);
-        return true;
+        return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
     }
 
+    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
         QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] next prefix bin is 1; remaining coefficient level prefix parsing is not implemented.")
             .arg(blockIndex)

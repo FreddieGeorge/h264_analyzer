@@ -255,6 +255,7 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                     result.residualCoeffAbsLevelInferredFinalFlags = residual.coeffAbsLevelInferredFinalFlags;
                     result.residualCoeffAbsLevelPrefixFirstBins = residual.coeffAbsLevelPrefixFirstBins;
                     result.residualCoeffAbsLevelPrefixNextBins = residual.coeffAbsLevelPrefixNextBins;
+                    result.residualCoeffSignFlags = residual.coeffSignFlags;
                     result.residualIncompleteBlockIndex = residual.incompleteBlockIndex;
                     result.residualIncompleteScanIndex = residual.incompleteScanIndex;
                     result.residualIncompleteCategory =

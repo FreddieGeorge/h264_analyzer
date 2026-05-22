@@ -951,7 +951,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
             "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete block index");
     require(result.residualIncompleteScanIndex == 15,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete scan index");
-    require(result.residualIncompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete stage");
     require(result.residualCoeffAbsLevelScanIndices.size() == 1,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level count");
@@ -965,7 +965,11 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level first bin count");
     require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 0,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level first bin");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1[12][15]")),
+    require(result.residualCoeffSignFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF sign flag count");
+    require(result.residualCoeffSignFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF sign flag");
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag[12][15]")),
             "CABAC macroblock syntax P_8x8 residual non-zero CBF indexed message");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC macroblock syntax P_8x8 residual non-zero CBF stage message");
@@ -1042,10 +1046,14 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one incomplete block index");
     require(result.residualIncompleteScanIndex == 0,
             "CABAC macroblock syntax P_8x8 significant one incomplete scan index");
-    require(result.residualIncompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC macroblock syntax P_8x8 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC macroblock syntax P_8x8 significant one diagnostic");
+    require(result.residualCoeffSignFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one sign flag count");
+    require(result.residualCoeffSignFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one sign flag");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC macroblock syntax P_8x8 significant one stage message");
 }
@@ -1094,9 +1102,13 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelNextBinPartial()
             "CABAC macroblock syntax P_8x8 coeff level next-bin count");
     require(result.residualCoeffAbsLevelPrefixNextBins[0] == 0,
             "CABAC macroblock syntax P_8x8 coeff level next-bin value");
-    require(result.residualIncompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC macroblock syntax P_8x8 coeff level next-bin incomplete stage");
-    require(result.diagnosticMessage.contains(QStringLiteral("next prefix bin")),
+    require(result.residualCoeffSignFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level next-bin sign flag count");
+    require(result.residualCoeffSignFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level next-bin sign flag");
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC macroblock syntax P_8x8 coeff level next-bin message");
 }
 
@@ -1385,7 +1397,7 @@ void testReadResidualLuma4x4CodedBlockFlagNonZeroPartial()
             "CABAC residual luma4x4 non-zero CBF partial significant flag values");
     require(result.incompleteScanIndex == 15,
             "CABAC residual luma4x4 non-zero CBF partial incomplete scan index");
-    require(result.incompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC residual luma4x4 non-zero CBF partial incomplete stage");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level count");
@@ -1399,9 +1411,13 @@ void testReadResidualLuma4x4CodedBlockFlagNonZeroPartial()
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level first bin");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 non-zero CBF partial sign flag count");
+    require(result.coeffSignFlags[0] == 0,
+            "CABAC residual luma4x4 non-zero CBF partial sign flag");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 non-zero CBF partial diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1[12][15]")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag[12][15]")),
             "CABAC residual luma4x4 non-zero CBF partial indexed message");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 non-zero CBF partial stage message");
@@ -1503,10 +1519,14 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one incomplete block index");
     require(result.incompleteScanIndex == 0,
             "CABAC residual luma4x4 significant one incomplete scan index");
-    require(result.incompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC residual luma4x4 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 significant one diagnostic");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 significant one sign flag count");
+    require(result.coeffSignFlags[0] == 0,
+            "CABAC residual luma4x4 significant one sign flag");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 significant one stage message");
 }
@@ -1545,11 +1565,15 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level next-bin zero incomplete block");
     require(result.incompleteScanIndex == 0,
             "CABAC residual luma4x4 coeff level next-bin zero incomplete scan");
-    require(result.incompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC residual luma4x4 coeff level next-bin zero incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 coeff level next-bin zero diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("next prefix bin")),
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero sign flag count");
+    require(result.coeffSignFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin zero sign flag");
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 coeff level next-bin zero message");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 coeff level next-bin zero sign message");
@@ -1585,6 +1609,8 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
             "CABAC residual luma4x4 coeff level next-bin one bin count");
     require(result.coeffAbsLevelPrefixNextBins[0] == 1,
             "CABAC residual luma4x4 coeff level next-bin one bin value");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level next-bin one no sign flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level next-bin one incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -1616,6 +1642,8 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext()
             "CABAC residual luma4x4 coeff level next-bin missing context keeps first bin");
     require(result.coeffAbsLevelPrefixNextBins.isEmpty(),
             "CABAC residual luma4x4 coeff level next-bin missing context has no next bin");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level next-bin missing context has no sign flag");
     require(result.diagnosticCode == QStringLiteral("cabac_context_uninitialized"),
             "CABAC residual luma4x4 coeff level next-bin missing context diagnostic");
     require(result.diagnosticMessage.contains(QStringLiteral("252")),
@@ -1664,10 +1692,14 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
             "CABAC residual luma4x4 last-significant zero incomplete block index");
     require(result.incompleteScanIndex == 15,
             "CABAC residual luma4x4 last-significant zero incomplete scan index");
-    require(result.incompleteStage == QStringLiteral("coeff_sign_flag"),
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
             "CABAC residual luma4x4 last-significant zero incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 last-significant zero diagnostic");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 last-significant zero sign flag count");
+    require(result.coeffSignFlags[0] == 0,
+            "CABAC residual luma4x4 last-significant zero sign flag");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 last-significant zero message");
 }

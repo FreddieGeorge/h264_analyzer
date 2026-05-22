@@ -106,16 +106,17 @@ Important H.264 files:
   if the last flag is one reads the first
   `coeff_abs_level_minus1` prefix bin with ctxIdx 248. If that first prefix
   bin is one, it reads one additional prefix bin with ctxIdx 252. If either
-  covered prefix step reaches a zero terminal bin, the next unsupported stage is
-  `coeff_sign_flag`; if the next prefix bin is also one, the next unsupported
-  stage remains the rest of `coeff_abs_level_minus1`. If no last significant
+  covered prefix step reaches a zero terminal bin, it reads one bypass
+  `coeff_sign_flag` and then stops at `residual_coefficients`; if the next
+  prefix bin is also one, the next unsupported stage remains the rest of
+  `coeff_abs_level_minus1`. If no last significant
   coefficient is found in the 15 explicit bins, the reader treats scan position
   15 as the inferred final coefficient and reads the same narrow
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
   partial results now carry an explicit inferred-final flag, so consumers do not
   need to infer that state from scan index 15. Chroma non-zero CBF, complete
   significant/last maps, complete
-  coefficient level parsing, suffix parsing, and coefficient sign parsing are
+  coefficient level parsing, suffix parsing, and non-zero coefficient completion are
   not implemented.
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
@@ -162,9 +163,9 @@ Current H.264 limitations:
   `mb_qp_delta == 0`. If a covered luma4x4 coded-block flag is one, parsing now
   preserves partial CBF indices, CBF values, significant scan indices/flags,
   last-significant scan indices/flags, coefficient-level scan indices,
-  inferred-final flags, and first and next prefix bins, incomplete block,
-  incomplete scan index, category, and next unsupported stage on the syntax
-  result before returning
+  inferred-final flags, first and next prefix bins, and sign flags, incomplete
+  block, incomplete scan index, category, and next unsupported stage on the
+  syntax result before returning
   `cabac_residual_incomplete`. Chroma DC
   non-zero CBF remains an incomplete boundary without significant-flag parsing.
   For
@@ -267,7 +268,8 @@ Recommended next H.264 direction:
    `last_significant_coeff_flag` skeleton results, inferred final scan-position
    coefficient prefix routing with explicit inferred-final result flags, plus
    the first `coeff_abs_level_minus1` prefix bin and one additional prefix bin
-   when the first prefix bin is one,
+   when the first prefix bin is one, and one bypass `coeff_sign_flag` when the
+   covered prefix bins terminate,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
    plus a structured chroma AC incomplete boundary for
    `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`;
@@ -279,8 +281,9 @@ Recommended next H.264 direction:
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
 4. Next residual step should likely add one very small
-   `coeff_abs_level_minus1` prefix/suffix/sign boundary. Do not jump directly
-   to full coefficient reconstruction.
+   `coeff_abs_level_minus1` prefix/suffix boundary, or begin handling multiple
+   significant coefficients in reverse scan order. Do not jump directly to full
+   coefficient reconstruction.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:
