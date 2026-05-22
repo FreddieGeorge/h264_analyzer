@@ -213,15 +213,13 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
         }
     }
 
-    result.incompleteBlockIndex = blockIndex;
-    result.incompleteScanIndex = Luma4x4SignificantCoeffFlagSkeletonCount;
-    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
-    result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
-    result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1 and no last significant coefficient was found in the first %2 explicit significant_coeff_flag bins; final scan position coefficient level parsing is not implemented.")
-            .arg(blockIndex)
-            .arg(Luma4x4SignificantCoeffFlagSkeletonCount);
-    return true;
+    return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
+        reader,
+        decoder,
+        contexts,
+        blockIndex,
+        Luma4x4SignificantCoeffFlagSkeletonCount,
+        result);
 }
 }
 

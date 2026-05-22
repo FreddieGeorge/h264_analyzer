@@ -109,8 +109,9 @@ Important H.264 files:
   covered prefix step reaches a zero terminal bin, the next unsupported stage is
   `coeff_sign_flag`; if the next prefix bin is also one, the next unsupported
   stage remains the rest of `coeff_abs_level_minus1`. If no last significant
-  coefficient is found in the 15 explicit bins, the reader stops at the inferred
-  final scan position with next stage `coeff_abs_level_minus1`. Chroma non-zero
+  coefficient is found in the 15 explicit bins, the reader treats scan position
+  15 as the inferred final coefficient and reads the same narrow
+  `coeff_abs_level_minus1` prefix skeleton before stopping. Chroma non-zero
   CBF, complete significant/last maps, complete
   coefficient level parsing, suffix parsing, and coefficient sign parsing are
   not implemented.
@@ -260,9 +261,9 @@ Recommended next H.264 direction:
 1. Broaden the newly wired residual-CABAC path one step at a time. Current
    macroblock coverage is limited to P_8x8 with luma-only CBF-zero residuals,
    luma4x4 CBF-one partial 15-bin `significant_coeff_flag` /
-   `last_significant_coeff_flag` skeleton results plus the first
-   `coeff_abs_level_minus1` prefix bin and one additional prefix bin when the
-   first prefix bin is one,
+   `last_significant_coeff_flag` skeleton results, inferred final scan-position
+   coefficient prefix routing, plus the first `coeff_abs_level_minus1` prefix
+   bin and one additional prefix bin when the first prefix bin is one,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
    plus a structured chroma AC incomplete boundary for
    `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`;
@@ -274,9 +275,10 @@ Recommended next H.264 direction:
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
 4. Next residual step should likely add one very small
-   `coeff_abs_level_minus1` prefix/suffix/sign boundary, or start preserving
-   inferred final-position state explicitly. Do not jump directly to full
-   coefficient reconstruction.
+   `coeff_abs_level_minus1` prefix/suffix/sign boundary, or make inferred
+   final-position state explicit in the result structs if consumers need to
+   distinguish it from explicit last-significant positions. Do not jump
+   directly to full coefficient reconstruction.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:
