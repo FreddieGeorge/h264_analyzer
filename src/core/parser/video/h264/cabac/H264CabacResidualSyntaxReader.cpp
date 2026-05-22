@@ -174,6 +174,36 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     return true;
 }
 
+bool readLuma4x4CoeffReverseOrderSkeleton(BitReader &reader,
+                                          H264CabacDecoder &decoder,
+                                          H264CabacContextModelSet &contexts,
+                                          int blockIndex,
+                                          H264CabacResidualLuma4x4Result &result)
+{
+    const int coefficientLimit = result.coeffReverseScanIndices.size() < 2
+        ? result.coeffReverseScanIndices.size()
+        : 2;
+    for (int i = 0; i < coefficientLimit; ++i) {
+        const int scanIndex = result.coeffReverseScanIndices.at(i);
+        const int signCountBefore = result.coeffSignFlags.size();
+        if (!readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
+                reader,
+                decoder,
+                contexts,
+                blockIndex,
+                scanIndex,
+                scanIndex == Luma4x4SignificantCoeffFlagSkeletonCount,
+                result)) {
+            return false;
+        }
+        if (result.incompleteStage != QStringLiteral("residual_coefficients")
+            || result.coeffSignFlags.size() == signCountBefore) {
+            return true;
+        }
+    }
+    return true;
+}
+
 bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
                                               H264CabacDecoder &decoder,
                                               H264CabacContextModelSet &contexts,
@@ -230,14 +260,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
             result.lastSignificantCoeffFlags.append(lastBin);
             if (lastBin != 0) {
                 appendLuma4x4CoeffReverseScanOrder(result, scanIndex);
-                return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
-                    reader,
-                    decoder,
-                    contexts,
-                    blockIndex,
-                    scanIndex,
-                    false,
-                    result);
+                return readLuma4x4CoeffReverseOrderSkeleton(reader, decoder, contexts, blockIndex, result);
             }
 
             continue;
@@ -245,14 +268,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
     }
 
     appendLuma4x4CoeffReverseScanOrder(result, Luma4x4SignificantCoeffFlagSkeletonCount);
-    return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
-        reader,
-        decoder,
-        contexts,
-        blockIndex,
-        Luma4x4SignificantCoeffFlagSkeletonCount,
-        true,
-        result);
+    return readLuma4x4CoeffReverseOrderSkeleton(reader, decoder, contexts, blockIndex, result);
 }
 }
 

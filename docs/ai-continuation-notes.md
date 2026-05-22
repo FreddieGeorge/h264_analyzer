@@ -115,7 +115,7 @@ Important H.264 files:
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
   partial results now carry reverse-scan coefficient order plus an explicit
   inferred-final flag, so consumers do not need to infer that state from scan
-  index 15. The reader still only consumes the first coefficient in that reverse
+  index 15. The reader consumes only the first two coefficients in that reverse
   order. Chroma non-zero CBF, complete
   significant/last maps, complete
   coefficient level parsing, suffix parsing, and non-zero coefficient completion are
@@ -283,9 +283,9 @@ Recommended next H.264 direction:
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
 4. Next residual step should likely add one very small
-   `coeff_abs_level_minus1` prefix/suffix boundary, or consume the next
-   coefficient in the saved reverse-scan order. Do not jump directly to full
-   coefficient reconstruction.
+   `coeff_abs_level_minus1` prefix/suffix boundary, or continue walking the
+   saved reverse-scan coefficient order beyond the first two entries. Do not
+   jump directly to full coefficient reconstruction.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:
