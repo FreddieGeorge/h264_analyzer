@@ -5,7 +5,7 @@
 namespace
 {
 constexpr int Luma4x4SignificantCoeffFlagCtxIdxBase = 134;
-constexpr int Luma4x4SignificantCoeffFlagSkeletonCount = 4;
+constexpr int Luma4x4SignificantCoeffFlagSkeletonCount = 15;
 constexpr int Luma4x4LastSignificantCoeffFlagCtxIdxBase = 166;
 constexpr int Luma4x4CoeffAbsLevelMinus1FirstCtxIdx = 248;
 constexpr int Luma4x4CoeffAbsLevelMinus1NextCtxIdx = 252;
@@ -209,24 +209,16 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
                     result);
             }
 
-            result.incompleteBlockIndex = blockIndex;
-            result.incompleteScanIndex = scanIndex + 1;
-            result.incompleteStage = QStringLiteral("significant_coeff_flag");
-            result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
-            result.diagnosticMessage =
-                QStringLiteral("CABAC luma4x4 last_significant_coeff_flag[%1][%2] is 0; continuing the significant_coeff_flag map is not implemented.")
-                    .arg(blockIndex)
-                    .arg(scanIndex);
-            return true;
+            continue;
         }
     }
 
     result.incompleteBlockIndex = blockIndex;
     result.incompleteScanIndex = Luma4x4SignificantCoeffFlagSkeletonCount;
-    result.incompleteStage = QStringLiteral("significant_coeff_flag");
+    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
     result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1 and the first %2 significant_coeff_flag bins are zero; full significant_coeff_flag map parsing is not implemented.")
+        QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1 and no last significant coefficient was found in the first %2 explicit significant_coeff_flag bins; final scan position coefficient level parsing is not implemented.")
             .arg(blockIndex)
             .arg(Luma4x4SignificantCoeffFlagSkeletonCount);
     return true;

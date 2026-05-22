@@ -77,9 +77,9 @@ void testContextModelSetInitialization()
     require(pIdc0.isInitialized(85), "CABAC ctxIdx 85 initialized");
     require(pIdc0.isInitialized(97), "CABAC ctxIdx 97 initialized");
     require(pIdc0.isInitialized(134), "CABAC ctxIdx 134 initialized");
-    require(pIdc0.isInitialized(137), "CABAC ctxIdx 137 initialized");
+    require(pIdc0.isInitialized(148), "CABAC ctxIdx 148 initialized");
     require(pIdc0.isInitialized(166), "CABAC ctxIdx 166 initialized");
-    require(pIdc0.isInitialized(169), "CABAC ctxIdx 169 initialized");
+    require(pIdc0.isInitialized(180), "CABAC ctxIdx 180 initialized");
     require(pIdc0.isInitialized(248), "CABAC ctxIdx 248 initialized");
     require(pIdc0.isInitialized(252), "CABAC ctxIdx 252 initialized");
     require(pIdc0.model(73).stateIndex ==
@@ -136,6 +136,9 @@ void testContextModelSetInitialization()
     require(pIdc2.model(137).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(-8, 80, 26).stateIndex,
             "CABAC ctxIdx 137 cabac_init_idc 2 initialization state");
+    require(pIdc0.model(148).stateIndex ==
+                H264CabacContextModelInitializer::initializedContextModel(13, 68, 26).stateIndex,
+            "CABAC ctxIdx 148 initialization state");
     require(pIdc0.model(166).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(11, 28, 26).stateIndex,
             "CABAC ctxIdx 166 initialization state");
@@ -148,6 +151,9 @@ void testContextModelSetInitialization()
     require(pIdc2.model(169).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(11, 29, 26).stateIndex,
             "CABAC ctxIdx 169 cabac_init_idc 2 initialization state");
+    require(pIdc0.model(180).stateIndex ==
+                H264CabacContextModelInitializer::initializedContextModel(4, 63, 26).stateIndex,
+            "CABAC ctxIdx 180 initialization state");
     require(pIdc0.model(248).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(-3, 29, 26).stateIndex,
             "CABAC ctxIdx 248 initialization state");
@@ -213,9 +219,9 @@ void testContextModelSetInitialization()
     require(intra.isInitialized(85), "CABAC intra ctxIdx 85 initialized");
     require(intra.isInitialized(97), "CABAC intra ctxIdx 97 initialized");
     require(intra.isInitialized(134), "CABAC intra ctxIdx 134 initialized");
-    require(intra.isInitialized(137), "CABAC intra ctxIdx 137 initialized");
+    require(intra.isInitialized(148), "CABAC intra ctxIdx 148 initialized");
     require(intra.isInitialized(166), "CABAC intra ctxIdx 166 initialized");
-    require(intra.isInitialized(169), "CABAC intra ctxIdx 169 initialized");
+    require(intra.isInitialized(180), "CABAC intra ctxIdx 180 initialized");
     require(intra.isInitialized(248), "CABAC intra ctxIdx 248 initialized");
     require(intra.isInitialized(252), "CABAC intra ctxIdx 252 initialized");
 
