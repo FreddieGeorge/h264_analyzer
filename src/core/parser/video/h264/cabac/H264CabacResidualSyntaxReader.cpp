@@ -7,6 +7,7 @@ namespace
 constexpr int Luma4x4SignificantCoeffFlagCtxIdxBase = 134;
 constexpr int Luma4x4SignificantCoeffFlagSkeletonCount = 4;
 constexpr int Luma4x4LastSignificantCoeffFlagCtxIdxBase = 166;
+constexpr int Luma4x4CoeffAbsLevelMinus1FirstCtxIdx = 248;
 
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
 {
@@ -63,19 +64,53 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
     return result;
 }
 
-void markLuma4x4CoeffAbsLevelMinus1Boundary(int blockIndex,
-                                            int scanIndex,
-                                            H264CabacResidualLuma4x4Result &result)
+bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
+                                                    H264CabacDecoder &decoder,
+                                                    H264CabacContextModelSet &contexts,
+                                                    int blockIndex,
+                                                    int scanIndex,
+                                                    H264CabacResidualLuma4x4Result &result)
 {
+    if (!contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1FirstCtxIdx)) {
+        result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC context %1 for luma4x4 coeff_abs_level_minus1[%2][%3] first prefix bin is not initialized in the covered context table.")
+                .arg(Luma4x4CoeffAbsLevelMinus1FirstCtxIdx)
+                .arg(blockIndex)
+                .arg(scanIndex);
+        return false;
+    }
+
+    int bin = 0;
+    if (!decoder.decodeBin(reader, contexts, Luma4x4CoeffAbsLevelMinus1FirstCtxIdx, &bin)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] first prefix bin.")
+                .arg(blockIndex)
+                .arg(scanIndex);
+        return false;
+    }
+
     result.coeffAbsLevelScanIndices.append(scanIndex);
+    result.coeffAbsLevelPrefixFirstBins.append(bin);
     result.incompleteBlockIndex = blockIndex;
     result.incompleteScanIndex = scanIndex;
-    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
+    result.incompleteStage = bin == 0
+        ? QStringLiteral("coeff_sign_flag")
+        : QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
-    result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] was reached; coefficient level parsing is not implemented.")
-            .arg(blockIndex)
-            .arg(scanIndex);
+    if (bin == 0) {
+        result.diagnosticMessage =
+            QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] first prefix bin is 0; coeff_sign_flag parsing is not implemented.")
+                .arg(blockIndex)
+                .arg(scanIndex);
+    } else {
+        result.diagnosticMessage =
+            QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] first prefix bin is 1; remaining coefficient level prefix parsing is not implemented.")
+                .arg(blockIndex)
+                .arg(scanIndex);
+    }
+    return true;
 }
 
 bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
@@ -133,8 +168,13 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
             result.lastSignificantScanIndices.append(scanIndex);
             result.lastSignificantCoeffFlags.append(lastBin);
             if (lastBin != 0) {
-                markLuma4x4CoeffAbsLevelMinus1Boundary(blockIndex, scanIndex, result);
-                return true;
+                return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
+                    reader,
+                    decoder,
+                    contexts,
+                    blockIndex,
+                    scanIndex,
+                    result);
             }
 
             result.incompleteBlockIndex = blockIndex;

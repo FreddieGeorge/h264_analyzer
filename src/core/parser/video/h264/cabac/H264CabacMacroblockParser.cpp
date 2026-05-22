@@ -252,6 +252,7 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                     result.residualLastSignificantScanIndices = residual.lastSignificantScanIndices;
                     result.residualLastSignificantCoeffFlags = residual.lastSignificantCoeffFlags;
                     result.residualCoeffAbsLevelScanIndices = residual.coeffAbsLevelScanIndices;
+                    result.residualCoeffAbsLevelPrefixFirstBins = residual.coeffAbsLevelPrefixFirstBins;
                     result.residualIncompleteBlockIndex = residual.incompleteBlockIndex;
                     result.residualIncompleteScanIndex = residual.incompleteScanIndex;
                     result.residualIncompleteCategory =
@@ -374,7 +375,7 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            169);
+            248);
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);

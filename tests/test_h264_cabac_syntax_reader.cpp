@@ -899,7 +899,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(170);
+    H264CabacContextModelSet contexts(249);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -968,7 +968,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(170);
+    H264CabacContextModelSet contexts(249);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -983,6 +983,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
     contexts.setModel(85, {0, 1});
     contexts.setModel(134, {0, 1});
     contexts.setModel(166, {0, 1});
+    contexts.setModel(248, {0, 0});
 
     const H264CabacMacroblockSyntaxResult result =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
@@ -1012,15 +1013,19 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one coeff level scan count");
     require(result.residualCoeffAbsLevelScanIndices[0] == 0,
             "CABAC macroblock syntax P_8x8 significant one coeff level scan index");
+    require(result.residualCoeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one coeff level first bin count");
+    require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one coeff level first bin value");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 significant one incomplete block index");
     require(result.residualIncompleteScanIndex == 0,
             "CABAC macroblock syntax P_8x8 significant one incomplete scan index");
-    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+    require(result.residualIncompleteStage == QStringLiteral("coeff_sign_flag"),
             "CABAC macroblock syntax P_8x8 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC macroblock syntax P_8x8 significant one diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC macroblock syntax P_8x8 significant one stage message");
 }
 
@@ -1326,10 +1331,11 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
     BitReader reader(QByteArray::fromHex("0000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(170);
+    H264CabacContextModelSet contexts(249);
     contexts.setModel(85, {0, 1});
     contexts.setModel(134, {0, 1});
     contexts.setModel(166, {0, 1});
+    contexts.setModel(248, {0, 0});
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -1357,16 +1363,53 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one coeff level scan count");
     require(result.coeffAbsLevelScanIndices[0] == 0,
             "CABAC residual luma4x4 significant one coeff level scan index");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 significant one coeff level first bin count");
+    require(result.coeffAbsLevelPrefixFirstBins[0] == 0,
+            "CABAC residual luma4x4 significant one coeff level first bin value");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 significant one incomplete block index");
     require(result.incompleteScanIndex == 0,
             "CABAC residual luma4x4 significant one incomplete scan index");
-    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+    require(result.incompleteStage == QStringLiteral("coeff_sign_flag"),
             "CABAC residual luma4x4 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 significant one diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1[12][0]")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC residual luma4x4 significant one stage message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelFirstBinOneIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(249);
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 1});
+    contexts.setModel(248, {0, 1});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 coeff level first-bin one result");
+    require(!result.complete, "CABAC residual luma4x4 coeff level first-bin one incomplete");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level first-bin one scan count");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 coeff level first-bin one bin count");
+    require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC residual luma4x4 coeff level first-bin one bin value");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 coeff level first-bin one incomplete block");
+    require(result.incompleteScanIndex == 0,
+            "CABAC residual luma4x4 coeff level first-bin one incomplete scan");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 coeff level first-bin one incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 coeff level first-bin one diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level prefix")),
+            "CABAC residual luma4x4 coeff level first-bin one message");
 }
 
 void testReadResidualLuma4x4LastSignificantZeroIncomplete()
@@ -1923,6 +1966,7 @@ int main()
     testReadResidualCodedBlockFlagNonZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagNonZeroPartial();
     testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelFirstBinOneIncomplete();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
     testReadResidualLuma4x4CodedBlockFlagsZeroAllLuma8x8();
