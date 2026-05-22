@@ -60,12 +60,12 @@ void testContextModelInitialization()
 void testContextModelSetInitialization()
 {
     const H264CabacContextModelSet pIdc0 =
-        H264CabacContextModelInitializer::initializeSliceContexts(false, 0, 26, 248);
+        H264CabacContextModelInitializer::initializeSliceContexts(false, 0, 26, 252);
     const H264CabacContextModelSet pIdc1 =
-        H264CabacContextModelInitializer::initializeSliceContexts(false, 1, 26, 248);
+        H264CabacContextModelInitializer::initializeSliceContexts(false, 1, 26, 252);
     const H264CabacContextModelSet pIdc2 =
-        H264CabacContextModelInitializer::initializeSliceContexts(false, 2, 26, 248);
-    require(pIdc0.size() == 249, "CABAC P context set size");
+        H264CabacContextModelInitializer::initializeSliceContexts(false, 2, 26, 252);
+    require(pIdc0.size() == 253, "CABAC P context set size");
     require(pIdc0.isInitialized(0), "CABAC ctxIdx 0 initialized");
     require(pIdc0.isInitialized(23), "CABAC ctxIdx 23 initialized");
     require(pIdc0.isInitialized(24), "CABAC ctxIdx 24 initialized");
@@ -81,6 +81,7 @@ void testContextModelSetInitialization()
     require(pIdc0.isInitialized(166), "CABAC ctxIdx 166 initialized");
     require(pIdc0.isInitialized(169), "CABAC ctxIdx 169 initialized");
     require(pIdc0.isInitialized(248), "CABAC ctxIdx 248 initialized");
+    require(pIdc0.isInitialized(252), "CABAC ctxIdx 252 initialized");
     require(pIdc0.model(73).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(-27, 126, 26).stateIndex,
             "CABAC ctxIdx 73 initialization state");
@@ -159,6 +160,18 @@ void testContextModelSetInitialization()
     require(pIdc2.model(248).stateIndex ==
                 H264CabacContextModelInitializer::initializedContextModel(-8, 48, 26).stateIndex,
             "CABAC ctxIdx 248 cabac_init_idc 2 initialization state");
+    require(pIdc0.model(252).stateIndex ==
+                H264CabacContextModelInitializer::initializedContextModel(-6, 55, 26).stateIndex,
+            "CABAC ctxIdx 252 initialization state");
+    require(pIdc0.model(252).valueMps ==
+                H264CabacContextModelInitializer::initializedContextModel(-6, 55, 26).valueMps,
+            "CABAC ctxIdx 252 initialization MPS");
+    require(pIdc1.model(252).stateIndex ==
+                H264CabacContextModelInitializer::initializedContextModel(-16, 72, 26).stateIndex,
+            "CABAC ctxIdx 252 cabac_init_idc 1 initialization state");
+    require(pIdc2.model(252).stateIndex ==
+                H264CabacContextModelInitializer::initializedContextModel(-14, 75, 26).stateIndex,
+            "CABAC ctxIdx 252 cabac_init_idc 2 initialization state");
     require(pIdc0.model(11).stateIndex != pIdc1.model(11).stateIndex
                 || pIdc0.model(11).valueMps != pIdc1.model(11).valueMps,
             "CABAC cabac_init_idc selects different P context table");
@@ -186,8 +199,11 @@ void testContextModelSetInitialization()
     require(pIdc0.model(248).stateIndex != pIdc1.model(248).stateIndex
                 || pIdc0.model(248).valueMps != pIdc1.model(248).valueMps,
             "CABAC cabac_init_idc selects different luma4x4 coeff_abs_level_minus1 context");
+    require(pIdc0.model(252).stateIndex != pIdc1.model(252).stateIndex
+                || pIdc0.model(252).valueMps != pIdc1.model(252).valueMps,
+            "CABAC cabac_init_idc selects different luma4x4 coeff_abs_level_minus1 next context");
     const H264CabacContextModelSet intra =
-        H264CabacContextModelInitializer::initializeSliceContexts(true, 0, 26, 248);
+        H264CabacContextModelInitializer::initializeSliceContexts(true, 0, 26, 252);
     require(intra.isInitialized(0), "CABAC intra ctxIdx 0 initialized");
     require(!intra.isInitialized(11), "CABAC intra ctxIdx 11 not initialized in covered subset");
     require(!intra.isInitialized(24), "CABAC intra ctxIdx 24 not initialized in covered subset");
@@ -201,6 +217,7 @@ void testContextModelSetInitialization()
     require(intra.isInitialized(166), "CABAC intra ctxIdx 166 initialized");
     require(intra.isInitialized(169), "CABAC intra ctxIdx 169 initialized");
     require(intra.isInitialized(248), "CABAC intra ctxIdx 248 initialized");
+    require(intra.isInitialized(252), "CABAC intra ctxIdx 252 initialized");
 
     const H264CabacContextModelSet invalid =
         H264CabacContextModelInitializer::initializeSliceContexts(false, 3, 26, 23);
