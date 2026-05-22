@@ -66,6 +66,7 @@ struct H264CabacResidualLuma4x4Result
     QVector<int> significantCoeffFlags;
     QVector<int> lastSignificantScanIndices;
     QVector<int> lastSignificantCoeffFlags;
+    QVector<int> coeffAbsLevelScanIndices;
     int firstCtxIdx = -1;
     int incompleteBlockIndex = -1;
     int incompleteScanIndex = -1;

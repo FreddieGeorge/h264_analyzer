@@ -1008,6 +1008,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one last scan index");
     require(result.residualLastSignificantCoeffFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 significant one last flag value");
+    require(result.residualCoeffAbsLevelScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one coeff level scan count");
+    require(result.residualCoeffAbsLevelScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one coeff level scan index");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 significant one incomplete block index");
     require(result.residualIncompleteScanIndex == 0,
@@ -1349,6 +1353,10 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one last scan index");
     require(result.lastSignificantCoeffFlags[0] == 1,
             "CABAC residual luma4x4 significant one last flag value");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 significant one coeff level scan count");
+    require(result.coeffAbsLevelScanIndices[0] == 0,
+            "CABAC residual luma4x4 significant one coeff level scan index");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 significant one incomplete block index");
     require(result.incompleteScanIndex == 0,
@@ -1357,7 +1365,7 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 significant one diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1[12][0]")),
             "CABAC residual luma4x4 significant one stage message");
 }
 
@@ -1383,6 +1391,8 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
             "CABAC residual luma4x4 last-significant zero scan count");
     require(result.lastSignificantCoeffFlags[0] == 0,
             "CABAC residual luma4x4 last-significant zero flag value");
+    require(result.coeffAbsLevelScanIndices.isEmpty(),
+            "CABAC residual luma4x4 last-significant zero no coeff level entry");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 last-significant zero incomplete block index");
     require(result.incompleteScanIndex == 1,

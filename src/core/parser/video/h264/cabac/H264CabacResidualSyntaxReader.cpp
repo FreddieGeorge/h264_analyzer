@@ -63,6 +63,21 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
     return result;
 }
 
+void markLuma4x4CoeffAbsLevelMinus1Boundary(int blockIndex,
+                                            int scanIndex,
+                                            H264CabacResidualLuma4x4Result &result)
+{
+    result.coeffAbsLevelScanIndices.append(scanIndex);
+    result.incompleteBlockIndex = blockIndex;
+    result.incompleteScanIndex = scanIndex;
+    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
+    result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
+    result.diagnosticMessage =
+        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] was reached; coefficient level parsing is not implemented.")
+            .arg(blockIndex)
+            .arg(scanIndex);
+}
+
 bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
                                               H264CabacDecoder &decoder,
                                               H264CabacContextModelSet &contexts,
@@ -117,24 +132,19 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
 
             result.lastSignificantScanIndices.append(scanIndex);
             result.lastSignificantCoeffFlags.append(lastBin);
-            result.incompleteBlockIndex = blockIndex;
-            result.incompleteScanIndex = scanIndex;
-            result.incompleteStage = lastBin != 0
-                ? QStringLiteral("coeff_abs_level_minus1")
-                : QStringLiteral("significant_coeff_flag");
-            result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
             if (lastBin != 0) {
-                result.diagnosticMessage =
-                    QStringLiteral("CABAC luma4x4 last_significant_coeff_flag[%1][%2] is 1; coeff_abs_level_minus1 parsing is not implemented.")
-                        .arg(blockIndex)
-                        .arg(scanIndex);
-            } else {
-                result.incompleteScanIndex = scanIndex + 1;
-                result.diagnosticMessage =
-                    QStringLiteral("CABAC luma4x4 last_significant_coeff_flag[%1][%2] is 0; continuing the significant_coeff_flag map is not implemented.")
-                        .arg(blockIndex)
-                        .arg(scanIndex);
+                markLuma4x4CoeffAbsLevelMinus1Boundary(blockIndex, scanIndex, result);
+                return true;
             }
+
+            result.incompleteBlockIndex = blockIndex;
+            result.incompleteScanIndex = scanIndex + 1;
+            result.incompleteStage = QStringLiteral("significant_coeff_flag");
+            result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC luma4x4 last_significant_coeff_flag[%1][%2] is 0; continuing the significant_coeff_flag map is not implemented.")
+                    .arg(blockIndex)
+                    .arg(scanIndex);
             return true;
         }
     }
