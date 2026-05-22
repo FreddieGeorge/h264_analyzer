@@ -1,5 +1,9 @@
 set(ZSTREAMEYE_APP_SOURCES
     ../main.cpp
+    AnalysisStore.h
+    AnalysisStore.cpp
+    DecodeSession.h
+    DecodeSession.cpp
     ExportController.h
     ExportController.cpp
     MainWindow.h
@@ -12,6 +16,8 @@ set(ZSTREAMEYE_APP_SOURCES
     ../ui/BitstreamHexView.cpp
     ../ui/LogDock.h
     ../ui/LogDock.cpp
+    ../ui/H264PropertyTreeBuilder.h
+    ../ui/H264PropertyTreeBuilder.cpp
     ../ui/PropertyTreeView.h
     ../ui/PropertyTreeView.cpp
     ../ui/StatsDock.h

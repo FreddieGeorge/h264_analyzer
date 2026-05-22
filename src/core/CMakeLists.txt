@@ -1,22 +1,51 @@
 set(ZSTREAMEYE_CORE_SOURCES
     analysis/AnalysisStats.h
     analysis/AnalysisStats.cpp
+    analysis/AccessUnitAnalyzer.h
+    analysis/AccessUnitAnalyzer.cpp
     buffering/RebufferState.h
+    decode/DecodedFrameAnalysisBuilder.h
+    decode/DecodedFrameAnalysisBuilder.cpp
+    decode/DecodedFrameDispatcher.h
+    decode/DecodedFrameDispatcher.cpp
+    decode/DecodeLoop.h
+    decode/DecodeLoop.cpp
+    decode/DecodeSeekPlanner.h
+    decode/DecodeSeekPlanner.cpp
     decode/DecodeWorker.h
     decode/DecodeWorker.cpp
     decode/FFmpegDecoder.h
     decode/FFmpegDecoder.cpp
+    decode/FFmpegStreamInfoBuilder.h
+    decode/FFmpegStreamInfoBuilder.cpp
+    decode/FramePacing.h
+    decode/FramePacing.cpp
+    decode/PacketRawDataBuilder.h
+    decode/PacketRawDataBuilder.cpp
+    decode/RebufferProgressTracker.h
+    decode/RebufferProgressTracker.cpp
+    decode/SeekCheckpointEmitter.h
+    decode/SeekCheckpointEmitter.cpp
+    decode/StreamLogFormatter.h
+    decode/StreamLogFormatter.cpp
     export/AnalysisExportWriter.h
     export/AnalysisExportWriter.cpp
+    export/H264SyntaxJsonWriter.h
+    export/H264SyntaxJsonWriter.cpp
     model/CodecKind.h
+    model/DecodedVideoFrame.h
     model/FrameAnalysis.h
     model/FrameAnalysis.cpp
+    model/FrameSeekCheckpoint.h
     model/MediaTypes.h
     model/MediaTypes.cpp
+    model/StreamInfo.h
     model/StreamDocument.h
     model/StreamDocument.cpp
     parser/BitstreamParser.h
     parser/BitstreamParser.cpp
+    parser/ParserFactory.h
+    parser/ParserFactory.cpp
     parser/audio/AacAdtsParser.h
     parser/audio/AacAdtsParser.cpp
     parser/audio/Mp3FrameParser.h

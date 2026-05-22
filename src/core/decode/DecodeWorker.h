@@ -1,13 +1,16 @@
 #pragma once
 
-#include "core/decode/FFmpegDecoder.h"
+#include "core/model/DecodedVideoFrame.h"
+#include "core/model/FrameAnalysis.h"
+#include "core/model/FrameSeekCheckpoint.h"
+#include "core/model/StreamInfo.h"
 
 #include <QObject>
 #include <QString>
 
-#include <atomic>
-#include <condition_variable>
-#include <mutex>
+#include <memory>
+
+class DecodeLoop;
 
 class DecodeWorker : public QObject
 {
@@ -15,6 +18,7 @@ class DecodeWorker : public QObject
 
 public:
     explicit DecodeWorker(QObject *parent = nullptr);
+    ~DecodeWorker() override;
 
 public slots:
     void decodeFile(const QString &filePath);
@@ -42,11 +46,5 @@ signals:
     void finished();
 
 private:
-    bool waitForPlaybackPermission();
-
-    std::atomic_bool m_stopRequested = false;
-    std::mutex m_controlMutex;
-    std::condition_variable m_controlChanged;
-    bool m_paused = false;
-    int m_stepRequests = 0;
+    std::unique_ptr<DecodeLoop> m_loop;
 };

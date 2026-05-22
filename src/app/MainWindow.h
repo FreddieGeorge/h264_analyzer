@@ -1,13 +1,13 @@
 #pragma once
 
-#include "core/decode/FFmpegDecoder.h"
+#include "app/AnalysisStore.h"
 #include "core/buffering/RebufferState.h"
+#include "core/model/DecodedVideoFrame.h"
+#include "core/model/FrameSeekCheckpoint.h"
 #include "core/model/StreamDocument.h"
 
 #include <QMainWindow>
-#include <QPointer>
 #include <QString>
-#include <QVector>
 
 class QAction;
 class QComboBox;
@@ -17,10 +17,9 @@ class QDropEvent;
 class QLabel;
 class QMenu;
 class QSlider;
-class QThread;
 class QTimer;
 
-class DecodeWorker;
+class DecodeSession;
 class BitstreamHexView;
 class ExportController;
 class FrameListView;
@@ -44,13 +43,6 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private:
-    struct CachedFrame
-    {
-        int index = -1;
-        DecodedVideoFramePtr frame;
-        FrameAnalysis analysis;
-    };
-
     void createActions();
     void createMenus();
     void createToolBars();
@@ -82,7 +74,7 @@ private:
     void handleFrameListSelection(int frameIndex);
     bool showFrameFromCache(int frameIndex, bool selectInList = true, bool updatePropertyTree = true);
     void seekToFrame(int frameIndex);
-    const CachedFrame *currentCachedFrame() const;
+    const AnalysisStore::CachedFrame *currentCachedFrame() const;
     void setPlaybackControlsEnabled(bool enabled);
     void setNavigationControlsEnabled(bool enabled);
     void updatePlaybackActionState();
@@ -134,22 +126,13 @@ private:
     VideoCanvas *m_videoCanvas = nullptr;
 
     StreamDocument m_document;
-    QPointer<QThread> m_decodeThread;
-    QPointer<DecodeWorker> m_decodeWorker;
+    AnalysisStore m_analysisStore;
+    DecodeSession *m_decodeSession = nullptr;
     ExportController *m_exportController = nullptr;
     UpdateChecker *m_updateChecker = nullptr;
     QString m_lastOpenDirectory;
     QString m_lastExportDirectory;
-    QVector<CachedFrame> m_frameCache;
-    QVector<FrameAnalysis> m_frameAnalysisByIndex;
-    QVector<FrameAnalysis> m_accessUnitAnalyses;
-    QVector<FrameSeekCheckpoint> m_seekCheckpoints;
-    FrameAnalysis m_currentAnalysis;
-    int m_decoderGeneration = 0;
     RebufferState m_rebufferState;
-    int m_currentFrameIndex = -1;
-    int m_latestFrameIndex = -1;
-    bool m_hasCurrentAnalysis = false;
     bool m_playbackPaused = false;
     bool m_preserveFrameListScroll = false;
 };

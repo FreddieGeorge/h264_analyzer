@@ -4,8 +4,6 @@
 
 #include <QTreeWidget>
 
-struct FrameSyntaxInfo;
-
 class PropertyTreeView : public QTreeWidget
 {
     Q_OBJECT
@@ -36,5 +34,4 @@ private:
     void addFrameAnalysisDiagnostics(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
     void addFrameAnalysisBitFields(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
     void addCodecSpecificDetails(QTreeWidgetItem *parent, const FrameAnalysis &analysis);
-    void addH264Details(QTreeWidgetItem *parent, const FrameSyntaxInfo &syntaxInfo);
 };

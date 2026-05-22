@@ -5,6 +5,13 @@ function(add_zstreameye_core_test target source)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
+function(add_zstreameye_app_helper_test target source)
+    add_executable(${target} ${source} ../src/app/AnalysisStore.cpp)
+    target_link_libraries(${target} PRIVATE ZStreamEyeCore)
+    target_compile_features(${target} PRIVATE cxx_std_17)
+    add_test(NAME ${target} COMMAND ${target})
+endfunction()
+
 add_zstreameye_core_test(ZStreamEyeParserTests test_h264_parser.cpp)
 target_compile_definitions(ZStreamEyeParserTests PRIVATE
     H264_ANALYZER_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
@@ -18,3 +25,7 @@ add_zstreameye_core_test(ZStreamEyeMp3FrameParserTests test_mp3_frame_parser.cpp
 add_zstreameye_core_test(ZStreamEyeRebufferStateTests test_rebuffer_state.cpp)
 add_zstreameye_core_test(ZStreamEyeUtilTests test_util.cpp)
 add_zstreameye_core_test(ZStreamEyeAnalysisStatsTests test_analysis_stats.cpp)
+add_zstreameye_core_test(ZStreamEyeParserFactoryTests test_parser_factory.cpp)
+add_zstreameye_core_test(ZStreamEyePacketRawDataBuilderTests test_packet_raw_data_builder.cpp)
+add_zstreameye_core_test(ZStreamEyeDecodeHelperTests test_decode_helpers.cpp)
+add_zstreameye_app_helper_test(ZStreamEyeAnalysisStoreTests test_analysis_store.cpp)

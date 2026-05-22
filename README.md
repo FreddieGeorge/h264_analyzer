@@ -108,12 +108,12 @@ ZStreamEye/
 
 Folder responsibilities:
 
-- `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, and workflow wiring.
-- `src/core/model`: stream metadata, media types, frame analysis data, and document state.
+- `src/app`: application window, menu, toolbar, dock layout, file opening, export/update controllers, `AnalysisStore`, `DecodeSession`, and workflow wiring.
+- `src/core/model`: stream metadata, media types, decoded frame/seek models, frame analysis data, and document state.
 - `src/core/analysis`: codec-neutral aggregation and statistics over parsed access units.
 - `src/core/parser`: codec-neutral parser interface plus audio and video parser modules.
 - `src/core/util`: codec-neutral low-level helpers for bit reading, bytestreams, and RBSP/packet bit-range mapping.
-- `src/core/decode`: FFmpeg decoder wrapper and decode worker.
+- `src/core/decode`: FFmpeg decoder wrapper plus staged decode helpers for stream probing, parser creation, packet raw-data capture, decode-loop orchestration, seek planning, rebuffer tracking, frame pacing, checkpoint emission, and decoded-frame dispatch.
 - `src/core/export`: analysis export serialization.
 - `src/core/buffering`: buffering and seek rebuffer state helpers.
 - `src/platform`: platform-specific launchers and integration code.
@@ -289,7 +289,9 @@ Run:
 
 Key modules:
 
-- `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`; owns codec-specific bitstream parsers through `IBitstreamParser`.
+- `AnalysisStore`: keeps recent decoded frames, access-unit analyses, and seek checkpoints out of `MainWindow`.
+- `DecodeSession`: owns decode thread/worker lifetime and generation-guarded signal forwarding.
+- `FFmpegDecoder`: wraps `AVFormatContext`, `AVCodecContext`, `AVPacket`, and `AVFrame`; delegates stream probing and codec-neutral access-unit parsing to focused helpers.
 - `MediaTypes`: media/access-unit identifiers used to keep future video and
   audio analysis paths from being forced into video-only fields.
 - `BitstreamParser`: codec-neutral parser interface and codec kind identifiers.
@@ -297,8 +299,11 @@ Key modules:
   diagnostics.
 - `Mp3FrameParser`: thin audio access-unit skeleton for MPEG audio frame
   headers, bitrate/sample-rate fields, and malformed-header diagnostics.
-- `DecodeWorker`: runs decoding on a background `QThread`.
+- `DecodeWorker`: Qt-facing bridge that forwards play/pause/step/stop and delegates the decode run to `DecodeLoop`.
+- `DecodeLoop`: playback/rebuffer orchestration layer built from focused helpers such as `DecodeSeekPlanner`, `RebufferProgressTracker`, `SeekCheckpointEmitter`, `FramePacing`, `DecodedFrameAnalysisBuilder`, and `DecodedFrameDispatcher`.
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
+- `ParserFactory` and `PacketRawDataBuilder`: keep parser instantiation and packet evidence capture out of `FFmpegDecoder`.
+- `H264SyntaxJsonWriter` and `H264PropertyTreeBuilder`: keep JSON export and property-tree presentation out of decoder/parser internals.
 - `VideoCanvas`: renders video frames and analysis overlays.
 - `FrameListView` and `PropertyTreeView`: display parsed access units, packet
   metadata, and syntax information.

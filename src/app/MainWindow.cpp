@@ -1,8 +1,8 @@
 #include "app/MainWindow.h"
 
+#include "app/DecodeSession.h"
 #include "app/ExportController.h"
 #include "app/UpdateChecker.h"
-#include "core/decode/DecodeWorker.h"
 #include "ui/BitstreamHexView.h"
 #include "ui/FrameListView.h"
 #include "ui/LogDock.h"
@@ -38,7 +38,6 @@
 #include <QStringList>
 #include <QStatusBar>
 #include <QStyle>
-#include <QThread>
 #include <QTimer>
 #include <QToolBar>
 #include <QSlider>
@@ -50,8 +49,6 @@
 
 namespace
 {
-constexpr int MaxCachedFrames = 80;
-
 QString firstWritableLocation(QStandardPaths::StandardLocation location)
 {
     const QStringList locations = QStandardPaths::standardLocations(location);
@@ -178,7 +175,6 @@ MainWindow::MainWindow(QWidget *parent)
 {
     qRegisterMetaType<StreamInfo>("StreamInfo");
     qRegisterMetaType<DecodedVideoFramePtr>("DecodedVideoFramePtr");
-    qRegisterMetaType<FrameSyntaxInfo>("FrameSyntaxInfo");
     qRegisterMetaType<FrameAnalysis>("FrameAnalysis");
     qRegisterMetaType<PacketRawData>("PacketRawData");
     qRegisterMetaType<FrameSeekCheckpoint>("FrameSeekCheckpoint");
@@ -192,6 +188,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_lastOpenDirectory = firstWritableLocation(QStandardPaths::DocumentsLocation);
     m_lastExportDirectory = m_lastOpenDirectory;
+    m_decodeSession = new DecodeSession(this);
     m_exportController = new ExportController(this, this);
     m_updateChecker = new UpdateChecker(this, this);
 
@@ -226,6 +223,60 @@ MainWindow::MainWindow(QWidget *parent)
             m_logDock, &LogDock::appendLine);
     connect(m_updateChecker, &UpdateChecker::applicationCloseRequested,
             this, &QWidget::close);
+    connect(m_decodeSession, &DecodeSession::streamOpened, this, [this](const StreamInfo &streamInfo) {
+        m_document.updateStreamInfo(streamInfo);
+        populateStreamSelector(streamInfo);
+        const QString streamSummary = tr("Codec: %1, %2x%3, %4 fps, %5")
+                                          .arg(streamInfo.codecName)
+                                          .arg(streamInfo.width)
+                                          .arg(streamInfo.height)
+                                          .arg(streamInfo.frameRate, 0, 'f', 3)
+                                          .arg(streamInfo.pixelFormatName);
+        if (streamInfo.codecKind != CodecKind::H264 && streamInfo.codecKind != CodecKind::HEVC) {
+            const QString unsupportedMessage =
+                tr("%1\n\nPlayback is available, but bitstream syntax analysis is not implemented for this codec yet.")
+                    .arg(streamSummary);
+            statusBar()->showMessage(
+                tr("Playback only: %1 bitstream analysis is not supported yet.")
+                    .arg(codecKindName(streamInfo.codecKind)),
+                7000);
+            m_logDock->appendLine(
+                tr("[Info] %1 bitstream analysis is not supported yet; playback will continue without syntax overlays.")
+                    .arg(codecKindName(streamInfo.codecKind)));
+            m_propertyTreeView->showPlaceholder(unsupportedMessage);
+            return;
+        }
+
+        statusBar()->showMessage(
+            tr("Decoding %1 (%2x%3, %4 fps)")
+                .arg(streamInfo.fileName)
+                .arg(streamInfo.width)
+                .arg(streamInfo.height)
+                .arg(streamInfo.frameRate, 0, 'f', 3),
+            5000);
+        m_propertyTreeView->showPlaceholder(streamSummary);
+    });
+    connect(m_decodeSession, &DecodeSession::frameReady,
+            this, &MainWindow::handleFrameReady);
+    connect(m_decodeSession, &DecodeSession::accessUnitAnalysisDecoded,
+            this, &MainWindow::handleAccessUnitAnalysis);
+    connect(m_decodeSession, &DecodeSession::seekCheckpointReady,
+            this, &MainWindow::handleSeekCheckpoint);
+    connect(m_decodeSession, &DecodeSession::bufferingProgress,
+            this, &MainWindow::handleBufferingProgress);
+    connect(m_decodeSession, &DecodeSession::logMessage,
+            m_logDock, &LogDock::appendLine);
+    connect(m_decodeSession, &DecodeSession::errorOccurred, this, [this](const QString &message) {
+        statusBar()->showMessage(message, 5000);
+        m_logDock->appendLine(tr("[Error] %1").arg(message));
+    });
+    connect(m_decodeSession, &DecodeSession::stopped, this, [this]() {
+        m_rebufferState.reset();
+        m_playbackPaused = false;
+        updatePlaybackActionState();
+        setPlaybackControlsEnabled(hasOpenStream());
+        m_logDock->appendLine(tr("[Info] Decode thread stopped."));
+    });
     createMenus();
     createToolBars();
     loadSettings();
@@ -326,8 +377,7 @@ void MainWindow::createDocks()
                 if (analysis.accessUnitKind == AccessUnitKind::VideoFrame) {
                     return;
                 }
-                m_currentAnalysis = analysis;
-                m_hasCurrentAnalysis = true;
+                m_analysisStore.setCurrentAnalysis(analysis);
                 m_propertyTreeView->showFrameAnalysis(analysis);
                 if (m_hexView != nullptr) {
                     m_hexView->showPacket(analysis);
@@ -518,15 +568,9 @@ void MainWindow::openStreamFile(const QString &filePath)
     m_frameListView->clearFrames();
     resetAccessUnitFilters();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
-    m_frameCache.clear();
-    m_frameAnalysisByIndex.clear();
-    m_accessUnitAnalyses.clear();
+    m_analysisStore.resetForNewStream();
     updateStatsDock();
-    m_seekCheckpoints.clear();
     m_rebufferState.reset();
-    m_currentFrameIndex = -1;
-    m_latestFrameIndex = -1;
-    m_hasCurrentAnalysis = false;
     m_preserveFrameListScroll = false;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
@@ -541,139 +585,24 @@ void MainWindow::startDecoder(const QString &filePath,
                               bool pauseAfterFirstFrame,
                               const FrameSeekCheckpoint &seekCheckpoint)
 {
-    const int generation = ++m_decoderGeneration;
-    stopDecoder();
-
-    m_decodeThread = new QThread(this);
-    m_decodeWorker = new DecodeWorker;
-    m_decodeWorker->moveToThread(m_decodeThread);
-
-    connect(m_decodeThread, &QThread::started, m_decodeWorker, [worker = m_decodeWorker.data(), filePath, startFrameIndex, pauseAfterFirstFrame, seekCheckpoint]() {
-        if (seekCheckpoint.frameIndex >= 0) {
-            worker->decodeFileFromCheckpoint(filePath, startFrameIndex, pauseAfterFirstFrame, seekCheckpoint);
-        } else {
-            worker->decodeFileFromFrame(filePath, startFrameIndex, pauseAfterFirstFrame);
-        }
-    });
-
-    connect(m_decodeWorker, &DecodeWorker::streamOpened, this, [this, generation](const StreamInfo &streamInfo) {
-        if (generation != m_decoderGeneration) {
-            return;
-        }
-        m_document.updateStreamInfo(streamInfo);
-        populateStreamSelector(streamInfo);
-        const QString streamSummary = tr("Codec: %1, %2x%3, %4 fps, %5")
-                                          .arg(streamInfo.codecName)
-                                          .arg(streamInfo.width)
-                                          .arg(streamInfo.height)
-                                          .arg(streamInfo.frameRate, 0, 'f', 3)
-                                          .arg(streamInfo.pixelFormatName);
-        if (streamInfo.codecKind != CodecKind::H264 && streamInfo.codecKind != CodecKind::HEVC) {
-            const QString unsupportedMessage =
-                tr("%1\n\nPlayback is available, but bitstream syntax analysis is not implemented for this codec yet.")
-                    .arg(streamSummary);
-            statusBar()->showMessage(
-                tr("Playback only: %1 bitstream analysis is not supported yet.")
-                    .arg(codecKindName(streamInfo.codecKind)),
-                7000);
-            m_logDock->appendLine(
-                tr("[Info] %1 bitstream analysis is not supported yet; playback will continue without syntax overlays.")
-                    .arg(codecKindName(streamInfo.codecKind)));
-            m_propertyTreeView->showPlaceholder(unsupportedMessage);
-            return;
-        }
-
-        statusBar()->showMessage(
-            tr("Decoding %1 (%2x%3, %4 fps)")
-                .arg(streamInfo.fileName)
-                .arg(streamInfo.width)
-                .arg(streamInfo.height)
-                .arg(streamInfo.frameRate, 0, 'f', 3),
-            5000);
-        m_propertyTreeView->showPlaceholder(streamSummary);
-    });
-
-    connect(m_decodeWorker, &DecodeWorker::frameReady,
-            this, [this, generation](int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis) {
-                if (generation == m_decoderGeneration) {
-                    handleFrameReady(frameIndex, frame, analysis);
-                }
-            },
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::accessUnitAnalysisDecoded,
-            this, [this, generation](const FrameAnalysis &analysis) {
-                if (generation == m_decoderGeneration) {
-                    handleAccessUnitAnalysis(analysis);
-                }
-            },
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::seekCheckpointReady,
-            this, [this, generation](const FrameSeekCheckpoint &checkpoint) {
-                if (generation == m_decoderGeneration) {
-                    handleSeekCheckpoint(checkpoint);
-                }
-            },
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::bufferingProgress,
-            this, [this, generation](int startFrameIndex, int currentFrameIndex, int targetFrameIndex) {
-                if (generation == m_decoderGeneration) {
-                    handleBufferingProgress(startFrameIndex, currentFrameIndex, targetFrameIndex);
-                }
-            },
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::logMessage,
-            this, [this, generation](const QString &message) {
-                if (generation == m_decoderGeneration) {
-                    m_logDock->appendLine(message);
-                }
-            },
-            Qt::QueuedConnection);
-    connect(m_decodeWorker, &DecodeWorker::errorOccurred, this, [this, generation](const QString &message) {
-        if (generation != m_decoderGeneration) {
-            return;
-        }
-        statusBar()->showMessage(message, 5000);
-        m_logDock->appendLine(tr("[Error] %1").arg(message));
-    });
-    connect(m_decodeWorker, &DecodeWorker::finished, m_decodeThread, &QThread::quit);
-    connect(m_decodeWorker, &DecodeWorker::finished, m_decodeWorker, &QObject::deleteLater);
-    connect(m_decodeThread, &QThread::finished, m_decodeThread, &QObject::deleteLater);
-    connect(m_decodeThread, &QThread::finished, this, [this, generation]() {
-        if (generation != m_decoderGeneration) {
-            return;
-        }
-        m_decodeThread = nullptr;
-        m_decodeWorker = nullptr;
-        m_rebufferState.reset();
-        m_playbackPaused = false;
-        updatePlaybackActionState();
-        setPlaybackControlsEnabled(hasOpenStream());
-        m_logDock->appendLine(tr("[Info] Decode thread stopped."));
-    });
-
+    if (m_decodeSession != nullptr) {
+        m_decodeSession->start(filePath, startFrameIndex, pauseAfterFirstFrame, seekCheckpoint);
+    }
     m_playbackPaused = pauseAfterFirstFrame;
     setPlaybackControlsEnabled(true);
     updatePlaybackActionState();
-    m_decodeThread->start();
 }
 
 void MainWindow::stopDecoder()
 {
-    if (!m_decodeWorker.isNull()) {
-        m_decodeWorker->stop();
-    }
-
-    if (!m_decodeThread.isNull()) {
-        m_decodeThread->quit();
-        m_decodeThread->wait();
-        m_decodeThread = nullptr;
-        m_decodeWorker = nullptr;
+    if (m_decodeSession != nullptr) {
+        m_decodeSession->stop();
     }
 }
 
 void MainWindow::togglePlayback()
 {
-    if (m_decodeWorker.isNull()) {
+    if (m_decodeSession == nullptr || !m_decodeSession->isActive()) {
         if (hasOpenStream()) {
             replayFromBeginning();
         }
@@ -689,24 +618,24 @@ void MainWindow::togglePlayback()
 
 void MainWindow::pausePlayback()
 {
-    if (m_decodeWorker.isNull()) {
+    if (m_decodeSession == nullptr || !m_decodeSession->isActive()) {
         return;
     }
 
-    m_decodeWorker->pause();
+    m_decodeSession->pause();
     m_playbackPaused = true;
     updatePlaybackActionState();
-    showFrameFromCache(m_currentFrameIndex, true, true);
+    showFrameFromCache(m_analysisStore.currentFrameIndex(), true, true);
     statusBar()->showMessage(tr("Paused"), 2000);
 }
 
 void MainWindow::resumePlayback()
 {
-    if (m_decodeWorker.isNull()) {
+    if (m_decodeSession == nullptr || !m_decodeSession->isActive()) {
         return;
     }
 
-    m_decodeWorker->play();
+    m_decodeSession->play();
     m_playbackPaused = false;
     m_preserveFrameListScroll = false;
     updatePlaybackActionState();
@@ -715,14 +644,14 @@ void MainWindow::resumePlayback()
 
 void MainWindow::stepToPreviousFrame()
 {
-    if (m_currentFrameIndex <= 0) {
+    if (m_analysisStore.currentFrameIndex() <= 0) {
         return;
     }
 
-    if (!m_decodeWorker.isNull()) {
+    if (m_decodeSession != nullptr && m_decodeSession->isActive()) {
         pausePlayback();
     }
-    const int targetFrame = m_currentFrameIndex - 1;
+    const int targetFrame = m_analysisStore.currentFrameIndex() - 1;
     if (!showFrameFromCache(targetFrame, true, true)) {
         seekToFrame(targetFrame);
     }
@@ -730,19 +659,19 @@ void MainWindow::stepToPreviousFrame()
 
 void MainWindow::stepToNextFrame()
 {
-    if (!m_decodeWorker.isNull()) {
+    if (m_decodeSession != nullptr && m_decodeSession->isActive()) {
         pausePlayback();
     }
 
-    const int nextIndex = m_currentFrameIndex + 1;
-    if (nextIndex <= m_latestFrameIndex && showFrameFromCache(nextIndex, true, true)) {
+    const int nextIndex = m_analysisStore.currentFrameIndex() + 1;
+    if (nextIndex <= m_analysisStore.latestFrameIndex() && showFrameFromCache(nextIndex, true, true)) {
         return;
     }
 
-    if (nextIndex <= m_latestFrameIndex) {
+    if (nextIndex <= m_analysisStore.latestFrameIndex()) {
         seekToFrame(nextIndex);
-    } else if (!m_decodeWorker.isNull()) {
-        m_decodeWorker->stepForward();
+    } else if (m_decodeSession != nullptr && m_decodeSession->isActive()) {
+        m_decodeSession->stepForward();
         m_playbackPaused = true;
         updatePlaybackActionState();
     }
@@ -766,14 +695,9 @@ void MainWindow::replayFromBeginning()
     m_frameListView->clearFrames();
     m_propertyTreeView->showPlaceholder(tr("Property tree will appear here after parsing."));
     m_videoCanvas->setAnalysisOverlay(FrameAnalysis {});
-    m_frameCache.clear();
-    m_frameAnalysisByIndex.clear();
-    m_accessUnitAnalyses.clear();
+    m_analysisStore.resetDecodedData(false);
     updateStatsDock();
     m_rebufferState.reset();
-    m_currentFrameIndex = -1;
-    m_latestFrameIndex = -1;
-    m_hasCurrentAnalysis = false;
     m_playbackPaused = false;
     updateFrameIndexDisplay();
     updateExportActionState();
@@ -788,8 +712,8 @@ void MainWindow::exportFrameSyntaxJson()
 {
     if (m_exportController != nullptr) {
         m_exportController->exportSelectedAccessUnitJson(m_document.streamInfo(),
-                                                         m_hasCurrentAnalysis,
-                                                         m_currentAnalysis,
+                                                         m_analysisStore.hasCurrentAnalysis(),
+                                                         m_analysisStore.currentAnalysis(),
                                                          defaultExportDirectory());
     }
 }
@@ -798,7 +722,7 @@ void MainWindow::exportAllFrameSyntaxJson()
 {
     if (m_exportController != nullptr) {
         m_exportController->exportAllAccessUnitSyntaxJson(m_document.streamInfo(),
-                                                          m_accessUnitAnalyses,
+                                                          m_analysisStore.accessUnitAnalyses(),
                                                           defaultExportDirectory());
     }
 }
@@ -806,7 +730,7 @@ void MainWindow::exportAllFrameSyntaxJson()
 void MainWindow::exportFrameListCsv()
 {
     if (m_exportController != nullptr) {
-        m_exportController->exportAccessUnitListCsv(m_accessUnitAnalyses,
+        m_exportController->exportAccessUnitListCsv(m_analysisStore.accessUnitAnalyses(),
                                                     defaultExportDirectory());
     }
 }
@@ -851,18 +775,9 @@ void MainWindow::handleFrameReady(int frameIndex,
                                   const DecodedVideoFramePtr &frame,
                                   const FrameAnalysis &analysis)
 {
-    CachedFrame cached;
-    cached.index = frameIndex;
-    cached.frame = frame;
-    cached.analysis = analysis;
-    m_frameCache.append(cached);
-    while (m_frameCache.size() > MaxCachedFrames) {
-        m_frameCache.removeFirst();
-    }
-
-    m_latestFrameIndex = std::max(m_latestFrameIndex, frameIndex);
+    m_analysisStore.addFrame(frameIndex, frame, analysis);
     showFrameFromCache(frameIndex, true, m_playbackPaused);
-    if (m_rebufferState.complete(m_decoderGeneration, frameIndex)) {
+    if (m_decodeSession != nullptr && m_rebufferState.complete(m_decodeSession->generation(), frameIndex)) {
         statusBar()->showMessage(tr("Buffered frame %1").arg(frameIndex + 1), 2000);
     }
     updateExportActionState();
@@ -870,36 +785,14 @@ void MainWindow::handleFrameReady(int frameIndex,
 
 void MainWindow::handleAccessUnitAnalysis(const FrameAnalysis &analysis)
 {
-    if (analysis.frameIndex < 0) {
+    if (!m_analysisStore.addAccessUnitAnalysis(analysis)) {
         return;
     }
 
-    if (analysis.accessUnitKind == AccessUnitKind::VideoFrame) {
-        if (analysis.frameIndex >= m_frameAnalysisByIndex.size()) {
-            m_frameAnalysisByIndex.resize(analysis.frameIndex + 1);
-        }
-        m_frameAnalysisByIndex[analysis.frameIndex] = analysis;
-    }
-
-    bool replaced = false;
-    for (FrameAnalysis &existing : m_accessUnitAnalyses) {
-        if (existing.frameIndex == analysis.frameIndex
-            && existing.streamIndex == analysis.streamIndex
-            && existing.mediaKind == analysis.mediaKind
-            && existing.accessUnitKind == analysis.accessUnitKind) {
-            existing = analysis;
-            replaced = true;
-            break;
-        }
-    }
-    if (!replaced) {
-        m_accessUnitAnalyses.append(analysis);
-    }
     scheduleStatsDockUpdate();
     m_frameListView->addFrameAnalysis(analysis);
-    if (analysis.accessUnitKind != AccessUnitKind::VideoFrame && !m_hasCurrentAnalysis) {
-        m_currentAnalysis = analysis;
-        m_hasCurrentAnalysis = true;
+    if (analysis.accessUnitKind != AccessUnitKind::VideoFrame && !m_analysisStore.hasCurrentAnalysis()) {
+        m_analysisStore.setCurrentAnalysis(analysis);
         m_propertyTreeView->showFrameAnalysis(analysis);
         if (m_hexView != nullptr) {
             m_hexView->showPacket(analysis);
@@ -910,26 +803,12 @@ void MainWindow::handleAccessUnitAnalysis(const FrameAnalysis &analysis)
 
 void MainWindow::handleSeekCheckpoint(const FrameSeekCheckpoint &checkpoint)
 {
-    if (checkpoint.frameIndex < 0) {
-        return;
-    }
-
-    for (FrameSeekCheckpoint &existing : m_seekCheckpoints) {
-        if (existing.frameIndex == checkpoint.frameIndex) {
-            existing = checkpoint;
-            return;
-        }
-    }
-
-    m_seekCheckpoints.append(checkpoint);
-    std::sort(m_seekCheckpoints.begin(), m_seekCheckpoints.end(), [](const FrameSeekCheckpoint &a, const FrameSeekCheckpoint &b) {
-        return a.frameIndex < b.frameIndex;
-    });
+    m_analysisStore.addSeekCheckpoint(checkpoint);
 }
 
 void MainWindow::handleBufferingProgress(int startFrameIndex, int currentFrameIndex, int targetFrameIndex)
 {
-    if (!m_rebufferState.accepts(m_decoderGeneration, targetFrameIndex)) {
+    if (m_decodeSession == nullptr || !m_rebufferState.accepts(m_decodeSession->generation(), targetFrameIndex)) {
         return;
     }
 
@@ -947,8 +826,8 @@ void MainWindow::handleBufferingProgress(int startFrameIndex, int currentFrameIn
 
 void MainWindow::handleFrameListSelection(int frameIndex)
 {
-    if (!m_decodeWorker.isNull()) {
-        m_decodeWorker->pause();
+    if (m_decodeSession != nullptr && m_decodeSession->isActive()) {
+        m_decodeSession->pause();
         m_playbackPaused = true;
         m_preserveFrameListScroll = true;
         updatePlaybackActionState();
@@ -964,36 +843,31 @@ bool MainWindow::showFrameFromCache(int frameIndex, bool selectInList, bool upda
         return false;
     }
 
-    for (const CachedFrame &cached : std::as_const(m_frameCache)) {
-        if (cached.index != frameIndex) {
-            continue;
-        }
-
-        m_currentFrameIndex = frameIndex;
-        m_currentAnalysis = cached.analysis;
-        m_hasCurrentAnalysis = true;
-        m_videoCanvas->setFrame(cached.frame);
-        m_videoCanvas->setAnalysisOverlay(cached.analysis);
-        if (m_hexView != nullptr) {
-            m_hexView->showPacket(cached.analysis);
-        }
-        if (updatePropertyTree) {
-            m_propertyTreeView->showFrameAnalysis(cached.analysis);
-            updateOverlayStatusHint(cached.analysis);
-        }
-        if (selectInList) {
-            const bool scrollSelection = !m_playbackPaused && !m_preserveFrameListScroll;
-            m_frameListView->selectFrameIndex(frameIndex, scrollSelection);
-            if (!scrollSelection) {
-                m_preserveFrameListScroll = false;
-            }
-        }
-        updateFrameIndexDisplay();
-        updateExportActionState();
-        return true;
+    const AnalysisStore::CachedFrame *cached = m_analysisStore.cachedFrame(frameIndex);
+    if (cached == nullptr) {
+        return false;
     }
 
-    return false;
+    m_analysisStore.setCurrentFromCachedFrame(*cached);
+    m_videoCanvas->setFrame(cached->frame);
+    m_videoCanvas->setAnalysisOverlay(cached->analysis);
+    if (m_hexView != nullptr) {
+        m_hexView->showPacket(cached->analysis);
+    }
+    if (updatePropertyTree) {
+        m_propertyTreeView->showFrameAnalysis(cached->analysis);
+        updateOverlayStatusHint(cached->analysis);
+    }
+    if (selectInList) {
+        const bool scrollSelection = !m_playbackPaused && !m_preserveFrameListScroll;
+        m_frameListView->selectFrameIndex(frameIndex, scrollSelection);
+        if (!scrollSelection) {
+            m_preserveFrameListScroll = false;
+        }
+    }
+    updateFrameIndexDisplay();
+    updateExportActionState();
+    return true;
 }
 
 void MainWindow::seekToFrame(int frameIndex)
@@ -1007,21 +881,15 @@ void MainWindow::seekToFrame(int frameIndex)
     updatePlaybackActionState();
     setPlaybackControlsEnabled(false);
     m_videoCanvas->setOverlayMessage(QString());
-    const RebufferState::StartResult rebufferStart = m_rebufferState.start(frameIndex, m_decoderGeneration + 1);
+    const int nextDecoderGeneration = m_decodeSession != nullptr ? m_decodeSession->generation() + 1 : 1;
+    const RebufferState::StartResult rebufferStart = m_rebufferState.start(frameIndex, nextDecoderGeneration);
     if (rebufferStart.canceledPrevious) {
         m_logDock->appendLine(tr("[Info] Canceling pending rebuffer for frame %1.")
                                   .arg(rebufferStart.canceledTargetFrameIndex));
     }
     statusBar()->showMessage(tr("Buffering frame %1...").arg(frameIndex + 1));
 
-    FrameSeekCheckpoint checkpoint;
-    for (const FrameSeekCheckpoint &candidate : std::as_const(m_seekCheckpoints)) {
-        if (candidate.frameIndex <= frameIndex
-            && candidate.frameIndex >= checkpoint.frameIndex
-            && (candidate.keyframe || candidate.idr || candidate.frameIndex == 0)) {
-            checkpoint = candidate;
-        }
-    }
+    const FrameSeekCheckpoint checkpoint = m_analysisStore.bestSeekCheckpointForFrame(frameIndex);
 
     if (checkpoint.frameIndex >= 0) {
         m_logDock->appendLine(tr("[Info] Frame %1 is outside the recent cache; seeking from checkpoint frame %2.")
@@ -1035,14 +903,9 @@ void MainWindow::seekToFrame(int frameIndex)
     }
 }
 
-const MainWindow::CachedFrame *MainWindow::currentCachedFrame() const
+const AnalysisStore::CachedFrame *MainWindow::currentCachedFrame() const
 {
-    for (const CachedFrame &cached : m_frameCache) {
-        if (cached.index == m_currentFrameIndex) {
-            return &cached;
-        }
-    }
-    return nullptr;
+    return m_analysisStore.currentCachedFrame();
 }
 
 void MainWindow::setPlaybackControlsEnabled(bool enabled)
@@ -1052,7 +915,7 @@ void MainWindow::setPlaybackControlsEnabled(bool enabled)
     }
     setNavigationControlsEnabled(enabled);
     if (m_stopAction != nullptr) {
-        m_stopAction->setEnabled(enabled && !m_decodeWorker.isNull());
+        m_stopAction->setEnabled(enabled && m_decodeSession != nullptr && m_decodeSession->isActive());
     }
 }
 
@@ -1072,7 +935,7 @@ void MainWindow::updatePlaybackActionState()
         return;
     }
 
-    if (m_decodeWorker.isNull()) {
+    if (m_decodeSession == nullptr || !m_decodeSession->isActive()) {
         m_playPauseAction->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
         m_playPauseAction->setText(hasOpenStream() ? tr("Replay") : tr("Play"));
         if (m_stopAction != nullptr) {
@@ -1096,10 +959,10 @@ void MainWindow::updatePlaybackActionState()
 void MainWindow::updateExportActionState()
 {
     const bool hasCurrentFrame = currentCachedFrame() != nullptr;
-    const bool hasDecodedSyntax = !m_accessUnitAnalyses.isEmpty();
+    const bool hasDecodedSyntax = m_analysisStore.hasDecodedSyntax();
 
     if (m_exportFrameSyntaxJsonAction != nullptr) {
-        m_exportFrameSyntaxJsonAction->setEnabled(m_hasCurrentAnalysis);
+        m_exportFrameSyntaxJsonAction->setEnabled(m_analysisStore.hasCurrentAnalysis());
     }
     if (m_exportScreenshotAction != nullptr) {
         m_exportScreenshotAction->setEnabled(hasCurrentFrame);
@@ -1118,14 +981,14 @@ void MainWindow::updateFrameIndexDisplay()
         return;
     }
 
-    if (m_currentFrameIndex < 0) {
+    if (m_analysisStore.currentFrameIndex() < 0) {
         m_frameIndexLabel->setText(tr("Frame - / -"));
         return;
     }
 
     m_frameIndexLabel->setText(tr("Frame %1 / %2")
-                                   .arg(m_currentFrameIndex + 1)
-                                   .arg(m_latestFrameIndex + 1));
+                                   .arg(m_analysisStore.currentFrameIndex() + 1)
+                                   .arg(m_analysisStore.latestFrameIndex() + 1));
 }
 
 void MainWindow::scheduleStatsDockUpdate()
@@ -1143,17 +1006,17 @@ void MainWindow::updateStatsDock()
         return;
     }
 
-    if (m_accessUnitAnalyses.isEmpty()) {
+    if (!m_analysisStore.hasDecodedSyntax()) {
         m_statsDock->showPlaceholder(tr("Open a stream to populate analysis statistics."));
         return;
     }
 
-    m_statsDock->setStats(calculateAnalysisStats(m_accessUnitAnalyses));
+    m_statsDock->setStats(calculateAnalysisStats(m_analysisStore.accessUnitAnalyses()));
 }
 
 void MainWindow::updateCurrentOverlayStatusHint()
 {
-    const CachedFrame *cached = currentCachedFrame();
+    const AnalysisStore::CachedFrame *cached = currentCachedFrame();
     if (cached == nullptr) {
         return;
     }

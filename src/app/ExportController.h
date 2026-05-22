@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/model/FrameAnalysis.h"
-#include "core/model/StreamDocument.h"
+#include "core/model/StreamInfo.h"
 
 #include <QObject>
 #include <QString>

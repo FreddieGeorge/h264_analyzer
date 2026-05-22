@@ -27,8 +27,17 @@ and persisted UI settings.
 
 Core architecture:
 
-- `FFmpegDecoder` and `DecodeWorker` handle background decoding and packet
-  parsing. Video remains the selected playback path.
+- `MainWindow` delegates decoded-frame/access-unit cache state to
+  `AnalysisStore` and background thread lifecycle to `DecodeSession`.
+- `FFmpegDecoder` owns FFmpeg contexts, but stream probing, parser creation,
+  packet raw-data capture, and codec-neutral access-unit parsing are pushed
+  into focused helpers (`FFmpegStreamInfoBuilder`, `ParserFactory`,
+  `PacketRawDataBuilder`, `AccessUnitAnalyzer`).
+- `DecodeWorker` is now a thin Qt bridge over `DecodeLoop`.
+- `DecodeLoop` is an orchestration layer composed from small helpers
+  (`DecodeSeekPlanner`, `RebufferProgressTracker`, `SeekCheckpointEmitter`,
+  `FramePacing`, `DecodedFrameAnalysisBuilder`, `DecodedFrameDispatcher`).
+  Video remains the selected playback path.
 - `FrameAnalysis` is the codec-neutral handoff model used by UI, stats, and
   export.
 - `StreamInfo` records discovered container streams and basic video/audio
@@ -328,7 +337,10 @@ Most important files:
 
 ```text
 src/app/MainWindow.*
+src/app/AnalysisStore.*
+src/app/DecodeSession.*
 src/core/decode/DecodeWorker.*
+src/core/decode/DecodeLoop.*
 src/core/decode/FFmpegDecoder.*
 src/core/model/FrameAnalysis.*
 src/core/analysis/AnalysisStats.*
@@ -354,4 +366,5 @@ Before parser changes, read the relevant parser module plus `SliceInfo`,
 
 Before playback/seek changes, read `MainWindow::handleFrameReady`,
 `MainWindow::showFrameFromCache`, `MainWindow::seekToFrame`, and
-`DecodeWorker::decodeFileFromFrame`.
+`DecodeSession::start`, `DecodeWorker::decodeFileFromCheckpoint`, and
+`DecodeLoop::run`.

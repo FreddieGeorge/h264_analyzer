@@ -1,110 +1,26 @@
 #include "core/decode/FFmpegDecoder.h"
 
-#include "core/parser/audio/AacAdtsParser.h"
-#include "core/parser/video/h264/H264FrameAnalysisAdapter.h"
-#include "core/parser/video/hevc/HevcParser.h"
-#include "core/parser/audio/Mp3FrameParser.h"
+#include "core/analysis/AccessUnitAnalyzer.h"
+#include "core/decode/FFmpegStreamInfoBuilder.h"
+#include "core/parser/ParserFactory.h"
 
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
 
 #include <algorithm>
+#include <memory>
+#include <optional>
 #include <utility>
 
 extern "C" {
-#include <libavutil/channel_layout.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 #include <libavutil/error.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/pixdesc.h>
-#include <libavutil/samplefmt.h>
-}
-
-namespace
-{
-CodecKind codecKindFromAvCodecId(AVCodecID codecId)
-{
-    switch (codecId) {
-    case AV_CODEC_ID_H264:
-        return CodecKind::H264;
-    case AV_CODEC_ID_HEVC:
-        return CodecKind::HEVC;
-    case AV_CODEC_ID_AV1:
-        return CodecKind::AV1;
-    case AV_CODEC_ID_VP9:
-        return CodecKind::VP9;
-    case AV_CODEC_ID_VVC:
-        return CodecKind::VVC;
-    case AV_CODEC_ID_AAC:
-        return CodecKind::AAC;
-    case AV_CODEC_ID_MP3:
-        return CodecKind::MP3;
-    default:
-        return CodecKind::Unknown;
-    }
-}
-
-MediaKind mediaKindFromAvMediaType(AVMediaType mediaType)
-{
-    switch (mediaType) {
-    case AVMEDIA_TYPE_VIDEO:
-        return MediaKind::Video;
-    case AVMEDIA_TYPE_AUDIO:
-        return MediaKind::Audio;
-    case AVMEDIA_TYPE_SUBTITLE:
-        return MediaKind::Subtitle;
-    case AVMEDIA_TYPE_DATA:
-        return MediaKind::Data;
-    default:
-        return MediaKind::Unknown;
-    }
-}
-
-QString channelLayoutName(const AVCodecParameters *parameters)
-{
-    if (parameters == nullptr || parameters->codec_type != AVMEDIA_TYPE_AUDIO) {
-        return QString {};
-    }
-
-    char buffer[128] = {};
-    if (parameters->ch_layout.nb_channels > 0
-        && av_channel_layout_describe(&parameters->ch_layout, buffer, sizeof(buffer)) >= 0) {
-        return QString::fromUtf8(buffer);
-    }
-    return QString {};
-}
-
-PacketRawData packetRawDataFromAvPacket(const AVPacket *packet,
-                                        int containerPacketIndex,
-                                        int streamPacketIndex,
-                                        int streamIndex,
-                                        MediaKind mediaKind,
-                                        CodecKind codecKind)
-{
-    PacketRawData rawData;
-    rawData.containerPacketIndex = containerPacketIndex;
-    rawData.streamPacketIndex = streamPacketIndex;
-    rawData.streamIndex = streamIndex;
-    rawData.mediaKind = mediaKind;
-    rawData.codecKind = codecKind;
-    if (packet == nullptr) {
-        return rawData;
-    }
-
-    rawData.pts = packet->pts;
-    rawData.dts = packet->dts;
-    rawData.duration = packet->duration;
-    rawData.position = packet->pos;
-    rawData.size = packet->size;
-    rawData.keyframe = (packet->flags & AV_PKT_FLAG_KEY) != 0;
-    if (packet->data != nullptr && packet->size > 0) {
-        rawData.bytes = QByteArray(reinterpret_cast<const char *>(packet->data), packet->size);
-    }
-    return rawData;
-}
 }
 
 FFmpegDecoder::FFmpegDecoder()
+    : m_accessUnitAnalyzer(std::make_unique<AccessUnitAnalyzer>())
 {
     m_packet = av_packet_alloc();
     m_frame = av_frame_alloc();
@@ -118,29 +34,6 @@ FFmpegDecoder::~FFmpegDecoder()
     close();
     av_packet_free(&m_packet);
     av_frame_free(&m_frame);
-}
-
-std::unique_ptr<IBitstreamParser> makeParserForCodec(AVCodecID codecId)
-{
-    if (codecId == AV_CODEC_ID_H264) {
-        return std::make_unique<H264Parser>();
-    }
-    if (codecId == AV_CODEC_ID_HEVC) {
-        return std::make_unique<HevcParser>();
-    }
-    if (codecId == AV_CODEC_ID_AAC) {
-        return std::make_unique<AacAdtsParser>();
-    }
-    if (codecId == AV_CODEC_ID_MP3) {
-        return std::make_unique<Mp3FrameParser>();
-    }
-
-    return nullptr;
-}
-
-void FFmpegDecoder::createParserForCodec(AVCodecID codecId)
-{
-    m_parser = makeParserForCodec(codecId);
 }
 
 bool FFmpegDecoder::openFile(const QString &filePath)
@@ -161,13 +54,7 @@ bool FFmpegDecoder::openFile(const QString &filePath)
         return false;
     }
 
-    const QFileInfo info(filePath);
-    m_streamInfo.absoluteFilePath = info.absoluteFilePath();
-    m_streamInfo.fileName = info.fileName();
-    m_streamInfo.directory = info.absolutePath();
-    m_streamInfo.sizeBytes = info.size();
-    m_streamInfo.bitRate = m_formatContext->bit_rate;
-    m_streamInfo.durationUs = m_formatContext->duration;
+    populateContainerStreamInfo(m_formatContext, filePath, &m_streamInfo);
 
     for (unsigned int i = 0; i < m_formatContext->nb_streams; ++i) {
         AVStream *stream = m_formatContext->streams[i];
@@ -176,54 +63,16 @@ bool FFmpegDecoder::openFile(const QString &filePath)
             continue;
         }
 
-        MediaStreamInfo streamInfo;
-        streamInfo.streamIndex = static_cast<int>(i);
-        streamInfo.mediaKind = mediaKindFromAvMediaType(parameters->codec_type);
-        streamInfo.codecKind = codecKindFromAvCodecId(parameters->codec_id);
-        const AVCodecDescriptor *descriptor = avcodec_descriptor_get(parameters->codec_id);
-        streamInfo.codecName = descriptor != nullptr && descriptor->name != nullptr
-            ? QString::fromUtf8(descriptor->name)
-            : QString::fromUtf8(avcodec_get_name(parameters->codec_id));
-        streamInfo.bitRate = parameters->bit_rate;
-        streamInfo.durationUs = stream->duration != AV_NOPTS_VALUE
-            ? av_rescale_q(stream->duration, stream->time_base, AVRational {1, AV_TIME_BASE})
-            : 0;
-
-        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO) {
-            const AVRational rate = stream->avg_frame_rate.num != 0
-                ? stream->avg_frame_rate
-                : stream->r_frame_rate;
-            streamInfo.width = parameters->width;
-            streamInfo.height = parameters->height;
-            streamInfo.frameRate = rationalToDouble(rate);
-            const char *pixelFormatName = av_get_pix_fmt_name(static_cast<AVPixelFormat>(parameters->format));
-            streamInfo.pixelFormatName = pixelFormatName != nullptr
-                ? QString::fromUtf8(pixelFormatName)
-                : QString {};
-        } else if (parameters->codec_type == AVMEDIA_TYPE_AUDIO) {
-            streamInfo.sampleRate = parameters->sample_rate;
-            streamInfo.channels = parameters->ch_layout.nb_channels;
-            const char *sampleFormatName = av_get_sample_fmt_name(static_cast<AVSampleFormat>(parameters->format));
-            streamInfo.sampleFormatName = sampleFormatName != nullptr
-                ? QString::fromUtf8(sampleFormatName)
-                : QString {};
-            streamInfo.channelLayoutName = channelLayoutName(parameters);
-        }
-
-        m_streamInfo.streams.append(streamInfo);
-
-        if (streamInfo.mediaKind == MediaKind::Audio) {
-            std::unique_ptr<IBitstreamParser> parser = makeParserForCodec(parameters->codec_id);
+        if (mediaKindFromAvMediaType(parameters->codec_type) == MediaKind::Audio) {
+            std::unique_ptr<IBitstreamParser> parser = makeBitstreamParserForAvCodecId(parameters->codec_id);
             if (parser != nullptr) {
-                StreamPacketParser packetParser;
-                packetParser.streamIndex = streamInfo.streamIndex;
-                packetParser.mediaKind = streamInfo.mediaKind;
-                packetParser.parser = std::move(parser);
                 const QByteArray extraData = parameters->extradata != nullptr && parameters->extradata_size > 0
                     ? QByteArray(reinterpret_cast<const char *>(parameters->extradata), parameters->extradata_size)
                     : QByteArray {};
-                packetParser.parser->parseDecoderConfigurationRecord(extraData);
-                m_packetParsers.push_back(std::move(packetParser));
+                m_accessUnitAnalyzer->addPacketParser(static_cast<int>(i),
+                                                      MediaKind::Audio,
+                                                      std::move(parser),
+                                                      extraData);
             }
         }
     }
@@ -237,7 +86,6 @@ bool FFmpegDecoder::openFile(const QString &filePath)
     }
 
     m_videoStreamIndex = ret;
-    m_packetIndex = 0;
     m_containerPacketIndex = 0;
     AVStream *videoStream = m_formatContext->streams[m_videoStreamIndex];
 
@@ -262,38 +110,19 @@ bool FFmpegDecoder::openFile(const QString &filePath)
         return false;
     }
 
-    const AVRational rate = videoStream->avg_frame_rate.num != 0
-        ? videoStream->avg_frame_rate
-        : videoStream->r_frame_rate;
+    populateSelectedVideoStreamInfo(m_formatContext,
+                                    m_codecContext,
+                                    m_videoStreamIndex,
+                                    decoder,
+                                    &m_streamInfo);
 
-    m_streamInfo.mediaKind = MediaKind::Video;
-    m_streamInfo.streamIndex = m_videoStreamIndex;
-    m_streamInfo.codecKind = codecKindFromAvCodecId(m_codecContext->codec_id);
-    m_streamInfo.codecName = QString::fromUtf8(decoder->name);
-    const char *pixelFormatName = av_get_pix_fmt_name(m_codecContext->pix_fmt);
-    m_streamInfo.pixelFormatName = pixelFormatName != nullptr
-        ? QString::fromUtf8(pixelFormatName)
-        : QStringLiteral("unknown");
-    m_streamInfo.bitRate = m_codecContext->bit_rate > 0
-        ? m_codecContext->bit_rate
-        : m_formatContext->bit_rate;
-    m_streamInfo.width = m_codecContext->width;
-    m_streamInfo.height = m_codecContext->height;
-    m_streamInfo.frameRate = rationalToDouble(rate);
-    for (MediaStreamInfo &streamInfo : m_streamInfo.streams) {
-        streamInfo.selected = streamInfo.streamIndex == m_videoStreamIndex;
-    }
-    m_streamInfo.isValid = true;
-
-    createParserForCodec(m_codecContext->codec_id);
-    if (m_parser != nullptr) {
-        m_parser->reset();
-    }
-    if (m_parser != nullptr && m_codecContext->extradata != nullptr) {
-        const QByteArray extraData(reinterpret_cast<const char *>(m_codecContext->extradata),
-                                   m_codecContext->extradata_size);
-        m_parser->parseDecoderConfigurationRecord(extraData);
-    }
+    const QByteArray extraData = m_codecContext->extradata != nullptr && m_codecContext->extradata_size > 0
+        ? QByteArray(reinterpret_cast<const char *>(m_codecContext->extradata),
+                     m_codecContext->extradata_size)
+        : QByteArray {};
+    m_accessUnitAnalyzer->setVideoParser(m_videoStreamIndex,
+                                         makeBitstreamParserForAvCodecId(m_codecContext->codec_id),
+                                         extraData);
     m_pendingFrames.clear();
     m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
@@ -341,10 +170,8 @@ bool FFmpegDecoder::seekToCheckpoint(const FrameSeekCheckpoint &checkpoint)
     m_pendingFrames.clear();
     m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
-    if (m_parser != nullptr && checkpoint.codecKind == m_parser->codecKind()) {
-        m_parser->restoreState(checkpoint.parserState);
-    }
-    m_packetIndex = std::max(0, checkpoint.packetIndex);
+    m_accessUnitAnalyzer->restoreVideoParserState(checkpoint);
+    m_accessUnitAnalyzer->setVideoPacketIndex(checkpoint.packetIndex);
     m_containerPacketIndex = std::max(0, checkpoint.containerPacketIndex);
     m_draining = false;
     m_lastError.clear();
@@ -396,72 +223,19 @@ AVFrame *FFmpegDecoder::decodeNextFrame()
             const int containerPacketIndex = m_containerPacketIndex++;
 
             if (m_packet->stream_index != m_videoStreamIndex) {
-                for (StreamPacketParser &packetParser : m_packetParsers) {
-                    if (packetParser.streamIndex != m_packet->stream_index
-                        || packetParser.parser == nullptr
-                        || m_packet->data == nullptr
-                        || m_packet->size <= 0) {
-                        continue;
-                    }
-
-                    const QByteArray packetData(reinterpret_cast<const char *>(m_packet->data), m_packet->size);
-                    const int packetIndex = packetParser.packetIndex++;
-                    FrameAnalysis analysis = packetParser.parser->parsePacket(packetData,
-                                                                              m_packet->pts,
-                                                                              m_packet->dts,
-                                                                              packetIndex);
-                    analysis.streamIndex = packetParser.streamIndex;
-                    analysis.mediaKind = packetParser.mediaKind;
-                    analysis.accessUnitKind = AccessUnitKind::AudioFrame;
-                    analysis.packet = packetRawDataFromAvPacket(m_packet,
-                                                                containerPacketIndex,
-                                                                packetIndex,
-                                                                packetParser.streamIndex,
-                                                                packetParser.mediaKind,
-                                                                analysis.codecKind);
+                const QVector<FrameAnalysis> analyses =
+                    m_accessUnitAnalyzer->parseNonVideoPacket(m_packet, containerPacketIndex);
+                for (const FrameAnalysis &analysis : analyses) {
                     m_pendingAccessUnitAnalyses.append(analysis);
-                    break;
                 }
                 av_packet_unref(m_packet);
                 continue;
             }
 
-            if (m_parser != nullptr && m_packet->data != nullptr && m_packet->size > 0) {
-                const QByteArray packetData(reinterpret_cast<const char *>(m_packet->data), m_packet->size);
-                const int packetIndex = m_packetIndex++;
-                FrameAnalysis analysis = m_parser->parsePacket(packetData,
-                                                               m_packet->pts,
-                                                               m_packet->dts,
-                                                               packetIndex);
-                analysis.streamIndex = m_videoStreamIndex;
-                analysis.mediaKind = MediaKind::Video;
-                analysis.accessUnitKind = AccessUnitKind::VideoFrame;
-                analysis.packet = packetRawDataFromAvPacket(m_packet,
-                                                            containerPacketIndex,
-                                                            packetIndex,
-                                                            m_videoStreamIndex,
-                                                            MediaKind::Video,
-                                                            analysis.codecKind);
-                if (analysis.hasFrame) {
-                    FrameSeekCheckpoint checkpoint;
-                    checkpoint.packetIndex = packetIndex;
-                    checkpoint.containerPacketIndex = containerPacketIndex;
-                    checkpoint.packetPosition = m_packet->pos;
-                    checkpoint.packetPts = m_packet->pts;
-                    checkpoint.packetDts = m_packet->dts;
-                    checkpoint.keyframe = (m_packet->flags & AV_PKT_FLAG_KEY) != 0;
-                    checkpoint.codecKind = m_parser->codecKind();
-                    checkpoint.parserState = m_parser->snapshotState();
-                    for (const AnalysisUnit &unit : analysis.units) {
-                        if (analysis.codecKind == CodecKind::H264
-                            && unit.kind == AnalysisUnitKind::Nalu
-                            && unit.type == 5) {
-                            checkpoint.idr = true;
-                            break;
-                        }
-                    }
-                    m_pendingFrames.append({analysis, checkpoint});
-                }
+            const std::optional<AccessUnitAnalyzer::ParsedVideoPacket> parsed =
+                m_accessUnitAnalyzer->parseVideoPacket(m_packet, containerPacketIndex);
+            if (parsed.has_value() && parsed->hasFrame) {
+                m_pendingFrames.append({parsed->analysis, parsed->checkpoint});
             }
 
             ret = avcodec_send_packet(m_codecContext, m_packet);
@@ -492,11 +266,6 @@ QVector<FrameAnalysis> FFmpegDecoder::takePendingAccessUnitAnalyses()
     return analyses;
 }
 
-FrameSyntaxInfo FFmpegDecoder::lastFrameSyntaxInfo() const
-{
-    return h264SyntaxFromFrameAnalysis(m_lastFrameAnalysis);
-}
-
 FrameSeekCheckpoint FFmpegDecoder::lastFrameSeekCheckpoint() const
 {
     return m_lastFrameSeekCheckpoint;
@@ -511,18 +280,13 @@ void FFmpegDecoder::close()
 {
     m_draining = false;
     m_videoStreamIndex = -1;
-    m_packetIndex = 0;
     m_containerPacketIndex = 0;
     m_streamInfo = StreamInfo {};
     m_pendingFrames.clear();
     m_pendingAccessUnitAnalyses.clear();
-    m_packetParsers.clear();
     m_lastFrameAnalysis = FrameAnalysis {};
     m_lastFrameSeekCheckpoint = FrameSeekCheckpoint {};
-    if (m_parser != nullptr) {
-        m_parser->reset();
-    }
-    m_parser.reset();
+    m_accessUnitAnalyzer->clear();
 
     if (m_codecContext != nullptr) {
         avcodec_free_context(&m_codecContext);
@@ -583,12 +347,4 @@ QString FFmpegDecoder::ffmpegErrorString(int errorCode)
     char buffer[AV_ERROR_MAX_STRING_SIZE] = {};
     av_strerror(errorCode, buffer, sizeof(buffer));
     return QString::fromUtf8(buffer);
-}
-
-double FFmpegDecoder::rationalToDouble(AVRational value)
-{
-    if (value.num == 0 || value.den == 0) {
-        return 0.0;
-    }
-    return static_cast<double>(value.num) / static_cast<double>(value.den);
 }
