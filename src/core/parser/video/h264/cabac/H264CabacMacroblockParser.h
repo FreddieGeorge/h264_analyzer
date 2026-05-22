@@ -40,6 +40,7 @@ struct H264CabacMacroblockSyntaxResult
     QVector<int> residualSignificantCoeffFlags;
     QVector<int> residualLastSignificantScanIndices;
     QVector<int> residualLastSignificantCoeffFlags;
+    QVector<int> residualCoeffReverseScanIndices;
     QVector<int> residualCoeffAbsLevelScanIndices;
     QVector<int> residualCoeffAbsLevelInferredFinalFlags;
     QVector<int> residualCoeffAbsLevelPrefixFirstBins;

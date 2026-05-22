@@ -66,6 +66,7 @@ struct H264CabacResidualLuma4x4Result
     QVector<int> significantCoeffFlags;
     QVector<int> lastSignificantScanIndices;
     QVector<int> lastSignificantCoeffFlags;
+    QVector<int> coeffReverseScanIndices;
     QVector<int> coeffAbsLevelScanIndices;
     QVector<int> coeffAbsLevelInferredFinalFlags;
     QVector<int> coeffAbsLevelPrefixFirstBins;

@@ -955,6 +955,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
             "CABAC macroblock syntax P_8x8 residual non-zero CBF incomplete stage");
     require(result.residualCoeffAbsLevelScanIndices.size() == 1,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level count");
+    require(result.residualCoeffReverseScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF reverse scan count");
+    require(result.residualCoeffReverseScanIndices[0] == 15,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF reverse scan order");
     require(result.residualCoeffAbsLevelScanIndices[0] == 15,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level scan");
     require(result.residualCoeffAbsLevelInferredFinalFlags.size() == 1,
@@ -1032,6 +1036,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one last flag value");
     require(result.residualCoeffAbsLevelScanIndices.size() == 1,
             "CABAC macroblock syntax P_8x8 significant one coeff level scan count");
+    require(result.residualCoeffReverseScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one reverse scan count");
+    require(result.residualCoeffReverseScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one reverse scan order");
     require(result.residualCoeffAbsLevelScanIndices[0] == 0,
             "CABAC macroblock syntax P_8x8 significant one coeff level scan index");
     require(result.residualCoeffAbsLevelInferredFinalFlags.size() == 1,
@@ -1401,6 +1409,10 @@ void testReadResidualLuma4x4CodedBlockFlagNonZeroPartial()
             "CABAC residual luma4x4 non-zero CBF partial incomplete stage");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level count");
+    require(result.coeffReverseScanIndices.size() == 1,
+            "CABAC residual luma4x4 non-zero CBF partial reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 15,
+            "CABAC residual luma4x4 non-zero CBF partial reverse scan order");
     require(result.coeffAbsLevelScanIndices[0] == 15,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level scan");
     require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
@@ -1505,6 +1517,10 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one last flag value");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 significant one coeff level scan count");
+    require(result.coeffReverseScanIndices.size() == 1,
+            "CABAC residual luma4x4 significant one reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 0,
+            "CABAC residual luma4x4 significant one reverse scan order");
     require(result.coeffAbsLevelScanIndices[0] == 0,
             "CABAC residual luma4x4 significant one coeff level scan index");
     require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
@@ -1531,6 +1547,52 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one stage message");
 }
 
+void testReadResidualLuma4x4MultipleSignificantReverseScanOrder()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(249);
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(135, {0, 0});
+    contexts.setModel(136, {0, 1});
+    contexts.setModel(166, {0, 0});
+    contexts.setModel(168, {0, 1});
+    contexts.setModel(248, {0, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 multiple significant result");
+    require(!result.complete, "CABAC residual luma4x4 multiple significant incomplete");
+    require(result.significantScanIndices.size() == 3,
+            "CABAC residual luma4x4 multiple significant scanned positions");
+    require(result.significantScanIndices[0] == 0 && result.significantScanIndices[1] == 1
+                && result.significantScanIndices[2] == 2,
+            "CABAC residual luma4x4 multiple significant scan order");
+    require(result.significantCoeffFlags[0] == 1 && result.significantCoeffFlags[1] == 0
+                && result.significantCoeffFlags[2] == 1,
+            "CABAC residual luma4x4 multiple significant values");
+    require(result.lastSignificantScanIndices.size() == 2,
+            "CABAC residual luma4x4 multiple significant last scan count");
+    require(result.lastSignificantScanIndices[0] == 0 && result.lastSignificantScanIndices[1] == 2,
+            "CABAC residual luma4x4 multiple significant last scan indices");
+    require(result.lastSignificantCoeffFlags[0] == 0 && result.lastSignificantCoeffFlags[1] == 1,
+            "CABAC residual luma4x4 multiple significant last values");
+    require(result.coeffReverseScanIndices.size() == 2,
+            "CABAC residual luma4x4 multiple significant reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 2 && result.coeffReverseScanIndices[1] == 0,
+            "CABAC residual luma4x4 multiple significant reverse scan order");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 multiple significant first coeff level count");
+    require(result.coeffAbsLevelScanIndices[0] == 2,
+            "CABAC residual luma4x4 multiple significant first coeff level scan");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 multiple significant first sign count");
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC residual luma4x4 multiple significant incomplete stage");
+}
+
 void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -1549,6 +1611,10 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
     require(!result.complete, "CABAC residual luma4x4 coeff level next-bin zero incomplete");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero scan count");
+    require(result.coeffReverseScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin zero reverse scan order");
     require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero inferred flag count");
     require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
@@ -1597,6 +1663,10 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
     require(!result.complete, "CABAC residual luma4x4 coeff level next-bin one incomplete");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin one scan count");
+    require(result.coeffReverseScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin one reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin one reverse scan order");
     require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin one inferred flag count");
     require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
@@ -1678,6 +1748,10 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
             "CABAC residual luma4x4 last-significant zero flag value");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 last-significant zero inferred coeff level count");
+    require(result.coeffReverseScanIndices.size() == 2,
+            "CABAC residual luma4x4 last-significant zero reverse scan count");
+    require(result.coeffReverseScanIndices[0] == 15 && result.coeffReverseScanIndices[1] == 0,
+            "CABAC residual luma4x4 last-significant zero reverse scan order");
     require(result.coeffAbsLevelScanIndices[0] == 15,
             "CABAC residual luma4x4 last-significant zero inferred coeff level scan");
     require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
@@ -2225,6 +2299,7 @@ int main()
     testReadResidualLuma4x4SignificantCoeffFlagMissingLaterContext();
     testReadResidualLuma4x4InferredFinalCoeffLevelMissingContext();
     testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete();
+    testReadResidualLuma4x4MultipleSignificantReverseScanOrder();
     testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();

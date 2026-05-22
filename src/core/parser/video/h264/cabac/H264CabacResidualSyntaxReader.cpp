@@ -65,6 +65,19 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
     return result;
 }
 
+void appendLuma4x4CoeffReverseScanOrder(H264CabacResidualLuma4x4Result &result,
+                                        int terminalScanIndex)
+{
+    result.coeffReverseScanIndices.append(terminalScanIndex);
+    for (int i = result.significantScanIndices.size() - 1; i >= 0; --i) {
+        const int scanIndex = result.significantScanIndices.at(i);
+        if (scanIndex == terminalScanIndex || result.significantCoeffFlags.at(i) == 0) {
+            continue;
+        }
+        result.coeffReverseScanIndices.append(scanIndex);
+    }
+}
+
 bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
                                        H264CabacDecoder &decoder,
                                        int blockIndex,
@@ -216,6 +229,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
             result.lastSignificantScanIndices.append(scanIndex);
             result.lastSignificantCoeffFlags.append(lastBin);
             if (lastBin != 0) {
+                appendLuma4x4CoeffReverseScanOrder(result, scanIndex);
                 return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
                     reader,
                     decoder,
@@ -230,6 +244,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
         }
     }
 
+    appendLuma4x4CoeffReverseScanOrder(result, Luma4x4SignificantCoeffFlagSkeletonCount);
     return readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(
         reader,
         decoder,
