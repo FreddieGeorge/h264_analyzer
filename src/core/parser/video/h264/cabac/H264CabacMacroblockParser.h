@@ -38,6 +38,8 @@ struct H264CabacMacroblockSyntaxResult
     QVector<int> residualCodedBlockFlags;
     QVector<int> residualSignificantScanIndices;
     QVector<int> residualSignificantCoeffFlags;
+    QVector<int> residualLastSignificantScanIndices;
+    QVector<int> residualLastSignificantCoeffFlags;
     QVector<int> residualChromaDcComponents;
     QVector<int> residualChromaDcCodedBlockFlags;
     int residualIncompleteBlockIndex = -1;

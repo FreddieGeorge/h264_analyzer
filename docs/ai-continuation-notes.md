@@ -71,10 +71,11 @@ Important H.264 files:
 - `H264MacroblockTypes.*`: macroblock type naming and coded-block-pattern
   mapping.
 - `cabac/H264CabacContextModel.*`: CABAC context-model initialization
-  tables/helpers. The covered subset currently reaches ctxIdx 137, including
+  tables/helpers. The covered subset currently reaches ctxIdx 169, including
   the coded-block-pattern, `mb_qp_delta`, luma4x4/chroma DC
   coded-block-flag contexts, and the first four luma4x4
-  `significant_coeff_flag` contexts used by the narrow CABAC paths.
+  `significant_coeff_flag` and `last_significant_coeff_flag` contexts used by
+  the narrow CABAC paths.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
   readers.
@@ -96,13 +97,14 @@ Important H.264 files:
   luma 8x8 groups selected by the luma `coded_block_pattern_luma` bits, and
   chroma DC `coded_block_flag == 0` using ctxIdx 97 for 4:2:0
   `coded_block_pattern_chroma == 1`. For luma4x4 `coded_block_flag == 1`, it
-  reads only the first four `significant_coeff_flag` bins with ctxIdx 134-137,
-  stores the partial scan indices/flags, then returns
-  `cabac_residual_incomplete`: if a significant flag is one, the next
-  unsupported stage is `last_significant_coeff_flag`; if those four flags are
-  all zero, the next unsupported stage remains the rest of the
-  `significant_coeff_flag` map. Chroma non-zero CBF, last-significant flags,
-  and coefficient-level parsing are not implemented.
+  reads only the first four `significant_coeff_flag` bins with ctxIdx 134-137.
+  If one of those flags is one, it reads the matching
+  `last_significant_coeff_flag` with ctxIdx 166-169, stores the partial scan
+  indices/flags, then returns `cabac_residual_incomplete`: if the last flag is
+  one, the next unsupported stage is `coeff_abs_level_minus1`; if the last flag
+  is zero, the next unsupported stage remains the rest of the
+  `significant_coeff_flag` map. Chroma non-zero CBF, complete
+  significant/last maps, and coefficient-level parsing are not implemented.
 - `cabac/H264CabacSyntaxReader.h`: aggregate include for CABAC syntax readers;
   keep it thin.
 - `cabac/H264CabacMacroblockParser.*`: CABAC macroblock entry point. It currently
@@ -128,10 +130,11 @@ Current H.264 limitations:
   `cabac_init_idc` on `SliceInfo`, `H264SliceDataContext`, a context-based
   CABAC unsupported entry point, `cabac/H264CabacContextModel.*`, and
   `cabac/H264CabacDecoder.*` bin-decoding primitives. CABAC context-model
-  initialization currently covers ctxIdx 0-137, including B-slice skip/type
+  initialization currently covers ctxIdx 0-169, including B-slice skip/type
   starter contexts, P-slice `ref_idx_l0` starter contexts, coded-block-pattern
   contexts, `mb_qp_delta`, luma4x4/chroma DC residual `coded_block_flag`
-  contexts, and the first four luma4x4 `significant_coeff_flag` contexts.
+  contexts, and the first four luma4x4 `significant_coeff_flag` and
+  `last_significant_coeff_flag` contexts.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
@@ -144,8 +147,9 @@ Current H.264 limitations:
   `coded_block_flag` values equal zero. Both non-zero paths require
   `mb_qp_delta == 0`. If a covered luma4x4 coded-block flag is one, parsing now
   preserves partial CBF indices, CBF values, significant scan indices/flags,
-  incomplete block, incomplete scan index, category, and next unsupported stage
-  on the syntax result before returning `cabac_residual_incomplete`. Chroma DC
+  last-significant scan indices/flags, incomplete block, incomplete scan index,
+  category, and next unsupported stage on the syntax result before returning
+  `cabac_residual_incomplete`. Chroma DC
   non-zero CBF remains an incomplete boundary without significant-flag parsing.
   For
   `coded_block_pattern_chroma == 2`, the narrow path now preserves chroma DC
@@ -243,7 +247,8 @@ Recommended next H.264 direction:
 
 1. Broaden the newly wired residual-CABAC path one step at a time. Current
    macroblock coverage is limited to P_8x8 with luma-only CBF-zero residuals,
-   luma4x4 CBF-one partial `significant_coeff_flag` skeleton results,
+   luma4x4 CBF-one partial `significant_coeff_flag` /
+   `last_significant_coeff_flag` skeleton results,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
    plus a structured chroma AC incomplete boundary for
    `coded_block_pattern_chroma == 2`, all behind `mb_qp_delta == 0`;
@@ -254,10 +259,10 @@ Recommended next H.264 direction:
 3. Keep CABAC modules under `h264/cabac/` and CAVLC modules under `h264/cavlc/`.
    Reuse shared slice state via `H264SliceDataContext`, but keep
    entropy-specific state and tables out of `H264MacroblockParser.cpp`.
-4. Next residual step should likely add a similarly narrow
-   `last_significant_coeff_flag` skeleton for luma4x4 after a significant flag
-   equals one, or broaden significant-flag scan coverage beyond the first four
-   positions. Do not jump directly to coefficient levels.
+4. Next residual step should likely either broaden significant/last scan
+   coverage beyond the first four luma4x4 positions or add the smallest
+   `coeff_abs_level_minus1` incomplete boundary. Do not jump directly to full
+   coefficient levels.
 5. Preserve structured unsupported diagnostics for paths that are not ready.
 
 Useful H.264 test areas:

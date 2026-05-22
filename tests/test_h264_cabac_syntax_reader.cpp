@@ -899,7 +899,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(138);
+    H264CabacContextModelSet contexts(170);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -968,7 +968,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
     slice.numRefIdxL0ActiveMinus1 = 0;
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(138);
+    H264CabacContextModelSet contexts(170);
     contexts.setModel(14, {0, 0});
     contexts.setModel(15, {0, 0});
     contexts.setModel(16, {0, 1});
@@ -982,6 +982,7 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
     contexts.setModel(76, {0, 1});
     contexts.setModel(85, {0, 1});
     contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 1});
 
     const H264CabacMacroblockSyntaxResult result =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
@@ -999,15 +1000,23 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one scan index");
     require(result.residualSignificantCoeffFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 significant one flag value");
+    require(result.residualLastSignificantScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one last scan count");
+    require(result.residualLastSignificantCoeffFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one last flag count");
+    require(result.residualLastSignificantScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one last scan index");
+    require(result.residualLastSignificantCoeffFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 significant one last flag value");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 significant one incomplete block index");
     require(result.residualIncompleteScanIndex == 0,
             "CABAC macroblock syntax P_8x8 significant one incomplete scan index");
-    require(result.residualIncompleteStage == QStringLiteral("last_significant_coeff_flag"),
+    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC macroblock syntax P_8x8 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC macroblock syntax P_8x8 significant one diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("last_significant_coeff_flag")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1")),
             "CABAC macroblock syntax P_8x8 significant one stage message");
 }
 
@@ -1313,9 +1322,10 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
     BitReader reader(QByteArray::fromHex("0000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(138);
+    H264CabacContextModelSet contexts(170);
     contexts.setModel(85, {0, 1});
     contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 1});
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -1331,16 +1341,58 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one scan index");
     require(result.significantCoeffFlags[0] == 1,
             "CABAC residual luma4x4 significant one flag value");
+    require(result.lastSignificantScanIndices.size() == 1,
+            "CABAC residual luma4x4 significant one last scan count");
+    require(result.lastSignificantCoeffFlags.size() == 1,
+            "CABAC residual luma4x4 significant one last flag count");
+    require(result.lastSignificantScanIndices[0] == 0,
+            "CABAC residual luma4x4 significant one last scan index");
+    require(result.lastSignificantCoeffFlags[0] == 1,
+            "CABAC residual luma4x4 significant one last flag value");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 significant one incomplete block index");
     require(result.incompleteScanIndex == 0,
             "CABAC residual luma4x4 significant one incomplete scan index");
-    require(result.incompleteStage == QStringLiteral("last_significant_coeff_flag"),
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 significant one incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 significant one diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("last_significant_coeff_flag")),
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_abs_level_minus1")),
             "CABAC residual luma4x4 significant one stage message");
+}
+
+void testReadResidualLuma4x4LastSignificantZeroIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts(170);
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 last-significant zero partial result");
+    require(!result.complete, "CABAC residual luma4x4 last-significant zero incomplete");
+    require(result.significantCoeffFlags.size() == 1,
+            "CABAC residual luma4x4 last-significant zero significant count");
+    require(result.significantCoeffFlags[0] == 1,
+            "CABAC residual luma4x4 last-significant zero significant value");
+    require(result.lastSignificantScanIndices.size() == 1,
+            "CABAC residual luma4x4 last-significant zero scan count");
+    require(result.lastSignificantCoeffFlags[0] == 0,
+            "CABAC residual luma4x4 last-significant zero flag value");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 last-significant zero incomplete block index");
+    require(result.incompleteScanIndex == 1,
+            "CABAC residual luma4x4 last-significant zero incomplete scan index");
+    require(result.incompleteStage == QStringLiteral("significant_coeff_flag"),
+            "CABAC residual luma4x4 last-significant zero incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 last-significant zero diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("continuing the significant_coeff_flag map")),
+            "CABAC residual luma4x4 last-significant zero message");
 }
 
 void testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8()
@@ -1861,6 +1913,7 @@ int main()
     testReadResidualCodedBlockFlagNonZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagNonZeroPartial();
     testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete();
+    testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
     testReadResidualLuma4x4CodedBlockFlagsZeroAllLuma8x8();
     testReadResidualChromaDcCodedBlockFlagsZero();
