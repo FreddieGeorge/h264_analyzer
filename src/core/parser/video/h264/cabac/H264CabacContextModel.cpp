@@ -13,7 +13,7 @@ struct InitValue
 };
 
 constexpr int CabacInitTableCount = 4;
-constexpr int CabacCoveredContextCount = 98;
+constexpr int CabacCoveredContextCount = 138;
 constexpr int IntraInitTableIndex = 3;
 
 constexpr InitValue initValue(int m, int n)
@@ -126,7 +126,47 @@ constexpr std::array<InitRow, CabacCoveredContextCount> CabacInitValues {{
     InitRow {initValue(-9, 92), initValue(-12, 104), initValue(-11, 104), initValue(-8, 93)},
     InitRow {initValue(-8, 87), initValue(-9, 91), initValue(-11, 91), initValue(-10, 90)},
     InitRow {initValue(-23, 126), initValue(-31, 127), initValue(-30, 127), initValue(-30, 127)},
-    InitRow {initValue(5, 54), initValue(3, 55), initValue(0, 65), initValue(-1, 74)}
+    InitRow {initValue(5, 54), initValue(3, 55), initValue(0, 65), initValue(-1, 74)},
+    InitRow {initValue(6, 60), initValue(7, 56), initValue(-2, 79), initValue(-6, 97)},
+    InitRow {initValue(6, 59), initValue(7, 55), initValue(0, 72), initValue(-7, 91)},
+    InitRow {initValue(6, 69), initValue(8, 61), initValue(-4, 92), initValue(-20, 127)},
+    InitRow {initValue(-1, 48), initValue(-3, 53), initValue(-6, 56), initValue(-4, 56)},
+    InitRow {initValue(0, 68), initValue(0, 68), initValue(3, 68), initValue(-5, 82)},
+    InitRow {initValue(-4, 69), initValue(-7, 74), initValue(-8, 71), initValue(-7, 76)},
+    InitRow {initValue(-8, 88), initValue(-9, 88), initValue(-13, 98), initValue(-22, 125)},
+    InitRow {initValue(-2, 85), initValue(-13, 103), initValue(-4, 86), initValue(-7, 93)},
+    InitRow {initValue(-6, 78), initValue(-13, 91), initValue(-12, 88), initValue(-11, 87)},
+    InitRow {initValue(-1, 75), initValue(-9, 89), initValue(-5, 82), initValue(-3, 77)},
+    InitRow {initValue(-7, 77), initValue(-14, 92), initValue(-3, 72), initValue(-5, 71)},
+    InitRow {initValue(2, 54), initValue(-8, 76), initValue(-4, 67), initValue(-4, 63)},
+    InitRow {initValue(5, 50), initValue(-12, 87), initValue(-8, 72), initValue(-4, 68)},
+    InitRow {initValue(-3, 68), initValue(-23, 110), initValue(-16, 89), initValue(-12, 84)},
+    InitRow {initValue(1, 50), initValue(-24, 105), initValue(-9, 69), initValue(-7, 62)},
+    InitRow {initValue(6, 42), initValue(-10, 78), initValue(-1, 59), initValue(-7, 65)},
+    InitRow {initValue(-4, 81), initValue(-20, 112), initValue(5, 66), initValue(8, 61)},
+    InitRow {initValue(1, 63), initValue(-17, 99), initValue(4, 57), initValue(5, 56)},
+    InitRow {initValue(-4, 70), initValue(-78, 127), initValue(-4, 71), initValue(-2, 66)},
+    InitRow {initValue(0, 67), initValue(-70, 127), initValue(-2, 71), initValue(1, 64)},
+    InitRow {initValue(2, 57), initValue(-50, 127), initValue(2, 58), initValue(0, 61)},
+    InitRow {initValue(-2, 76), initValue(-46, 127), initValue(-1, 74), initValue(-2, 78)},
+    InitRow {initValue(11, 35), initValue(-4, 66), initValue(-4, 44), initValue(1, 50)},
+    InitRow {initValue(4, 64), initValue(-5, 78), initValue(-1, 69), initValue(7, 52)},
+    InitRow {initValue(1, 61), initValue(-4, 71), initValue(0, 62), initValue(10, 35)},
+    InitRow {initValue(11, 35), initValue(-8, 72), initValue(-7, 51), initValue(0, 44)},
+    InitRow {initValue(18, 25), initValue(2, 59), initValue(-4, 47), initValue(11, 38)},
+    InitRow {initValue(12, 24), initValue(-1, 55), initValue(-6, 42), initValue(1, 45)},
+    InitRow {initValue(13, 29), initValue(-7, 70), initValue(-3, 41), initValue(0, 46)},
+    InitRow {initValue(13, 36), initValue(-6, 75), initValue(-6, 53), initValue(5, 44)},
+    InitRow {initValue(-10, 93), initValue(-8, 89), initValue(8, 76), initValue(31, 17)},
+    InitRow {initValue(-7, 73), initValue(-34, 119), initValue(-9, 78), initValue(1, 51)},
+    InitRow {initValue(-2, 73), initValue(-3, 75), initValue(-11, 83), initValue(7, 50)},
+    InitRow {initValue(13, 46), initValue(32, 20), initValue(9, 52), initValue(28, 19)},
+    InitRow {initValue(9, 49), initValue(30, 22), initValue(0, 67), initValue(16, 33)},
+    InitRow {initValue(-7, 100), initValue(-44, 127), initValue(-5, 90), initValue(14, 62)},
+    InitRow {initValue(9, 53), initValue(0, 54), initValue(1, 67), initValue(-13, 108)},
+    InitRow {initValue(2, 53), initValue(-5, 61), initValue(-15, 72), initValue(-15, 100)},
+    InitRow {initValue(5, 53), initValue(0, 58), initValue(-5, 75), initValue(-13, 101)},
+    InitRow {initValue(-2, 61), initValue(-1, 60), initValue(-8, 80), initValue(-13, 91)}
 }};
 }
 

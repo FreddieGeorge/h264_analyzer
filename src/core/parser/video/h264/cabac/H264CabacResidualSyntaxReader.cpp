@@ -4,6 +4,9 @@
 
 namespace
 {
+constexpr int Luma4x4SignificantCoeffFlagCtxIdxBase = 134;
+constexpr int Luma4x4SignificantCoeffFlagSkeletonCount = 4;
+
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
 {
     switch (category) {
@@ -57,6 +60,60 @@ H264CabacResidualChromaDcResult failedResidualChromaDcResult(const QString &code
     result.diagnosticCode = code;
     result.diagnosticMessage = message;
     return result;
+}
+
+bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
+                                              H264CabacDecoder &decoder,
+                                              H264CabacContextModelSet &contexts,
+                                              int blockIndex,
+                                              H264CabacResidualLuma4x4Result &result)
+{
+    for (int scanIndex = 0; scanIndex < Luma4x4SignificantCoeffFlagSkeletonCount; ++scanIndex) {
+        const int ctxIdx = Luma4x4SignificantCoeffFlagCtxIdxBase + scanIndex;
+        if (!contexts.isInitialized(ctxIdx)) {
+            result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC context %1 for luma4x4 significant_coeff_flag[%2][%3] is not initialized in the covered context table.")
+                    .arg(ctxIdx)
+                    .arg(blockIndex)
+                    .arg(scanIndex);
+            return false;
+        }
+
+        int bin = 0;
+        if (!decoder.decodeBin(reader, contexts, ctxIdx, &bin)) {
+            result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC bin decoding failed while reading luma4x4 significant_coeff_flag[%1][%2].")
+                    .arg(blockIndex)
+                    .arg(scanIndex);
+            return false;
+        }
+
+        result.significantScanIndices.append(scanIndex);
+        result.significantCoeffFlags.append(bin);
+        if (bin != 0) {
+            result.incompleteBlockIndex = blockIndex;
+            result.incompleteScanIndex = scanIndex;
+            result.incompleteStage = QStringLiteral("last_significant_coeff_flag");
+            result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
+            result.diagnosticMessage =
+                QStringLiteral("CABAC luma4x4 significant_coeff_flag[%1][%2] is 1; last_significant_coeff_flag parsing is not implemented.")
+                    .arg(blockIndex)
+                    .arg(scanIndex);
+            return true;
+        }
+    }
+
+    result.incompleteBlockIndex = blockIndex;
+    result.incompleteScanIndex = Luma4x4SignificantCoeffFlagSkeletonCount;
+    result.incompleteStage = QStringLiteral("significant_coeff_flag");
+    result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
+    result.diagnosticMessage =
+        QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1 and the first %2 significant_coeff_flag bins are zero; full significant_coeff_flag map parsing is not implemented.")
+            .arg(blockIndex)
+            .arg(Luma4x4SignificantCoeffFlagSkeletonCount);
+    return true;
 }
 }
 
@@ -206,10 +263,14 @@ H264CabacResidualLuma4x4Result h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(
             if (!block.complete) {
                 result.incompleteBlockIndex = blockIndex;
                 result.incompleteStage = QStringLiteral("significant_coeff_flag");
-                result.diagnosticCode = block.diagnosticCode;
-                result.diagnosticMessage =
-                    QStringLiteral("CABAC luma4x4 coded_block_flag[%1] is 1; significant_coeff_flag parsing is not implemented.")
-                        .arg(blockIndex);
+                if (!readLuma4x4SignificantCoeffFlagsSkeleton(
+                        reader,
+                        decoder,
+                        contexts,
+                        blockIndex,
+                        result)) {
+                    result.ok = false;
+                }
                 return result;
             }
         }

@@ -247,7 +247,10 @@ H264CabacMacroblockSyntaxResult h264ReadCabacMacroblockSyntax(H264SliceDataConte
                     }
                     result.residualLuma4x4BlockIndices = residual.blockIndices;
                     result.residualCodedBlockFlags = residual.codedBlockFlags;
+                    result.residualSignificantScanIndices = residual.significantScanIndices;
+                    result.residualSignificantCoeffFlags = residual.significantCoeffFlags;
                     result.residualIncompleteBlockIndex = residual.incompleteBlockIndex;
+                    result.residualIncompleteScanIndex = residual.incompleteScanIndex;
                     result.residualIncompleteCategory =
                         residual.incompleteBlockIndex >= 0 ? QStringLiteral("luma4x4") : QString();
                     result.residualIncompleteStage = residual.incompleteStage;
@@ -368,7 +371,7 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            97);
+            137);
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);

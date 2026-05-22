@@ -62,8 +62,11 @@ struct H264CabacResidualLuma4x4Result
     bool complete = false;
     QVector<int> blockIndices;
     QVector<int> codedBlockFlags;
+    QVector<int> significantScanIndices;
+    QVector<int> significantCoeffFlags;
     int firstCtxIdx = -1;
     int incompleteBlockIndex = -1;
+    int incompleteScanIndex = -1;
     QString incompleteStage;
     QString diagnosticCode;
     QString diagnosticMessage;
