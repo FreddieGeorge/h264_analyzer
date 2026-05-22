@@ -70,6 +70,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
                                                     H264CabacContextModelSet &contexts,
                                                     int blockIndex,
                                                     int scanIndex,
+                                                    bool inferredFinalScan,
                                                     H264CabacResidualLuma4x4Result &result)
 {
     if (!contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1FirstCtxIdx)) {
@@ -93,6 +94,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     }
 
     result.coeffAbsLevelScanIndices.append(scanIndex);
+    result.coeffAbsLevelInferredFinalFlags.append(inferredFinalScan ? 1 : 0);
     result.coeffAbsLevelPrefixFirstBins.append(bin);
     result.incompleteBlockIndex = blockIndex;
     result.incompleteScanIndex = scanIndex;
@@ -206,6 +208,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
                     contexts,
                     blockIndex,
                     scanIndex,
+                    false,
                     result);
             }
 
@@ -219,6 +222,7 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
         contexts,
         blockIndex,
         Luma4x4SignificantCoeffFlagSkeletonCount,
+        true,
         result);
 }
 }

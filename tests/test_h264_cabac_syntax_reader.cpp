@@ -957,6 +957,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete()
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level count");
     require(result.residualCoeffAbsLevelScanIndices[0] == 15,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level scan");
+    require(result.residualCoeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level flag count");
+    require(result.residualCoeffAbsLevelInferredFinalFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level flag");
     require(result.residualCoeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC macroblock syntax P_8x8 residual non-zero CBF inferred coeff level first bin count");
     require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 0,
@@ -1026,6 +1030,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete()
             "CABAC macroblock syntax P_8x8 significant one coeff level scan count");
     require(result.residualCoeffAbsLevelScanIndices[0] == 0,
             "CABAC macroblock syntax P_8x8 significant one coeff level scan index");
+    require(result.residualCoeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 significant one coeff level inferred flag count");
+    require(result.residualCoeffAbsLevelInferredFinalFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 significant one coeff level inferred flag");
     require(result.residualCoeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC macroblock syntax P_8x8 significant one coeff level first bin count");
     require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 0,
@@ -1383,6 +1391,10 @@ void testReadResidualLuma4x4CodedBlockFlagNonZeroPartial()
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level count");
     require(result.coeffAbsLevelScanIndices[0] == 15,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level scan");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC residual luma4x4 non-zero CBF partial inferred coeff level flag count");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 1,
+            "CABAC residual luma4x4 non-zero CBF partial inferred coeff level flag");
     require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC residual luma4x4 non-zero CBF partial inferred coeff level first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0,
@@ -1479,6 +1491,10 @@ void testReadResidualLuma4x4SignificantCoeffFlagOneIncomplete()
             "CABAC residual luma4x4 significant one coeff level scan count");
     require(result.coeffAbsLevelScanIndices[0] == 0,
             "CABAC residual luma4x4 significant one coeff level scan index");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC residual luma4x4 significant one coeff level inferred flag count");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
+            "CABAC residual luma4x4 significant one coeff level inferred flag");
     require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC residual luma4x4 significant one coeff level first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0,
@@ -1513,6 +1529,10 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
     require(!result.complete, "CABAC residual luma4x4 coeff level next-bin zero incomplete");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero scan count");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero inferred flag count");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin zero inferred flag");
     require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin zero first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
@@ -1553,6 +1573,10 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
     require(!result.complete, "CABAC residual luma4x4 coeff level next-bin one incomplete");
     require(result.coeffAbsLevelScanIndices.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin one scan count");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin one inferred flag count");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin one inferred flag");
     require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC residual luma4x4 coeff level next-bin one first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
@@ -1628,6 +1652,10 @@ void testReadResidualLuma4x4LastSignificantZeroIncomplete()
             "CABAC residual luma4x4 last-significant zero inferred coeff level count");
     require(result.coeffAbsLevelScanIndices[0] == 15,
             "CABAC residual luma4x4 last-significant zero inferred coeff level scan");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == 1,
+            "CABAC residual luma4x4 last-significant zero inferred coeff level flag count");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 1,
+            "CABAC residual luma4x4 last-significant zero inferred coeff level flag");
     require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
             "CABAC residual luma4x4 last-significant zero inferred coeff level first bin count");
     require(result.coeffAbsLevelPrefixFirstBins[0] == 0,
