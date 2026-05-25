@@ -11,6 +11,21 @@ constexpr int Luma4x4CoeffAbsLevelMinus1FirstCtxIdx = 248;
 constexpr int Luma4x4CoeffAbsLevelMinus1NextCtxIdx = 252;
 constexpr int Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx = 253;
 constexpr int Luma4x4CoeffAbsLevelMinus1FourthCtxIdx = 254;
+constexpr int Luma4x4CoeffAbsLevelMinus1FifthCtxIdx = 255;
+
+struct Luma4x4CoeffAbsLevelPrefixContext
+{
+    int ctxIdx = -1;
+    const char *name = "";
+    bool required = false;
+};
+
+constexpr Luma4x4CoeffAbsLevelPrefixContext Luma4x4CoeffAbsLevelAdditionalPrefixContexts[] = {
+    {Luma4x4CoeffAbsLevelMinus1NextCtxIdx, "next", true},
+    {Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx, "third", false},
+    {Luma4x4CoeffAbsLevelMinus1FourthCtxIdx, "fourth", false},
+    {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fifth", false},
+};
 
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
 {
@@ -171,64 +186,29 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
         return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
     }
 
-    int nextBin = 0;
-    if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
-            reader,
-            decoder,
-            contexts,
-            Luma4x4CoeffAbsLevelMinus1NextCtxIdx,
-            QStringLiteral("next"),
-            blockIndex,
-            scanIndex,
-            &nextBin,
-            result)) {
-        return false;
-    }
+    for (const Luma4x4CoeffAbsLevelPrefixContext &prefixContext :
+         Luma4x4CoeffAbsLevelAdditionalPrefixContexts) {
+        if (!contexts.isInitialized(prefixContext.ctxIdx) && !prefixContext.required) {
+            break;
+        }
 
-    result.coeffAbsLevelPrefixNextBins.append(nextBin);
-    if (nextBin == 0) {
-        return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
-    }
-
-    if (contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx)) {
-        int thirdBin = 0;
+        int prefixBin = 0;
         if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
                 reader,
                 decoder,
                 contexts,
-                Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx,
-                QStringLiteral("third"),
+                prefixContext.ctxIdx,
+                QString::fromLatin1(prefixContext.name),
                 blockIndex,
                 scanIndex,
-                &thirdBin,
+                &prefixBin,
                 result)) {
             return false;
         }
 
-        result.coeffAbsLevelPrefixNextBins.append(thirdBin);
-        if (thirdBin == 0) {
+        result.coeffAbsLevelPrefixNextBins.append(prefixBin);
+        if (prefixBin == 0) {
             return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
-        }
-
-        if (contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1FourthCtxIdx)) {
-            int fourthBin = 0;
-            if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
-                    reader,
-                    decoder,
-                    contexts,
-                    Luma4x4CoeffAbsLevelMinus1FourthCtxIdx,
-                    QStringLiteral("fourth"),
-                    blockIndex,
-                    scanIndex,
-                    &fourthBin,
-                    result)) {
-                return false;
-            }
-
-            result.coeffAbsLevelPrefixNextBins.append(fourthBin);
-            if (fourthBin == 0) {
-                return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
-            }
         }
     }
 

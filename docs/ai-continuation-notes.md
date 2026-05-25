@@ -87,7 +87,7 @@ Important H.264 files:
   coded-block-flag contexts, and the luma4x4
   `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the
-  first through fourth luma4x4 `coeff_abs_level_minus1` prefix contexts used
+  first through fifth luma4x4 `coeff_abs_level_minus1` prefix contexts used
   by the narrow CABAC paths and near-term residual work.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
@@ -116,8 +116,8 @@ Important H.264 files:
   indices/flags, continues the significant map when the last flag is zero, and
   if the last flag is one reads the first
   `coeff_abs_level_minus1` prefix bin with ctxIdx 248. If that first prefix
-  bin is one, it reads one additional prefix bin with ctxIdx 252, a third
-  prefix bin with ctxIdx 253, and a fourth prefix bin with ctxIdx 254. If any
+  bin is one, it reads one additional prefix bin with ctxIdx 252, third and
+  fourth prefix bins with ctxIdx 253-254, and a fifth prefix bin with ctxIdx 255. If any
   covered prefix step reaches a zero terminal bin, it reads one bypass
   `coeff_sign_flag` and then stops at `residual_coefficients`; if the covered
   prefix bins do not terminate, the next unsupported stage remains the rest of
@@ -129,7 +129,9 @@ Important H.264 files:
   inferred-final flag, so consumers do not need to infer that state from scan
   index 15. Prefix-bin context checks, bin decoding, and diagnostic messages
   are centralized in the residual reader so adding the next prefix context does
-  not duplicate the first/next/third/fourth-bin plumbing. The reader consumes
+  not duplicate the first/next/third/fourth/fifth-bin plumbing. The additional
+  covered prefix contexts are table-driven after the first bin, so the next
+  prefix expansion should extend that small context table plus tests. The reader consumes
   only the first two coefficients in that reverse order. Chroma non-zero CBF, complete
   significant/last maps, complete
   coefficient level parsing, suffix parsing, and non-zero coefficient completion are
@@ -164,7 +166,7 @@ Current H.264 limitations:
   contexts, `mb_qp_delta`, luma4x4/chroma DC residual `coded_block_flag`
   contexts, and luma4x4 `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the first through
-  fourth luma4x4 `coeff_abs_level_minus1` prefix contexts.
+  fifth luma4x4 `coeff_abs_level_minus1` prefix contexts.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
@@ -284,7 +286,7 @@ Recommended next H.264 direction:
    `last_significant_coeff_flag` skeleton results, inferred final scan-position
    coefficient prefix routing with explicit reverse-scan and inferred-final
    result flags, plus the first `coeff_abs_level_minus1` prefix bin, one
-   additional prefix bin when the first prefix bin is one, third and fourth
+   additional prefix bin when the first prefix bin is one, third through fifth
    prefix bins when the covered prefix bins keep returning one, and one bypass
    `coeff_sign_flag` when the covered prefix bins terminate,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
