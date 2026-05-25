@@ -55,6 +55,61 @@ void setLuma4x4SignificantZeroContexts(H264CabacContextModelSet &contexts)
     }
 }
 
+void initializeP8x8LumaResidualSlice(SliceInfo &slice, SpsInfo &sps)
+{
+    initializeBasicSlice(slice, 0, 0);
+    initializeBasicSps(sps);
+    sps.chromaFormatIdc = 0;
+    slice.numRefIdxL0ActiveMinus1 = 0;
+}
+
+H264CabacContextModelSet initializedP8x8LumaResidualCoeffLevelContexts(int currentQp,
+                                                                       int firstPrefixBin,
+                                                                       int nextPrefixBin,
+                                                                       int thirdPrefixBin = -1)
+{
+    const int maxCtxIdx = thirdPrefixBin >= 0 ? 253 : 252;
+    H264CabacContextModelSet contexts =
+        H264CabacContextModelInitializer::initializeSliceContexts(false, 0, currentQp, maxCtxIdx);
+    contexts.setModel(14, {0, 0});
+    contexts.setModel(15, {0, 0});
+    contexts.setModel(16, {0, 1});
+    contexts.setModel(21, {0, 0});
+    contexts.setModel(40, {0, 0});
+    contexts.setModel(47, {0, 0});
+    contexts.setModel(60, {0, 0});
+    contexts.setModel(73, {0, 0});
+    contexts.setModel(74, {0, 0});
+    contexts.setModel(75, {0, 0});
+    contexts.setModel(76, {0, 1});
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 1});
+    contexts.setModel(248, {0, firstPrefixBin});
+    contexts.setModel(252, {0, nextPrefixBin});
+    if (thirdPrefixBin >= 0) {
+        contexts.setModel(253, {0, thirdPrefixBin});
+    }
+    return contexts;
+}
+
+H264CabacContextModelSet initializedLuma4x4CoeffLevelContexts(int firstPrefixBin,
+                                                              int nextPrefixBin,
+                                                              int thirdPrefixBin = -1)
+{
+    const int maxCtxIdx = thirdPrefixBin >= 0 ? 253 : 252;
+    H264CabacContextModelSet contexts(maxCtxIdx + 1);
+    contexts.setModel(85, {0, 1});
+    contexts.setModel(134, {0, 1});
+    contexts.setModel(166, {0, 1});
+    contexts.setModel(248, {0, firstPrefixBin});
+    contexts.setModel(252, {0, nextPrefixBin});
+    if (thirdPrefixBin >= 0) {
+        contexts.setModel(253, {0, thirdPrefixBin});
+    }
+    return contexts;
+}
+
 void testReadPSliceMbSkipFlag()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -1074,29 +1129,11 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelNextBinPartial()
     SliceInfo slice;
     PpsInfo pps;
     SpsInfo sps;
-    initializeBasicSlice(slice, 0, 0);
-    initializeBasicSps(sps);
-    sps.chromaFormatIdc = 0;
-    slice.numRefIdxL0ActiveMinus1 = 0;
+    initializeP8x8LumaResidualSlice(slice, sps);
     H264SliceDataContext context(reader, slice, pps, sps);
 
-    H264CabacContextModelSet contexts(253);
-    contexts.setModel(14, {0, 0});
-    contexts.setModel(15, {0, 0});
-    contexts.setModel(16, {0, 1});
-    contexts.setModel(21, {0, 0});
-    contexts.setModel(40, {0, 0});
-    contexts.setModel(47, {0, 0});
-    contexts.setModel(60, {0, 0});
-    contexts.setModel(73, {0, 0});
-    contexts.setModel(74, {0, 0});
-    contexts.setModel(75, {0, 0});
-    contexts.setModel(76, {0, 1});
-    contexts.setModel(85, {0, 1});
-    contexts.setModel(134, {0, 1});
-    contexts.setModel(166, {0, 1});
-    contexts.setModel(248, {0, 1});
-    contexts.setModel(252, {0, 0});
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContexts(context.currentQp, 1, 0);
 
     const H264CabacMacroblockSyntaxResult result =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);
@@ -1118,6 +1155,106 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelNextBinPartial()
             "CABAC macroblock syntax P_8x8 coeff level next-bin sign flag");
     require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
             "CABAC macroblock syntax P_8x8 coeff level next-bin message");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContexts(context.currentQp, 1, 1, 0);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 coeff level third-bin zero result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete");
+    require(result.parsedCodedBlockPattern,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero keeps CBP");
+    require(result.residualCoeffAbsLevelScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero scan count");
+    require(result.residualCoeffAbsLevelScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero scan index");
+    require(result.residualCoeffReverseScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero reverse count");
+    require(result.residualCoeffReverseScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero reverse scan");
+    require(result.residualCoeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero first count");
+    require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero first value");
+    require(result.residualCoeffAbsLevelPrefixNextBins.size() == 2,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero next count");
+    require(result.residualCoeffAbsLevelPrefixNextBins[0] == 1
+                && result.residualCoeffAbsLevelPrefixNextBins[1] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero next values");
+    require(result.residualCoeffSignFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero sign flag count");
+    require(result.residualCoeffSignFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero sign flag");
+    require(result.residualIncompleteBlockIndex == 12,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete block");
+    require(result.residualIncompleteScanIndex == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete scan");
+    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero message");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial()
+{
+    BitReader reader(QByteArray::fromHex("000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContexts(context.currentQp, 1, 1, 1);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 coeff level third-bin one result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete");
+    require(result.parsedCodedBlockPattern,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one keeps CBP");
+    require(result.residualCoeffAbsLevelScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one scan count");
+    require(result.residualCoeffAbsLevelScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one scan index");
+    require(result.residualCoeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one first count");
+    require(result.residualCoeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one first value");
+    require(result.residualCoeffAbsLevelPrefixNextBins.size() == 2,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one next count");
+    require(result.residualCoeffAbsLevelPrefixNextBins[0] == 1
+                && result.residualCoeffAbsLevelPrefixNextBins[1] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one next values");
+    require(result.residualCoeffSignFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no sign flag");
+    require(result.residualIncompleteBlockIndex == 12,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete block");
+    require(result.residualIncompleteScanIndex == 0,
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete scan");
+    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("covered prefix bins did not terminate")),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one message");
 }
 
 void testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd()
@@ -1612,12 +1749,7 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
     BitReader reader(QByteArray::fromHex("0000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(253);
-    contexts.setModel(85, {0, 1});
-    contexts.setModel(134, {0, 1});
-    contexts.setModel(166, {0, 1});
-    contexts.setModel(248, {0, 1});
-    contexts.setModel(252, {0, 0});
+    H264CabacContextModelSet contexts = initializedLuma4x4CoeffLevelContexts(1, 0);
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -1664,12 +1796,7 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
     BitReader reader(QByteArray::fromHex("0000"));
     H264CabacDecoder decoder = initializedDecoder(reader);
 
-    H264CabacContextModelSet contexts(253);
-    contexts.setModel(85, {0, 1});
-    contexts.setModel(134, {0, 1});
-    contexts.setModel(166, {0, 1});
-    contexts.setModel(248, {0, 1});
-    contexts.setModel(252, {0, 1});
+    H264CabacContextModelSet contexts = initializedLuma4x4CoeffLevelContexts(1, 1);
 
     const H264CabacResidualLuma4x4Result result =
         h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
@@ -1705,6 +1832,115 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
             "CABAC residual luma4x4 coeff level next-bin one diagnostic");
     require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level prefix")),
             "CABAC residual luma4x4 coeff level next-bin one message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelThirdBinMissingKeepsBoundary()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts = initializedLuma4x4CoeffLevelContexts(1, 1);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 coeff level third-bin missing result");
+    require(!result.complete, "CABAC residual luma4x4 coeff level third-bin missing incomplete");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing scan count");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing first bin count");
+    require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing first bin value");
+    require(result.coeffAbsLevelPrefixNextBins.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing next bin count");
+    require(result.coeffAbsLevelPrefixNextBins[0] == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing next bin value");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin missing no sign flag");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 coeff level third-bin missing incomplete block");
+    require(result.incompleteScanIndex == 0,
+            "CABAC residual luma4x4 coeff level third-bin missing incomplete scan");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 coeff level third-bin missing incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 coeff level third-bin missing diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("covered prefix bins did not terminate")),
+            "CABAC residual luma4x4 coeff level third-bin missing message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts = initializedLuma4x4CoeffLevelContexts(1, 1, 0);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 coeff level third-bin zero result");
+    require(!result.complete, "CABAC residual luma4x4 coeff level third-bin zero incomplete");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin zero scan count");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin zero first bin count");
+    require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC residual luma4x4 coeff level third-bin zero first bin value");
+    require(result.coeffAbsLevelPrefixNextBins.size() == 2,
+            "CABAC residual luma4x4 coeff level third-bin zero next bin count");
+    require(result.coeffAbsLevelPrefixNextBins[0] == 1
+                && result.coeffAbsLevelPrefixNextBins[1] == 0,
+            "CABAC residual luma4x4 coeff level third-bin zero next bin values");
+    require(result.coeffSignFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin zero sign flag count");
+    require(result.coeffSignFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level third-bin zero sign flag");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 coeff level third-bin zero incomplete block");
+    require(result.incompleteScanIndex == 0,
+            "CABAC residual luma4x4 coeff level third-bin zero incomplete scan");
+    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+            "CABAC residual luma4x4 coeff level third-bin zero incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 coeff level third-bin zero diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
+            "CABAC residual luma4x4 coeff level third-bin zero message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts = initializedLuma4x4CoeffLevelContexts(1, 1, 1);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 coeff level third-bin one result");
+    require(!result.complete, "CABAC residual luma4x4 coeff level third-bin one incomplete");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin one scan count");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin one first bin count");
+    require(result.coeffAbsLevelPrefixFirstBins[0] == 1,
+            "CABAC residual luma4x4 coeff level third-bin one first bin value");
+    require(result.coeffAbsLevelPrefixNextBins.size() == 2,
+            "CABAC residual luma4x4 coeff level third-bin one next bin count");
+    require(result.coeffAbsLevelPrefixNextBins[0] == 1
+                && result.coeffAbsLevelPrefixNextBins[1] == 1,
+            "CABAC residual luma4x4 coeff level third-bin one next bin values");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no sign flag");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 coeff level third-bin one incomplete block");
+    require(result.incompleteScanIndex == 0,
+            "CABAC residual luma4x4 coeff level third-bin one incomplete scan");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 coeff level third-bin one incomplete stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC residual luma4x4 coeff level third-bin one diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("covered prefix bins did not terminate")),
+            "CABAC residual luma4x4 coeff level third-bin one message");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext()
@@ -2301,6 +2537,8 @@ int main()
     testReadCabacMacroblockSyntaxP8x8ResidualCbfNonZeroIncomplete();
     testReadCabacMacroblockSyntaxP8x8ResidualSignificantOneIncomplete();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelNextBinPartial();
+    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial();
+    testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
     testReadCodedBlockPatternZeroMonochrome();
@@ -2318,6 +2556,9 @@ int main()
     testReadResidualLuma4x4MultipleSignificantReverseScanOrder();
     testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelThirdBinMissingKeepsBoundary();
+    testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
