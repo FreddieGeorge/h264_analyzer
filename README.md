@@ -113,7 +113,7 @@ Folder responsibilities:
 - `src/core/analysis`: codec-neutral aggregation and statistics over parsed access units.
 - `src/core/parser`: codec-neutral parser interface plus audio and video parser modules.
 - `src/core/util`: codec-neutral low-level helpers for bit reading, bytestreams, and RBSP/packet bit-range mapping.
-- `src/core/decode`: FFmpeg decoder wrapper plus staged decode helpers for stream probing, parser creation, packet raw-data capture, decode-loop orchestration, seek planning, rebuffer tracking, frame pacing, checkpoint emission, and decoded-frame dispatch.
+- `src/core/decode`: FFmpeg decoder wrapper plus staged decode helpers for stream probing, parser creation, packet raw-data capture, decode-loop orchestration, event sinks, seek planning, rebuffer tracking, frame pacing, checkpoint emission, pending-access-unit dispatch, first-frame pause control, and decoded-frame dispatch.
 - `src/core/export`: analysis export serialization.
 - `src/core/buffering`: buffering and seek rebuffer state helpers.
 - `src/platform`: platform-specific launchers and integration code.
@@ -300,7 +300,7 @@ Key modules:
 - `Mp3FrameParser`: thin audio access-unit skeleton for MPEG audio frame
   headers, bitrate/sample-rate fields, and malformed-header diagnostics.
 - `DecodeWorker`: Qt-facing bridge that forwards play/pause/step/stop and delegates the decode run to `DecodeLoop`.
-- `DecodeLoop`: playback/rebuffer orchestration layer built from focused helpers such as `DecodeSeekPlanner`, `RebufferProgressTracker`, `SeekCheckpointEmitter`, `FramePacing`, `DecodedFrameAnalysisBuilder`, and `DecodedFrameDispatcher`.
+- `DecodeLoop`: playback/rebuffer orchestration layer built from focused helpers such as `DecodeEventSink`, `DecodeSeekPlanner`, `RebufferProgressTracker`, `SeekCheckpointEmitter`, `FramePacing`, `PendingAccessUnitDispatcher`, `FirstFramePauseController`, `DecodedFrameAnalysisBuilder`, and `DecodedFrameDispatcher`.
 - `H264Parser`: directly parses H.264 syntax without relying on FFmpeg's parser.
 - `ParserFactory` and `PacketRawDataBuilder`: keep parser instantiation and packet evidence capture out of `FFmpegDecoder`.
 - `H264SyntaxJsonWriter` and `H264PropertyTreeBuilder`: keep JSON export and property-tree presentation out of decoder/parser internals.

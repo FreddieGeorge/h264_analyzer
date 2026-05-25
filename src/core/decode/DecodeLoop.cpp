@@ -4,7 +4,9 @@
 #include "core/decode/DecodedFrameDispatcher.h"
 #include "core/decode/DecodeSeekPlanner.h"
 #include "core/decode/FFmpegDecoder.h"
+#include "core/decode/FirstFramePauseController.h"
 #include "core/decode/FramePacing.h"
+#include "core/decode/PendingAccessUnitDispatcher.h"
 #include "core/decode/RebufferProgressTracker.h"
 #include "core/decode/SeekCheckpointEmitter.h"
 #include "core/decode/StreamLogFormatter.h"
@@ -21,44 +23,36 @@ void invoke(const Callback &callback, Args &&...args)
     }
 }
 
-void emitStreamLogMessages(const StreamInfo &streamInfo, const DecodeLoop::Callbacks &callbacks)
+void emitStreamLogMessages(const StreamInfo &streamInfo, const DecodeEventSink &eventSink)
 {
     for (const QString &message : streamOpenedLogMessages(streamInfo)) {
-        invoke(callbacks.logMessage, message);
-    }
-}
-
-void emitPendingAccessUnits(FFmpegDecoder &decoder, const DecodeLoop::Callbacks &callbacks)
-{
-    const QVector<FrameAnalysis> analyses = decoder.takePendingAccessUnitAnalyses();
-    for (const FrameAnalysis &analysis : analyses) {
-        invoke(callbacks.accessUnitAnalysisDecoded, analysis);
+        invoke(eventSink.logMessage, message);
     }
 }
 
 void emitRebufferProgress(const RebufferProgressTracker::Progress &progress,
-                          const DecodeLoop::Callbacks &callbacks)
+                          const DecodeEventSink &eventSink)
 {
-    invoke(callbacks.bufferingProgress,
+    invoke(eventSink.bufferingProgress,
            progress.startFrameIndex,
            progress.currentFrameIndex,
            progress.targetFrameIndex);
 }
 }
 
-void DecodeLoop::run(const Request &request, const Callbacks &callbacks)
+void DecodeLoop::run(const Request &request, const DecodeEventSink &eventSink)
 {
     resetControlsForRun();
 
     FFmpegDecoder decoder;
     if (!decoder.openFile(request.filePath)) {
-        invoke(callbacks.errorOccurred, decoder.lastError());
+        invoke(eventSink.errorOccurred, decoder.lastError());
         return;
     }
 
     const StreamInfo streamInfo = decoder.getStreamInfo();
-    invoke(callbacks.streamOpened, streamInfo);
-    emitStreamLogMessages(streamInfo, callbacks);
+    invoke(eventSink.streamOpened, streamInfo);
+    emitStreamLogMessages(streamInfo, eventSink);
 
     const FramePacing framePacing(streamInfo.frameRate);
 
@@ -67,23 +61,23 @@ void DecodeLoop::run(const Request &request, const Callbacks &callbacks)
                                                                  request.targetFrameIndex,
                                                                  request.checkpoint);
     for (const QString &message : startPosition.logMessages) {
-        invoke(callbacks.logMessage, message);
+        invoke(eventSink.logMessage, message);
     }
     if (!startPosition.ok) {
-        invoke(callbacks.errorOccurred, startPosition.errorMessage);
+        invoke(eventSink.errorOccurred, startPosition.errorMessage);
         return;
     }
     if (startPosition.reopenedStream) {
-        invoke(callbacks.streamOpened, startPosition.reopenedStreamInfo);
+        invoke(eventSink.streamOpened, startPosition.reopenedStreamInfo);
     }
 
     int frameIndex = startPosition.frameIndex;
     const RebufferProgressTracker rebufferProgress(frameIndex, request.targetFrameIndex);
     if (const std::optional<RebufferProgressTracker::Progress> progress = rebufferProgress.initialProgress()) {
-        emitRebufferProgress(*progress, callbacks);
+        emitRebufferProgress(*progress, eventSink);
     }
 
-    bool firstEmittedFrame = true;
+    FirstFramePauseController firstFramePause(request.pauseAfterFirstFrame);
     while (!m_stopRequested.load()) {
         const bool emitThisFrame = frameIndex >= request.targetFrameIndex;
         if (emitThisFrame && !waitForPlaybackPermission()) {
@@ -91,10 +85,10 @@ void DecodeLoop::run(const Request &request, const Callbacks &callbacks)
         }
 
         AVFrame *frame = decoder.decodeNextFrame();
-        emitPendingAccessUnits(decoder, callbacks);
+        dispatchPendingAccessUnits(decoder, eventSink);
         if (frame == nullptr) {
             if (!decoder.lastError().isEmpty()) {
-                invoke(callbacks.errorOccurred, decoder.lastError());
+                invoke(eventSink.errorOccurred, decoder.lastError());
             }
             break;
         }
@@ -107,22 +101,19 @@ void DecodeLoop::run(const Request &request, const Callbacks &callbacks)
 
         if (const std::optional<FrameSeekCheckpoint> seekCheckpoint =
                 seekCheckpointForDecodedFrame(decoder.lastFrameSeekCheckpoint(), frameIndex)) {
-            invoke(callbacks.seekCheckpointReady, *seekCheckpoint);
+            invoke(eventSink.seekCheckpointReady, *seekCheckpoint);
         }
-        dispatchDecodedFrameEvents(frameIndex, copy, analysis, emitThisFrame, callbacks);
+        dispatchDecodedFrameEvents(frameIndex, copy, analysis, emitThisFrame, eventSink);
 
         if (!emitThisFrame) {
             if (const std::optional<RebufferProgressTracker::Progress> progress =
                     rebufferProgress.frameProgress(frameIndex)) {
-                emitRebufferProgress(*progress, callbacks);
+                emitRebufferProgress(*progress, eventSink);
             }
         }
 
-        if (emitThisFrame && firstEmittedFrame) {
-            firstEmittedFrame = false;
-            if (request.pauseAfterFirstFrame) {
-                setPaused(true);
-            }
+        if (firstFramePause.shouldPauseAfterFrame(emitThisFrame)) {
+            setPaused(true);
         }
         ++frameIndex;
 

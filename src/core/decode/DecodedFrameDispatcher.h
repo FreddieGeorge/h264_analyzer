@@ -1,9 +1,9 @@
 #pragma once
 
-#include "core/decode/DecodeLoop.h"
+#include "core/decode/DecodeEventSink.h"
 
 void dispatchDecodedFrameEvents(int frameIndex,
                                 const DecodedVideoFramePtr &frame,
                                 const FrameAnalysis &analysis,
                                 bool emitThisFrame,
-                                const DecodeLoop::Callbacks &callbacks);
+                                const DecodeEventSink &eventSink);

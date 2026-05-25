@@ -31,24 +31,24 @@ void DecodeWorker::decodeFileFromCheckpoint(const QString &filePath,
     request.pauseAfterFirstFrame = pauseAfterFirstFrame;
     request.checkpoint = checkpoint;
 
-    DecodeLoop::Callbacks callbacks;
-    callbacks.streamOpened = [this](const StreamInfo &streamInfo) { emit streamOpened(streamInfo); };
-    callbacks.frameDecoded = [this](const DecodedVideoFramePtr &frame) { emit frameDecoded(frame); };
-    callbacks.frameAnalysisDecoded = [this](const FrameAnalysis &analysis) { emit frameAnalysisDecoded(analysis); };
-    callbacks.accessUnitAnalysisDecoded = [this](const FrameAnalysis &analysis) { emit accessUnitAnalysisDecoded(analysis); };
-    callbacks.seekCheckpointReady = [this](const FrameSeekCheckpoint &seekCheckpoint) {
+    DecodeEventSink eventSink;
+    eventSink.streamOpened = [this](const StreamInfo &streamInfo) { emit streamOpened(streamInfo); };
+    eventSink.frameDecoded = [this](const DecodedVideoFramePtr &frame) { emit frameDecoded(frame); };
+    eventSink.frameAnalysisDecoded = [this](const FrameAnalysis &analysis) { emit frameAnalysisDecoded(analysis); };
+    eventSink.accessUnitAnalysisDecoded = [this](const FrameAnalysis &analysis) { emit accessUnitAnalysisDecoded(analysis); };
+    eventSink.seekCheckpointReady = [this](const FrameSeekCheckpoint &seekCheckpoint) {
         emit seekCheckpointReady(seekCheckpoint);
     };
-    callbacks.bufferingProgress = [this](int startFrameIndex, int currentFrameIndex, int targetFrameIndex) {
+    eventSink.bufferingProgress = [this](int startFrameIndex, int currentFrameIndex, int targetFrameIndex) {
         emit bufferingProgress(startFrameIndex, currentFrameIndex, targetFrameIndex);
     };
-    callbacks.frameReady = [this](int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis) {
+    eventSink.frameReady = [this](int frameIndex, const DecodedVideoFramePtr &frame, const FrameAnalysis &analysis) {
         emit frameReady(frameIndex, frame, analysis);
     };
-    callbacks.logMessage = [this](const QString &message) { emit logMessage(message); };
-    callbacks.errorOccurred = [this](const QString &message) { emit errorOccurred(message); };
+    eventSink.logMessage = [this](const QString &message) { emit logMessage(message); };
+    eventSink.errorOccurred = [this](const QString &message) { emit errorOccurred(message); };
 
-    m_loop->run(request, callbacks);
+    m_loop->run(request, eventSink);
     emit finished();
 }
 

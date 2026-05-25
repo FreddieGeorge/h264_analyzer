@@ -1,6 +1,9 @@
 #include "core/decode/DecodedFrameAnalysisBuilder.h"
 #include "core/decode/DecodedFrameDispatcher.h"
+#include "core/decode/DecodeEventSink.h"
+#include "core/decode/FirstFramePauseController.h"
 #include "core/decode/FramePacing.h"
+#include "core/decode/PendingAccessUnitDispatcher.h"
 #include "core/decode/RebufferProgressTracker.h"
 #include "core/decode/SeekCheckpointEmitter.h"
 #include "core/decode/StreamLogFormatter.h"
@@ -204,18 +207,18 @@ void decodedFrameDispatcherEmitsVisibleFrameAndAnalysisEvents()
     int accessUnitAnalysisCount = 0;
     int readyFrameIndex = -1;
 
-    DecodeLoop::Callbacks callbacks;
-    callbacks.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
-    callbacks.frameReady = [&](int frameIndex, const DecodedVideoFramePtr &, const FrameAnalysis &) {
+    DecodeEventSink eventSink;
+    eventSink.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
+    eventSink.frameReady = [&](int frameIndex, const DecodedVideoFramePtr &, const FrameAnalysis &) {
         ++frameReadyCount;
         readyFrameIndex = frameIndex;
     };
-    callbacks.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
-    callbacks.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
+    eventSink.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
+    eventSink.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
 
     FrameAnalysis analysis;
     analysis.hasFrame = true;
-    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, true, callbacks);
+    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, true, eventSink);
 
     require(frameDecodedCount == 1, "visible frame emits frameDecoded");
     require(frameReadyCount == 1, "visible frame emits frameReady");
@@ -228,15 +231,15 @@ void decodedFrameDispatcherSkipsHiddenFrames()
 {
     int eventCount = 0;
 
-    DecodeLoop::Callbacks callbacks;
-    callbacks.frameDecoded = [&](const DecodedVideoFramePtr &) { ++eventCount; };
-    callbacks.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++eventCount; };
-    callbacks.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++eventCount; };
-    callbacks.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++eventCount; };
+    DecodeEventSink eventSink;
+    eventSink.frameDecoded = [&](const DecodedVideoFramePtr &) { ++eventCount; };
+    eventSink.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++eventCount; };
+    eventSink.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++eventCount; };
+    eventSink.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++eventCount; };
 
     FrameAnalysis analysis;
     analysis.hasFrame = true;
-    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, false, callbacks);
+    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, false, eventSink);
 
     require(eventCount == 0, "hidden frame emits no decoded frame events");
 }
@@ -248,15 +251,15 @@ void decodedFrameDispatcherAllowsAnalysisWithoutFrameCopy()
     int frameAnalysisCount = 0;
     int accessUnitAnalysisCount = 0;
 
-    DecodeLoop::Callbacks callbacks;
-    callbacks.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
-    callbacks.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++frameReadyCount; };
-    callbacks.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
-    callbacks.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
+    DecodeEventSink eventSink;
+    eventSink.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
+    eventSink.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++frameReadyCount; };
+    eventSink.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
+    eventSink.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
 
     FrameAnalysis analysis;
     analysis.hasFrame = true;
-    dispatchDecodedFrameEvents(4, {}, analysis, true, callbacks);
+    dispatchDecodedFrameEvents(4, {}, analysis, true, eventSink);
 
     require(frameDecodedCount == 0, "missing frame copy does not emit frameDecoded");
     require(frameReadyCount == 0, "missing frame copy does not emit frameReady");
@@ -271,20 +274,59 @@ void decodedFrameDispatcherSkipsAnalysisWhenFrameAnalysisIsAbsent()
     int frameAnalysisCount = 0;
     int accessUnitAnalysisCount = 0;
 
-    DecodeLoop::Callbacks callbacks;
-    callbacks.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
-    callbacks.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++frameReadyCount; };
-    callbacks.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
-    callbacks.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
+    DecodeEventSink eventSink;
+    eventSink.frameDecoded = [&](const DecodedVideoFramePtr &) { ++frameDecodedCount; };
+    eventSink.frameReady = [&](int, const DecodedVideoFramePtr &, const FrameAnalysis &) { ++frameReadyCount; };
+    eventSink.frameAnalysisDecoded = [&](const FrameAnalysis &) { ++frameAnalysisCount; };
+    eventSink.accessUnitAnalysisDecoded = [&](const FrameAnalysis &) { ++accessUnitAnalysisCount; };
 
     FrameAnalysis analysis;
     analysis.hasFrame = false;
-    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, true, callbacks);
+    dispatchDecodedFrameEvents(4, std::make_shared<DecodedVideoFrame>(), analysis, true, eventSink);
 
     require(frameDecodedCount == 1, "frame event emits without frame analysis");
     require(frameReadyCount == 1, "frameReady emits without frame analysis");
     require(frameAnalysisCount == 0, "missing frame analysis does not emit frameAnalysisDecoded");
     require(accessUnitAnalysisCount == 0, "missing frame analysis does not emit accessUnitAnalysisDecoded");
+}
+
+void pendingAccessUnitDispatcherEmitsEachAnalysis()
+{
+    int accessUnitAnalysisCount = 0;
+    int lastFrameIndex = -1;
+
+    DecodeEventSink eventSink;
+    eventSink.accessUnitAnalysisDecoded = [&](const FrameAnalysis &analysis) {
+        ++accessUnitAnalysisCount;
+        lastFrameIndex = analysis.frameIndex;
+    };
+
+    FrameAnalysis first;
+    first.frameIndex = 3;
+    FrameAnalysis second;
+    second.frameIndex = 9;
+    dispatchAccessUnitAnalyses({first, second}, eventSink);
+
+    require(accessUnitAnalysisCount == 2, "each pending access unit analysis is emitted");
+    require(lastFrameIndex == 9, "pending access unit analyses preserve order");
+}
+
+void firstFramePauseControllerPausesOnlyOnFirstVisibleFrameWhenEnabled()
+{
+    FirstFramePauseController controller(true);
+
+    require(!controller.shouldPauseAfterFrame(false), "hidden frame does not trigger pause");
+    require(controller.shouldPauseAfterFrame(true), "first visible frame triggers pause");
+    require(!controller.shouldPauseAfterFrame(true), "second visible frame does not trigger pause");
+}
+
+void firstFramePauseControllerNeverPausesWhenDisabled()
+{
+    FirstFramePauseController controller(false);
+
+    require(!controller.shouldPauseAfterFrame(false), "hidden frame does not trigger pause when disabled");
+    require(!controller.shouldPauseAfterFrame(true), "first visible frame does not pause when disabled");
+    require(!controller.shouldPauseAfterFrame(true), "later visible frame does not pause when disabled");
 }
 }
 
@@ -302,6 +344,9 @@ int main()
     decodedFrameDispatcherSkipsHiddenFrames();
     decodedFrameDispatcherAllowsAnalysisWithoutFrameCopy();
     decodedFrameDispatcherSkipsAnalysisWhenFrameAnalysisIsAbsent();
+    pendingAccessUnitDispatcherEmitsEachAnalysis();
+    firstFramePauseControllerPausesOnlyOnFirstVisibleFrameWhenEnabled();
+    firstFramePauseControllerNeverPausesWhenDisabled();
 
     std::cout << "Decode helper tests passed\n";
     return 0;

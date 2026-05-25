@@ -35,8 +35,10 @@ Core architecture:
   `PacketRawDataBuilder`, `AccessUnitAnalyzer`).
 - `DecodeWorker` is now a thin Qt bridge over `DecodeLoop`.
 - `DecodeLoop` is an orchestration layer composed from small helpers
-  (`DecodeSeekPlanner`, `RebufferProgressTracker`, `SeekCheckpointEmitter`,
-  `FramePacing`, `DecodedFrameAnalysisBuilder`, `DecodedFrameDispatcher`).
+  (`DecodeEventSink`, `DecodeSeekPlanner`, `RebufferProgressTracker`,
+  `SeekCheckpointEmitter`, `FramePacing`, `PendingAccessUnitDispatcher`,
+  `FirstFramePauseController`, `DecodedFrameAnalysisBuilder`,
+  `DecodedFrameDispatcher`).
   Video remains the selected playback path.
 - `FrameAnalysis` is the codec-neutral handoff model used by UI, stats, and
   export.

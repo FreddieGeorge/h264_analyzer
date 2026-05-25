@@ -17,19 +17,19 @@ void dispatchDecodedFrameEvents(int frameIndex,
                                 const DecodedVideoFramePtr &frame,
                                 const FrameAnalysis &analysis,
                                 bool emitThisFrame,
-                                const DecodeLoop::Callbacks &callbacks)
+                                const DecodeEventSink &eventSink)
 {
     if (!emitThisFrame) {
         return;
     }
 
     if (frame) {
-        invoke(callbacks.frameDecoded, frame);
-        invoke(callbacks.frameReady, frameIndex, frame, analysis);
+        invoke(eventSink.frameDecoded, frame);
+        invoke(eventSink.frameReady, frameIndex, frame, analysis);
     }
 
     if (analysis.hasFrame) {
-        invoke(callbacks.frameAnalysisDecoded, analysis);
-        invoke(callbacks.accessUnitAnalysisDecoded, analysis);
+        invoke(eventSink.frameAnalysisDecoded, analysis);
+        invoke(eventSink.accessUnitAnalysisDecoded, analysis);
     }
 }

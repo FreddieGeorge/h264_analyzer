@@ -6,6 +6,7 @@ set(ZSTREAMEYE_CORE_SOURCES
     buffering/RebufferState.h
     decode/DecodedFrameAnalysisBuilder.h
     decode/DecodedFrameAnalysisBuilder.cpp
+    decode/DecodeEventSink.h
     decode/DecodedFrameDispatcher.h
     decode/DecodedFrameDispatcher.cpp
     decode/DecodeLoop.h
@@ -18,10 +19,14 @@ set(ZSTREAMEYE_CORE_SOURCES
     decode/FFmpegDecoder.cpp
     decode/FFmpegStreamInfoBuilder.h
     decode/FFmpegStreamInfoBuilder.cpp
+    decode/FirstFramePauseController.h
+    decode/FirstFramePauseController.cpp
     decode/FramePacing.h
     decode/FramePacing.cpp
     decode/PacketRawDataBuilder.h
     decode/PacketRawDataBuilder.cpp
+    decode/PendingAccessUnitDispatcher.h
+    decode/PendingAccessUnitDispatcher.cpp
     decode/RebufferProgressTracker.h
     decode/RebufferProgressTracker.cpp
     decode/SeekCheckpointEmitter.h
