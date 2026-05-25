@@ -105,6 +105,40 @@ bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
     return true;
 }
 
+bool readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(BitReader &reader,
+                                                     H264CabacDecoder &decoder,
+                                                     H264CabacContextModelSet &contexts,
+                                                     int ctxIdx,
+                                                     const QString &prefixBinName,
+                                                     int blockIndex,
+                                                     int scanIndex,
+                                                     int *bin,
+                                                     H264CabacResidualLuma4x4Result &result)
+{
+    if (!contexts.isInitialized(ctxIdx)) {
+        result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC context %1 for luma4x4 coeff_abs_level_minus1[%2][%3] %4 prefix bin is not initialized in the covered context table.")
+                .arg(ctxIdx)
+                .arg(blockIndex)
+                .arg(scanIndex)
+                .arg(prefixBinName);
+        return false;
+    }
+
+    if (!decoder.decodeBin(reader, contexts, ctxIdx, bin)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] %3 prefix bin.")
+                .arg(blockIndex)
+                .arg(scanIndex)
+                .arg(prefixBinName);
+        return false;
+    }
+
+    return true;
+}
+
 bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
                                                     H264CabacDecoder &decoder,
                                                     H264CabacContextModelSet &contexts,
@@ -113,23 +147,17 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
                                                     bool inferredFinalScan,
                                                     H264CabacResidualLuma4x4Result &result)
 {
-    if (!contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1FirstCtxIdx)) {
-        result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC context %1 for luma4x4 coeff_abs_level_minus1[%2][%3] first prefix bin is not initialized in the covered context table.")
-                .arg(Luma4x4CoeffAbsLevelMinus1FirstCtxIdx)
-                .arg(blockIndex)
-                .arg(scanIndex);
-        return false;
-    }
-
     int bin = 0;
-    if (!decoder.decodeBin(reader, contexts, Luma4x4CoeffAbsLevelMinus1FirstCtxIdx, &bin)) {
-        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] first prefix bin.")
-                .arg(blockIndex)
-                .arg(scanIndex);
+    if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
+            reader,
+            decoder,
+            contexts,
+            Luma4x4CoeffAbsLevelMinus1FirstCtxIdx,
+            QStringLiteral("first"),
+            blockIndex,
+            scanIndex,
+            &bin,
+            result)) {
         return false;
     }
 
@@ -143,23 +171,17 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
         return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
     }
 
-    if (!contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1NextCtxIdx)) {
-        result.diagnosticCode = QStringLiteral("cabac_context_uninitialized");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC context %1 for luma4x4 coeff_abs_level_minus1[%2][%3] next prefix bin is not initialized in the covered context table.")
-                .arg(Luma4x4CoeffAbsLevelMinus1NextCtxIdx)
-                .arg(blockIndex)
-                .arg(scanIndex);
-        return false;
-    }
-
     int nextBin = 0;
-    if (!decoder.decodeBin(reader, contexts, Luma4x4CoeffAbsLevelMinus1NextCtxIdx, &nextBin)) {
-        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] next prefix bin.")
-                .arg(blockIndex)
-                .arg(scanIndex);
+    if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
+            reader,
+            decoder,
+            contexts,
+            Luma4x4CoeffAbsLevelMinus1NextCtxIdx,
+            QStringLiteral("next"),
+            blockIndex,
+            scanIndex,
+            &nextBin,
+            result)) {
         return false;
     }
 
@@ -170,12 +192,16 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
 
     if (contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx)) {
         int thirdBin = 0;
-        if (!decoder.decodeBin(reader, contexts, Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx, &thirdBin)) {
-            result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
-            result.diagnosticMessage =
-                QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] third prefix bin.")
-                    .arg(blockIndex)
-                    .arg(scanIndex);
+        if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
+                reader,
+                decoder,
+                contexts,
+                Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx,
+                QStringLiteral("third"),
+                blockIndex,
+                scanIndex,
+                &thirdBin,
+                result)) {
             return false;
         }
 
@@ -186,12 +212,16 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
 
         if (contexts.isInitialized(Luma4x4CoeffAbsLevelMinus1FourthCtxIdx)) {
             int fourthBin = 0;
-            if (!decoder.decodeBin(reader, contexts, Luma4x4CoeffAbsLevelMinus1FourthCtxIdx, &fourthBin)) {
-                result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
-                result.diagnosticMessage =
-                    QStringLiteral("CABAC bin decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] fourth prefix bin.")
-                        .arg(blockIndex)
-                        .arg(scanIndex);
+            if (!readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(
+                    reader,
+                    decoder,
+                    contexts,
+                    Luma4x4CoeffAbsLevelMinus1FourthCtxIdx,
+                    QStringLiteral("fourth"),
+                    blockIndex,
+                    scanIndex,
+                    &fourthBin,
+                    result)) {
                 return false;
             }
 

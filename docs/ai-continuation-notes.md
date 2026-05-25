@@ -127,8 +127,10 @@ Important H.264 files:
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
   partial results now carry reverse-scan coefficient order plus an explicit
   inferred-final flag, so consumers do not need to infer that state from scan
-  index 15. The reader consumes only the first two coefficients in that reverse
-  order. Chroma non-zero CBF, complete
+  index 15. Prefix-bin context checks, bin decoding, and diagnostic messages
+  are centralized in the residual reader so adding the next prefix context does
+  not duplicate the first/next/third/fourth-bin plumbing. The reader consumes
+  only the first two coefficients in that reverse order. Chroma non-zero CBF, complete
   significant/last maps, complete
   coefficient level parsing, suffix parsing, and non-zero coefficient completion are
   not implemented.

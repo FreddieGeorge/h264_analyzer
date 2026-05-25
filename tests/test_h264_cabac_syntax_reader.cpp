@@ -2165,6 +2165,39 @@ void testReadResidualLuma4x4CoeffAbsLevelFourthBinOneIncomplete()
             "CABAC residual luma4x4 coeff level fourth-bin one message");
 }
 
+void testReadResidualLuma4x4CoeffAbsLevelFourthBinDecodeFailure()
+{
+    BitReader reader(QByteArray::fromHex("0000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFourthContext(1, 1, 1, 0);
+    contexts.setModel(254, {64, 0});
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(!result.ok, "CABAC residual luma4x4 coeff level fourth-bin decode failure fails");
+    require(!result.complete,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure incomplete");
+    require(result.coeffAbsLevelPrefixFirstBins.size() == 1,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure keeps first bin");
+    require(result.coeffAbsLevelPrefixNextBins.size() == 2,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure keeps prior next bins");
+    require(result.coeffAbsLevelPrefixNextBins[0] == 1
+                && result.coeffAbsLevelPrefixNextBins[1] == 1,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure prior next values");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure no sign flag");
+    require(result.incompleteBlockIndex == 12,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure incomplete block");
+    require(result.incompleteScanIndex == 0,
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure incomplete scan");
+    require(result.diagnosticCode == QStringLiteral("cabac_bin_decode_failed"),
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("fourth prefix bin")),
+            "CABAC residual luma4x4 coeff level fourth-bin decode failure message");
+}
+
 void testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext()
 {
     BitReader reader(QByteArray::fromHex("0000"));
@@ -2785,6 +2818,7 @@ int main()
     testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelFourthBinZeroIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelFourthBinOneIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelFourthBinDecodeFailure();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();
