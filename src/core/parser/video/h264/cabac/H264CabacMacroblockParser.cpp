@@ -379,7 +379,7 @@ void h264AppendUnsupportedCabacMacroblocks(H264SliceDataContext &context)
             context.isISlice,
             context.slice.cabacInitIdc,
             context.currentQp,
-            253);
+            254);
 
     const H264CabacMacroblockSyntaxResult syntax =
         h264ReadCabacMacroblockSyntax(context, decoder, contexts);

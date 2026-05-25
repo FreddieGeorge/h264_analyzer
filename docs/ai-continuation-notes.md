@@ -87,8 +87,8 @@ Important H.264 files:
   coded-block-flag contexts, and the luma4x4
   `significant_coeff_flag` ctxIdx 134-148 and
   `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the
-  first, next, and third luma4x4 `coeff_abs_level_minus1` prefix contexts used
-  by the narrow CABAC paths.
+  first through fourth luma4x4 `coeff_abs_level_minus1` prefix contexts used
+  by the narrow CABAC paths and near-term residual work.
 - `cabac/H264CabacDecoder.*`: CABAC arithmetic-decoder foundation.
 - `cabac/H264CabacSyntaxTypes.h`: shared result structs for CABAC syntax
   readers.
@@ -116,11 +116,12 @@ Important H.264 files:
   indices/flags, continues the significant map when the last flag is zero, and
   if the last flag is one reads the first
   `coeff_abs_level_minus1` prefix bin with ctxIdx 248. If that first prefix
-  bin is one, it reads one additional prefix bin with ctxIdx 252, and can read
-  a third prefix bin with ctxIdx 253. If any covered prefix step reaches a zero
-  terminal bin, it reads one bypass `coeff_sign_flag` and then stops at
-  `residual_coefficients`; if the covered prefix bins do not terminate, the
-  next unsupported stage remains the rest of `coeff_abs_level_minus1`. If no last significant
+  bin is one, it reads one additional prefix bin with ctxIdx 252, a third
+  prefix bin with ctxIdx 253, and a fourth prefix bin with ctxIdx 254. If any
+  covered prefix step reaches a zero terminal bin, it reads one bypass
+  `coeff_sign_flag` and then stops at `residual_coefficients`; if the covered
+  prefix bins do not terminate, the next unsupported stage remains the rest of
+  `coeff_abs_level_minus1`. If no last significant
   coefficient is found in the 15 explicit bins, the reader treats scan position
   15 as the inferred final coefficient and reads the same narrow
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
@@ -160,8 +161,8 @@ Current H.264 limitations:
   starter contexts, P-slice `ref_idx_l0` starter contexts, coded-block-pattern
   contexts, `mb_qp_delta`, luma4x4/chroma DC residual `coded_block_flag`
   contexts, and luma4x4 `significant_coeff_flag` ctxIdx 134-148 and
-  `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the first, next,
-  and third luma4x4 `coeff_abs_level_minus1` prefix contexts.
+  `last_significant_coeff_flag` ctxIdx 166-180 contexts plus the first through
+  fourth luma4x4 `coeff_abs_level_minus1` prefix contexts.
   The CABAC macroblock entry point has a syntax-result boundary for supported
   I/P `mb_type` and narrow P_8x8
   `sub_mb_type`/`ref_idx_l0 == 0`/small `mvd_l0` scaffolding. The P_8x8 path
@@ -281,8 +282,8 @@ Recommended next H.264 direction:
    `last_significant_coeff_flag` skeleton results, inferred final scan-position
    coefficient prefix routing with explicit reverse-scan and inferred-final
    result flags, plus the first `coeff_abs_level_minus1` prefix bin, one
-   additional prefix bin when the first prefix bin is one, a third prefix bin
-   when the first two covered prefix bins are both one, and one bypass
+   additional prefix bin when the first prefix bin is one, third and fourth
+   prefix bins when the covered prefix bins keep returning one, and one bypass
    `coeff_sign_flag` when the covered prefix bins terminate,
    4:2:0 chroma DC CBF-zero residuals for `coded_block_pattern_chroma == 1`,
    plus a structured chroma AC incomplete boundary for
