@@ -1486,20 +1486,70 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
                 && result.residualCoeffAbsLevelPrefixNextBins[2] == 1
                 && result.residualCoeffAbsLevelPrefixNextBins[3] == 0,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero next values");
-    require(result.residualCoeffSignFlags.size() == 1,
-            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero sign flag count");
-    require(result.residualCoeffSignFlags[0] == 0,
-            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero sign flag");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero terminated count");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero terminated value");
+    require(result.residualCoeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero one-count count");
+    require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero one-count value");
+    require(result.residualCoeffSignFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero no sign flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero incomplete block");
     require(result.residualIncompleteScanIndex == 0,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero incomplete scan");
-    require(result.residualIncompleteStage == QStringLiteral("residual_coefficients"),
+    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
+    require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level parsing")),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero message");
+}
+
+void testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign()
+{
+    BitReader reader(QByteArray::fromHex("00000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContextsWithFifthContext(context.currentQp, 1, 1, 1, 1, 0);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 large terminated prefix result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 large terminated prefix incomplete");
+    require(result.residualCoeffAbsLevelScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 large terminated prefix scan count");
+    require(result.residualCoeffAbsLevelScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 large terminated prefix scan index");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 large terminated prefix terminated count");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 large terminated prefix terminated value");
+    require(result.residualCoeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 large terminated prefix one-count count");
+    require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC macroblock syntax P_8x8 large terminated prefix one-count value");
+    require(result.residualCoeffSignFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 large terminated prefix stops before sign flag");
+    require(result.residualIncompleteBlockIndex == 12,
+            "CABAC macroblock syntax P_8x8 large terminated prefix incomplete block");
+    require(result.residualIncompleteScanIndex == 0,
+            "CABAC macroblock syntax P_8x8 large terminated prefix incomplete scan");
+    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC macroblock syntax P_8x8 large terminated prefix stage");
+    require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
+            "CABAC macroblock syntax P_8x8 large terminated prefix diagnostic");
+    require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level parsing")),
+            "CABAC macroblock syntax P_8x8 large terminated prefix message");
 }
 
 void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
@@ -1537,6 +1587,14 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
                 && result.residualCoeffAbsLevelPrefixNextBins[2] == 1
                 && result.residualCoeffAbsLevelPrefixNextBins[3] == 1,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one next values");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one terminated count");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags[0] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one terminated value");
+    require(result.residualCoeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one one-count count");
+    require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 5,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one one-count value");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no sign flag");
     require(result.residualIncompleteBlockIndex == 12,
@@ -2067,6 +2125,14 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level next-bin zero bin count");
     require(result.coeffAbsLevelPrefixNextBins[0] == 0,
             "CABAC residual luma4x4 coeff level next-bin zero bin value");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 1,
+            "CABAC residual luma4x4 coeff level next-bin zero one-count value");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level next-bin zero incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -2114,6 +2180,14 @@ void testReadResidualLuma4x4CoeffAbsLevelNextBinOneIncomplete()
             "CABAC residual luma4x4 coeff level next-bin one bin count");
     require(result.coeffAbsLevelPrefixNextBins[0] == 1,
             "CABAC residual luma4x4 coeff level next-bin one bin value");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin one terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level next-bin one terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level next-bin one one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 2,
+            "CABAC residual luma4x4 coeff level next-bin one one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level next-bin one no sign flag");
     require(result.incompleteBlockIndex == 12,
@@ -2149,6 +2223,14 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinMissingKeepsBoundary()
             "CABAC residual luma4x4 coeff level third-bin missing next bin count");
     require(result.coeffAbsLevelPrefixNextBins[0] == 1,
             "CABAC residual luma4x4 coeff level third-bin missing next bin value");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level third-bin missing terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level third-bin missing one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 2,
+            "CABAC residual luma4x4 coeff level third-bin missing one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin missing no sign flag");
     require(result.incompleteBlockIndex == 12,
@@ -2373,19 +2455,25 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
                 && result.coeffAbsLevelPrefixNextBins[2] == 1
                 && result.coeffAbsLevelPrefixNextBins[3] == 0,
             "CABAC residual luma4x4 coeff level fifth-bin zero next bin values");
-    require(result.coeffSignFlags.size() == 1,
-            "CABAC residual luma4x4 coeff level fifth-bin zero sign flag count");
-    require(result.coeffSignFlags[0] == 0,
-            "CABAC residual luma4x4 coeff level fifth-bin zero sign flag");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC residual luma4x4 coeff level fifth-bin zero one-count value");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin zero no sign flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level fifth-bin zero incomplete block");
     require(result.incompleteScanIndex == 0,
             "CABAC residual luma4x4 coeff level fifth-bin zero incomplete scan");
-    require(result.incompleteStage == QStringLiteral("residual_coefficients"),
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 coeff level fifth-bin zero incomplete stage");
     require(result.diagnosticCode == QStringLiteral("cabac_residual_incomplete"),
             "CABAC residual luma4x4 coeff level fifth-bin zero diagnostic");
-    require(result.diagnosticMessage.contains(QStringLiteral("coeff_sign_flag")),
+    require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level parsing")),
             "CABAC residual luma4x4 coeff level fifth-bin zero message");
 }
 
@@ -2414,6 +2502,14 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
                 && result.coeffAbsLevelPrefixNextBins[2] == 1
                 && result.coeffAbsLevelPrefixNextBins[3] == 1,
             "CABAC residual luma4x4 coeff level fifth-bin one next bin values");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin one terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 0,
+            "CABAC residual luma4x4 coeff level fifth-bin one terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin one one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 5,
+            "CABAC residual luma4x4 coeff level fifth-bin one one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no sign flag");
     require(result.incompleteBlockIndex == 12,
@@ -2426,6 +2522,68 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin one diagnostic");
     require(result.diagnosticMessage.contains(QStringLiteral("covered prefix bins did not terminate")),
             "CABAC residual luma4x4 coeff level fifth-bin one message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelTerminatedPrefixKeepsSuffixInputs()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 0);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 suffix input prefix result");
+    require(!result.complete, "CABAC residual luma4x4 suffix input prefix incomplete");
+    require(result.coeffAbsLevelScanIndices.size() == 1,
+            "CABAC residual luma4x4 suffix input scan count");
+    require(result.coeffAbsLevelInferredFinalFlags.size() == result.coeffAbsLevelScanIndices.size(),
+            "CABAC residual luma4x4 suffix input inferred alignment");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == result.coeffAbsLevelScanIndices.size(),
+            "CABAC residual luma4x4 suffix input terminated alignment");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == result.coeffAbsLevelScanIndices.size(),
+            "CABAC residual luma4x4 suffix input one-count alignment");
+    require(result.coeffAbsLevelScanIndices[0] == 0,
+            "CABAC residual luma4x4 suffix input scan index");
+    require(result.coeffAbsLevelInferredFinalFlags[0] == 0,
+            "CABAC residual luma4x4 suffix input inferred flag");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC residual luma4x4 suffix input terminated flag");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC residual luma4x4 suffix input prefix one-count");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 suffix input no sign flag");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 suffix input current stop stage");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelTerminatedLargePrefixStopsBeforeSign()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 0);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 large-prefix suffix boundary result");
+    require(!result.complete, "CABAC residual luma4x4 large-prefix suffix boundary incomplete");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 large-prefix suffix boundary terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC residual luma4x4 large-prefix suffix boundary terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 large-prefix suffix boundary one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC residual luma4x4 large-prefix suffix boundary one-count value");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 large-prefix suffix boundary stops before sign flag");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 large-prefix suffix boundary stop stage");
+    require(result.diagnosticMessage.contains(QStringLiteral("remaining coefficient level")),
+            "CABAC residual luma4x4 large-prefix suffix boundary message");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext()
@@ -3027,6 +3185,7 @@ int main()
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinZeroPartial();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFourthBinOnePartial();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial();
+    testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
@@ -3053,6 +3212,8 @@ int main()
     testReadResidualLuma4x4CoeffAbsLevelFourthBinDecodeFailure();
     testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelTerminatedPrefixKeepsSuffixInputs();
+    testReadResidualLuma4x4CoeffAbsLevelTerminatedLargePrefixStopsBeforeSign();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();

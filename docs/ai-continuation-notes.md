@@ -127,12 +127,22 @@ Important H.264 files:
   `coeff_abs_level_minus1` prefix skeleton before stopping. Coefficient-level
   partial results now carry reverse-scan coefficient order plus an explicit
   inferred-final flag, so consumers do not need to infer that state from scan
-  index 15. Prefix-bin context checks, bin decoding, and diagnostic messages
-  are centralized in the residual reader so adding the next prefix context does
-  not duplicate the first/next/third/fourth/fifth-bin plumbing. The additional
-  covered prefix contexts are table-driven after the first bin, so the next
-  prefix expansion should extend that small context table plus tests. The reader consumes
-  only the first two coefficients in that reverse order. Chroma non-zero CBF, complete
+  index 15. They also carry whether the covered
+  `coeff_abs_level_minus1` prefix terminated and the number of one bins seen in
+  the prefix, which keeps the current partial result useful without starting
+  suffix parsing yet; the tests now lock those suffix-preparation inputs to the
+  coefficient scan index for a terminated fifth-bin prefix. A terminated prefix
+  with more than three one bins now stops before `coeff_sign_flag` at
+  `coeff_abs_level_minus1`, preserving the boundary for future suffix/remaining
+  level parsing. Prefix-bin context checks, bin decoding, and diagnostic
+  messages are centralized in the residual reader so adding the next prefix
+  context does not duplicate the first/next/third/fourth/fifth-bin plumbing.
+  Reader-level and macroblock-level regression tests now lock that large
+  terminated-prefix boundary before sign-flag parsing.
+  The additional covered prefix contexts are table-driven after the first bin,
+  so the next prefix expansion should extend that small context table plus
+  tests. The reader consumes only the first two coefficients in that reverse
+  order. Chroma non-zero CBF, complete
   significant/last maps, complete
   coefficient level parsing, suffix parsing, and non-zero coefficient completion are
   not implemented.
@@ -182,8 +192,9 @@ Current H.264 limitations:
   preserves partial CBF indices, CBF values, significant scan indices/flags,
   last-significant scan indices/flags, coefficient reverse-scan order,
   coefficient-level scan indices, inferred-final flags, first and next prefix
-  bins, and sign flags, incomplete block, incomplete scan index, category, and
-  next unsupported stage on the syntax result before returning
+  bins, covered-prefix terminated flags, covered-prefix one counts, and sign
+  flags, incomplete block, incomplete scan index, category, and next unsupported
+  stage on the syntax result before returning
   `cabac_residual_incomplete`. Chroma DC
   non-zero CBF remains an incomplete boundary without significant-flag parsing.
   For

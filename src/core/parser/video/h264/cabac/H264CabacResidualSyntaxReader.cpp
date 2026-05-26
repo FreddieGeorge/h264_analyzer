@@ -12,6 +12,7 @@ constexpr int Luma4x4CoeffAbsLevelMinus1NextCtxIdx = 252;
 constexpr int Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx = 253;
 constexpr int Luma4x4CoeffAbsLevelMinus1FourthCtxIdx = 254;
 constexpr int Luma4x4CoeffAbsLevelMinus1FifthCtxIdx = 255;
+constexpr int Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount = 3;
 
 struct Luma4x4CoeffAbsLevelPrefixContext
 {
@@ -120,6 +121,26 @@ bool readLuma4x4CoeffSignFlagSkeleton(BitReader &reader,
     return true;
 }
 
+void appendLuma4x4CoeffAbsLevelPrefixState(H264CabacResidualLuma4x4Result &result,
+                                           bool terminated,
+                                           int oneCount)
+{
+    result.coeffAbsLevelPrefixTerminatedFlags.append(terminated ? 1 : 0);
+    result.coeffAbsLevelPrefixOneCounts.append(oneCount);
+}
+
+bool stopAtLuma4x4CoeffAbsLevelMinus1SuffixBoundary(int blockIndex,
+                                                    int scanIndex,
+                                                    H264CabacResidualLuma4x4Result &result)
+{
+    result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
+    result.diagnosticMessage =
+        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] covered prefix bins require remaining coefficient level parsing, which is not implemented.")
+            .arg(blockIndex)
+            .arg(scanIndex);
+    return true;
+}
+
 bool readLuma4x4CoeffAbsLevelMinus1PrefixBinSkeleton(BitReader &reader,
                                                      H264CabacDecoder &decoder,
                                                      H264CabacContextModelSet &contexts,
@@ -183,9 +204,11 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     result.incompleteScanIndex = scanIndex;
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
     if (bin == 0) {
+        appendLuma4x4CoeffAbsLevelPrefixState(result, true, 0);
         return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
     }
 
+    int prefixOneCount = 1;
     for (const Luma4x4CoeffAbsLevelPrefixContext &prefixContext :
          Luma4x4CoeffAbsLevelAdditionalPrefixContexts) {
         if (!contexts.isInitialized(prefixContext.ctxIdx) && !prefixContext.required) {
@@ -208,10 +231,16 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
 
         result.coeffAbsLevelPrefixNextBins.append(prefixBin);
         if (prefixBin == 0) {
+            appendLuma4x4CoeffAbsLevelPrefixState(result, true, prefixOneCount);
+            if (prefixOneCount > Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount) {
+                return stopAtLuma4x4CoeffAbsLevelMinus1SuffixBoundary(blockIndex, scanIndex, result);
+            }
             return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
         }
+        ++prefixOneCount;
     }
 
+    appendLuma4x4CoeffAbsLevelPrefixState(result, false, prefixOneCount);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
         QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] covered prefix bins did not terminate; remaining coefficient level prefix parsing is not implemented.")
