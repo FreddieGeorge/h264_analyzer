@@ -129,6 +129,29 @@ void appendLuma4x4CoeffAbsLevelPrefixState(H264CabacResidualLuma4x4Result &resul
     result.coeffAbsLevelPrefixOneCounts.append(oneCount);
 }
 
+bool readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(BitReader &reader,
+                                                           H264CabacDecoder &decoder,
+                                                           int blockIndex,
+                                                           int scanIndex,
+                                                           const QString &suffixBinName,
+                                                           QVector<int> &bins,
+                                                           H264CabacResidualLuma4x4Result &result)
+{
+    int suffixBin = 0;
+    if (!decoder.decodeBypassBin(reader, &suffixBin)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC bypass decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin.")
+                .arg(blockIndex)
+                .arg(scanIndex)
+                .arg(suffixBinName);
+        return false;
+    }
+
+    bins.append(suffixBin);
+    return true;
+}
+
 bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
                                                      H264CabacDecoder &decoder,
                                                      int blockIndex,
@@ -136,20 +159,30 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
                                                      int prefixOneCount,
                                                      H264CabacResidualLuma4x4Result &result)
 {
-    int suffixBin = 0;
-    if (!decoder.decodeBypassBin(reader, &suffixBin)) {
-        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
-        result.diagnosticMessage =
-            QStringLiteral("CABAC bypass decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] first suffix bypass bin.")
-                .arg(blockIndex)
-                .arg(scanIndex);
+    if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
+            reader,
+            decoder,
+            blockIndex,
+            scanIndex,
+            QStringLiteral("first"),
+            result.coeffAbsLevelSuffixBins,
+            result)) {
+        return false;
+    }
+    if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
+            reader,
+            decoder,
+            blockIndex,
+            scanIndex,
+            QStringLiteral("second"),
+            result.coeffAbsLevelSuffixBins,
+            result)) {
         return false;
     }
 
-    result.coeffAbsLevelSuffixFirstBins.append(suffixBin);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] first suffix bypass bin was decoded after prefix one-count %3; computing coeff_abs_level_minus1 is not implemented.")
+        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] second suffix bypass bin was decoded after prefix one-count %3; computing coeff_abs_level_minus1 is not implemented.")
             .arg(blockIndex)
             .arg(scanIndex)
             .arg(prefixOneCount);

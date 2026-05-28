@@ -135,10 +135,10 @@ Important H.264 files:
   with more than three one bins now stops before `coeff_sign_flag` at
   `coeff_abs_level_minus1`, preserving the boundary for future suffix/remaining
   level parsing. That stop is routed through a remaining-level skeleton that
-  receives the parsed prefix one-count, reads and records one first suffix
-  bypass bin, and then still returns incomplete without computing
-  `coeff_abs_level_minus1`; macroblock-level partial results propagate that
-  first suffix bin alongside the prefix state.
+  receives the parsed prefix one-count, reads and records the first two suffix
+  bypass bins, and then still returns incomplete without computing
+  `coeff_abs_level_minus1`; macroblock-level partial results propagate those
+  suffix bins alongside the prefix state.
   Prefix-bin context checks, bin decoding, and diagnostic
   messages are centralized in the residual reader so adding the next prefix
   context does not duplicate the first/next/third/fourth/fifth-bin plumbing.

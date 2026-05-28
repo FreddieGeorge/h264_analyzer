@@ -73,7 +73,7 @@ struct H264CabacResidualLuma4x4Result
     QVector<int> coeffAbsLevelPrefixNextBins;
     QVector<int> coeffAbsLevelPrefixTerminatedFlags;
     QVector<int> coeffAbsLevelPrefixOneCounts;
-    QVector<int> coeffAbsLevelSuffixFirstBins;
+    QVector<int> coeffAbsLevelSuffixBins;
     QVector<int> coeffSignFlags;
     int firstCtxIdx = -1;
     int incompleteBlockIndex = -1;
