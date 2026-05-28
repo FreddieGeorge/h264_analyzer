@@ -129,15 +129,30 @@ void appendLuma4x4CoeffAbsLevelPrefixState(H264CabacResidualLuma4x4Result &resul
     result.coeffAbsLevelPrefixOneCounts.append(oneCount);
 }
 
-bool stopAtLuma4x4CoeffAbsLevelMinus1SuffixBoundary(int blockIndex,
-                                                    int scanIndex,
-                                                    H264CabacResidualLuma4x4Result &result)
+bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
+                                                     H264CabacDecoder &decoder,
+                                                     int blockIndex,
+                                                     int scanIndex,
+                                                     int prefixOneCount,
+                                                     H264CabacResidualLuma4x4Result &result)
 {
+    int suffixBin = 0;
+    if (!decoder.decodeBypassBin(reader, &suffixBin)) {
+        result.diagnosticCode = QStringLiteral("cabac_bin_decode_failed");
+        result.diagnosticMessage =
+            QStringLiteral("CABAC bypass decoding failed while reading luma4x4 coeff_abs_level_minus1[%1][%2] first suffix bypass bin.")
+                .arg(blockIndex)
+                .arg(scanIndex);
+        return false;
+    }
+
+    result.coeffAbsLevelSuffixFirstBins.append(suffixBin);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] covered prefix bins require remaining coefficient level parsing, which is not implemented.")
+        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] first suffix bypass bin was decoded after prefix one-count %3; computing coeff_abs_level_minus1 is not implemented.")
             .arg(blockIndex)
-            .arg(scanIndex);
+            .arg(scanIndex)
+            .arg(prefixOneCount);
     return true;
 }
 
@@ -233,7 +248,13 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
         if (prefixBin == 0) {
             appendLuma4x4CoeffAbsLevelPrefixState(result, true, prefixOneCount);
             if (prefixOneCount > Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount) {
-                return stopAtLuma4x4CoeffAbsLevelMinus1SuffixBoundary(blockIndex, scanIndex, result);
+                return readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(
+                    reader,
+                    decoder,
+                    blockIndex,
+                    scanIndex,
+                    prefixOneCount,
+                    result);
             }
             return readLuma4x4CoeffSignFlagSkeleton(reader, decoder, blockIndex, scanIndex, result);
         }
