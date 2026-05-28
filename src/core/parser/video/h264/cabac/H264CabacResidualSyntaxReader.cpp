@@ -28,6 +28,12 @@ constexpr Luma4x4CoeffAbsLevelPrefixContext Luma4x4CoeffAbsLevelAdditionalPrefix
     {Luma4x4CoeffAbsLevelMinus1FifthCtxIdx, "fifth", false},
 };
 
+constexpr const char *Luma4x4CoeffAbsLevelSuffixBinNames[] = {
+    "first",
+    "second",
+    "third",
+};
+
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
 {
     switch (category) {
@@ -159,32 +165,27 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
                                                      int prefixOneCount,
                                                      H264CabacResidualLuma4x4Result &result)
 {
-    if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
-            reader,
-            decoder,
-            blockIndex,
-            scanIndex,
-            QStringLiteral("first"),
-            result.coeffAbsLevelSuffixBins,
-            result)) {
-        return false;
-    }
-    if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
-            reader,
-            decoder,
-            blockIndex,
-            scanIndex,
-            QStringLiteral("second"),
-            result.coeffAbsLevelSuffixBins,
-            result)) {
-        return false;
+    const char *lastSuffixBinName = "";
+    for (const char *suffixBinName : Luma4x4CoeffAbsLevelSuffixBinNames) {
+        lastSuffixBinName = suffixBinName;
+        if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
+                reader,
+                decoder,
+                blockIndex,
+                scanIndex,
+                QString::fromLatin1(suffixBinName),
+                result.coeffAbsLevelSuffixBins,
+                result)) {
+            return false;
+        }
     }
 
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
-        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] second suffix bypass bin was decoded after prefix one-count %3; computing coeff_abs_level_minus1 is not implemented.")
+        QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin was decoded after prefix one-count %4; computing coeff_abs_level_minus1 is not implemented.")
             .arg(blockIndex)
             .arg(scanIndex)
+            .arg(QString::fromLatin1(lastSuffixBinName))
             .arg(prefixOneCount);
     return true;
 }
