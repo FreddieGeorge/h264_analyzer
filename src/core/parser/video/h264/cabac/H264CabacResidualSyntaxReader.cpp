@@ -13,6 +13,7 @@ constexpr int Luma4x4CoeffAbsLevelMinus1ThirdCtxIdx = 253;
 constexpr int Luma4x4CoeffAbsLevelMinus1FourthCtxIdx = 254;
 constexpr int Luma4x4CoeffAbsLevelMinus1FifthCtxIdx = 255;
 constexpr int Luma4x4CoeffAbsLevelMinus1DirectSignMaxOneCount = 3;
+constexpr int CoeffAbsLevelMinus1Ueg0Cutoff = 14;
 
 struct Luma4x4CoeffAbsLevelPrefixContext
 {
@@ -430,6 +431,16 @@ bool readLuma4x4SignificantCoeffFlagsSkeleton(BitReader &reader,
     appendLuma4x4CoeffReverseScanOrder(result, Luma4x4SignificantCoeffFlagSkeletonCount);
     return readLuma4x4CoeffReverseOrderSkeleton(reader, decoder, contexts, blockIndex, result);
 }
+}
+
+int h264CabacCoeffAbsLevelMinus1Ueg0Cutoff()
+{
+    return CoeffAbsLevelMinus1Ueg0Cutoff;
+}
+
+bool h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(int prefixOneCount)
+{
+    return prefixOneCount >= CoeffAbsLevelMinus1Ueg0Cutoff;
 }
 
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(

@@ -12,6 +12,9 @@ enum class H264CabacResidualBlockCategory
     ChromaDc
 };
 
+int h264CabacCoeffAbsLevelMinus1Ueg0Cutoff();
+bool h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(int prefixOneCount);
+
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     BitReader &reader,
     H264CabacDecoder &decoder,

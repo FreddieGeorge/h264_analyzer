@@ -34,6 +34,22 @@ void initializeBasicSps(SpsInfo &sps)
     sps.chromaFormatIdc = 1;
 }
 
+void testCoeffAbsLevelMinus1Ueg0CutoffHelper()
+{
+    require(h264CabacCoeffAbsLevelMinus1Ueg0Cutoff() == 14,
+            "CABAC coeff_abs_level_minus1 UEG0 cutoff");
+    require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(-1),
+            "CABAC coeff_abs_level_minus1 UEG0 negative prefix does not use suffix");
+    require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(4),
+            "CABAC coeff_abs_level_minus1 UEG0 current narrow input does not use suffix");
+    require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(13),
+            "CABAC coeff_abs_level_minus1 UEG0 prefix before cutoff does not use suffix");
+    require(h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(14),
+            "CABAC coeff_abs_level_minus1 UEG0 cutoff uses suffix");
+    require(h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(15),
+            "CABAC coeff_abs_level_minus1 UEG0 prefix after cutoff uses suffix");
+}
+
 H264CabacDecoder initializedDecoder(BitReader &reader)
 {
     H264CabacDecoder decoder;
@@ -3693,6 +3709,7 @@ void testReadBSliceMbSkipFlagWithCoveredContext()
 
 int main()
 {
+    testCoeffAbsLevelMinus1Ueg0CutoffHelper();
     testReadPSliceMbSkipFlag();
     testReadPSliceMbSkipFlagUsesLeftNeighbor();
     testReadPSliceMbTypeP16x16();

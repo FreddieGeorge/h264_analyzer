@@ -155,6 +155,13 @@ Important H.264 files:
   covered by tests (`prefixOneCount == 4` and four zero suffix bins) is marked
   with `coeffAbsLevelFixedInputRecognizedFlags`; it is only an input-shape
   recognition flag, not a decoded coefficient level.
+  A pure `h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix()` helper now locks the
+  UEG0 `uCoff == 14` cutoff; the currently covered `prefixOneCount == 4`
+  remaining-level skeleton input is intentionally below that cutoff, so the
+  existing recorded bypass bins have not been reclassified or used to compute a
+  value. The next step should first tighten the naming/flag semantics for this
+  pre-UEG0 remaining-level input before introducing any real
+  `coeff_abs_level_minus1` value helper.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or
