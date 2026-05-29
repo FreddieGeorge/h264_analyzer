@@ -138,7 +138,7 @@ Important H.264 files:
   receives the parsed prefix one-count, reads and records the first four suffix
   bypass bins, and then still returns incomplete without computing
   `coeff_abs_level_minus1`; macroblock-level partial results propagate those
-  suffix bins alongside the prefix state.
+  suffix bins and per-coefficient suffix-bin counts alongside the prefix state.
   Prefix-bin context checks, bin decoding, and diagnostic
   messages are centralized in the residual reader so adding the next prefix
   context does not duplicate the first/next/third/fourth/fifth-bin plumbing.

@@ -48,6 +48,7 @@ struct H264CabacMacroblockSyntaxResult
     QVector<int> residualCoeffAbsLevelPrefixTerminatedFlags;
     QVector<int> residualCoeffAbsLevelPrefixOneCounts;
     QVector<int> residualCoeffAbsLevelSuffixBins;
+    QVector<int> residualCoeffAbsLevelSuffixBinCounts;
     QVector<int> residualCoeffSignFlags;
     QVector<int> residualChromaDcComponents;
     QVector<int> residualChromaDcCodedBlockFlags;
