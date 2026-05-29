@@ -162,10 +162,14 @@ Important H.264 files:
   value. The next step should first tighten the naming/flag semantics for this
   pre-UEG0 remaining-level input before introducing any real
   `coeff_abs_level_minus1` value helper.
+  That tightening has started with
+  `coeffAbsLevelPreUeg0RemainingInputFlags`, which marks the currently covered
+  fixed input as pre-UEG0 remaining-level input while preserving the older flat
+  and grouped suffix-bin diagnostic fields for compatibility.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or
-  fixed-input-recognized flags.
+  fixed-input-recognized/pre-UEG0 remaining-input flags.
   Prefix-bin context checks, bin decoding, and diagnostic
   messages are centralized in the residual reader so adding the next prefix
   context does not duplicate the first/next/third/fourth/fifth-bin plumbing.

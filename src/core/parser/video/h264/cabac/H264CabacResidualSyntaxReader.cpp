@@ -208,8 +208,11 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
     result.coeffAbsLevelReadyPrefixOneCounts.append(prefixOneCount);
     result.coeffAbsLevelReadySuffixBins.append(suffixBinsForCoeff);
     result.coeffAbsLevelValueInputCompleteFlags.append(1);
-    result.coeffAbsLevelFixedInputRecognizedFlags.append(
-        isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff) ? 1 : 0);
+    const bool fixedInputRecognized =
+        isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff);
+    result.coeffAbsLevelFixedInputRecognizedFlags.append(fixedInputRecognized ? 1 : 0);
+    result.coeffAbsLevelPreUeg0RemainingInputFlags.append(
+        fixedInputRecognized && !h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(prefixOneCount) ? 1 : 0);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
         QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin was decoded after prefix one-count %4; computing coeff_abs_level_minus1 is not implemented.")

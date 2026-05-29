@@ -1323,6 +1323,8 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no fixed input recognized flag");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no pre-UEG0 remaining input flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -1385,6 +1387,8 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no fixed input recognized flag");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no pre-UEG0 remaining input flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level third-bin one incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -1585,6 +1589,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero fixed input recognized count");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero fixed input recognized value");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero pre-UEG0 remaining input count");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero pre-UEG0 remaining input value");
 }
 
 void testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign()
@@ -1842,6 +1850,10 @@ void testReadCabacMacroblockSyntaxP8x8ResidualFourthSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin fixed input recognized count");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags[0] == 1,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin fixed input recognized value");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin pre-UEG0 remaining input count");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin pre-UEG0 remaining input value");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin no sign flag");
     require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
@@ -1910,6 +1922,8 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no fixed input recognized flag");
+    require(result.residualCoeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no pre-UEG0 remaining input flag");
     require(result.residualIncompleteBlockIndex == 12,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one incomplete block");
     require(result.residualIncompleteScanIndex == 0,
@@ -2596,6 +2610,8 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level third-bin zero no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no fixed input recognized flag");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no pre-UEG0 remaining input flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level third-bin zero incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -2646,6 +2662,8 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete()
             "CABAC residual luma4x4 coeff level third-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no fixed input recognized flag");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no pre-UEG0 remaining input flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level third-bin one incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -2852,6 +2870,10 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin zero fixed input recognized count");
     require(result.coeffAbsLevelFixedInputRecognizedFlags[0] == 1,
             "CABAC residual luma4x4 coeff level fifth-bin zero fixed input recognized value");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input count");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input value");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
@@ -2903,6 +2925,8 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no fixed input recognized flag");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no pre-UEG0 remaining input flag");
     require(result.incompleteBlockIndex == 12,
             "CABAC residual luma4x4 coeff level fifth-bin one incomplete block");
     require(result.incompleteScanIndex == 0,
@@ -3142,6 +3166,10 @@ void testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 fourth suffix bypass bin fixed input recognized count");
     require(result.coeffAbsLevelFixedInputRecognizedFlags[0] == 1,
             "CABAC residual luma4x4 fourth suffix bypass bin fixed input recognized value");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin pre-UEG0 remaining input count");
+    require(result.coeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin pre-UEG0 remaining input value");
     require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 fourth suffix bypass bin stage");
     require(result.diagnosticMessage.contains(QStringLiteral("fourth suffix bypass bin")),
