@@ -1508,11 +1508,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero message");
     require(result.diagnosticMessage.contains(QStringLiteral("prefix one-count 4")),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero one-count message");
-    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 4,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero suffix count");
     require(result.residualCoeffAbsLevelSuffixBins[0] == 0
                 && result.residualCoeffAbsLevelSuffixBins[1] == 0
-                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0
+                && result.residualCoeffAbsLevelSuffixBins[3] == 0,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero suffix values");
 }
 
@@ -1560,11 +1561,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSi
             "CABAC macroblock syntax P_8x8 large terminated prefix message");
     require(result.diagnosticMessage.contains(QStringLiteral("prefix one-count 4")),
             "CABAC macroblock syntax P_8x8 large terminated prefix one-count message");
-    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 4,
             "CABAC macroblock syntax P_8x8 large terminated prefix suffix count");
     require(result.residualCoeffAbsLevelSuffixBins[0] == 0
                 && result.residualCoeffAbsLevelSuffixBins[1] == 0
-                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0
+                && result.residualCoeffAbsLevelSuffixBins[3] == 0,
             "CABAC macroblock syntax P_8x8 large terminated prefix suffix values");
 }
 
@@ -1598,11 +1600,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualFirstSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 first suffix bypass bin one-count count");
     require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
             "CABAC macroblock syntax P_8x8 first suffix bypass bin one-count value");
-    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 4,
             "CABAC macroblock syntax P_8x8 first suffix bypass bin suffix count");
     require(result.residualCoeffAbsLevelSuffixBins[0] == 0
                 && result.residualCoeffAbsLevelSuffixBins[1] == 0
-                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0
+                && result.residualCoeffAbsLevelSuffixBins[3] == 0,
             "CABAC macroblock syntax P_8x8 first suffix bypass bin suffix values");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 first suffix bypass bin no sign flag");
@@ -1642,11 +1645,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSecondSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 second suffix bypass bin one-count count");
     require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
             "CABAC macroblock syntax P_8x8 second suffix bypass bin one-count value");
-    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 4,
             "CABAC macroblock syntax P_8x8 second suffix bypass bin suffix count");
     require(result.residualCoeffAbsLevelSuffixBins[0] == 0
                 && result.residualCoeffAbsLevelSuffixBins[1] == 0
-                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0
+                && result.residualCoeffAbsLevelSuffixBins[3] == 0,
             "CABAC macroblock syntax P_8x8 second suffix bypass bin suffix values");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 second suffix bypass bin no sign flag");
@@ -1686,17 +1690,18 @@ void testReadCabacMacroblockSyntaxP8x8ResidualThirdSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 third suffix bypass bin one-count count");
     require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
             "CABAC macroblock syntax P_8x8 third suffix bypass bin one-count value");
-    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 4,
             "CABAC macroblock syntax P_8x8 third suffix bypass bin suffix count");
     require(result.residualCoeffAbsLevelSuffixBins[0] == 0
                 && result.residualCoeffAbsLevelSuffixBins[1] == 0
-                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0
+                && result.residualCoeffAbsLevelSuffixBins[3] == 0,
             "CABAC macroblock syntax P_8x8 third suffix bypass bin suffix values");
     require(result.residualCoeffSignFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 third suffix bypass bin no sign flag");
     require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC macroblock syntax P_8x8 third suffix bypass bin stage");
-    require(result.diagnosticMessage.contains(QStringLiteral("third suffix bypass bin")),
+    require(result.diagnosticMessage.contains(QStringLiteral("suffix bypass bin")),
             "CABAC macroblock syntax P_8x8 third suffix bypass bin message");
 }
 
@@ -2625,11 +2630,12 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin zero message");
     require(result.diagnosticMessage.contains(QStringLiteral("prefix one-count 4")),
             "CABAC residual luma4x4 coeff level fifth-bin zero one-count message");
-    require(result.coeffAbsLevelSuffixBins.size() == 3,
+    require(result.coeffAbsLevelSuffixBins.size() == 4,
             "CABAC residual luma4x4 coeff level fifth-bin zero suffix count");
     require(result.coeffAbsLevelSuffixBins[0] == 0
                 && result.coeffAbsLevelSuffixBins[1] == 0
-                && result.coeffAbsLevelSuffixBins[2] == 0,
+                && result.coeffAbsLevelSuffixBins[2] == 0
+                && result.coeffAbsLevelSuffixBins[3] == 0,
             "CABAC residual luma4x4 coeff level fifth-bin zero suffix values");
 }
 
@@ -2766,11 +2772,12 @@ void testReadResidualLuma4x4CoeffAbsLevelFirstSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 first suffix bypass bin one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 first suffix bypass bin stops before sign flag");
-    require(result.coeffAbsLevelSuffixBins.size() == 3,
+    require(result.coeffAbsLevelSuffixBins.size() == 4,
             "CABAC residual luma4x4 first suffix bypass bin count");
     require(result.coeffAbsLevelSuffixBins[0] == 0
                 && result.coeffAbsLevelSuffixBins[1] == 0
-                && result.coeffAbsLevelSuffixBins[2] == 0,
+                && result.coeffAbsLevelSuffixBins[2] == 0
+                && result.coeffAbsLevelSuffixBins[3] == 0,
             "CABAC residual luma4x4 first suffix bypass bin values");
     require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 first suffix bypass bin stage");
@@ -2800,11 +2807,12 @@ void testReadResidualLuma4x4CoeffAbsLevelSecondSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 second suffix bypass bin one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 second suffix bypass bin stops before sign flag");
-    require(result.coeffAbsLevelSuffixBins.size() == 3,
+    require(result.coeffAbsLevelSuffixBins.size() == 4,
             "CABAC residual luma4x4 second suffix bypass bin count");
     require(result.coeffAbsLevelSuffixBins[0] == 0
                 && result.coeffAbsLevelSuffixBins[1] == 0
-                && result.coeffAbsLevelSuffixBins[2] == 0,
+                && result.coeffAbsLevelSuffixBins[2] == 0
+                && result.coeffAbsLevelSuffixBins[3] == 0,
             "CABAC residual luma4x4 second suffix bypass bin values");
     require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 second suffix bypass bin stage");
@@ -2834,16 +2842,52 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdSuffixBypassBinIncomplete()
             "CABAC residual luma4x4 third suffix bypass bin one-count value");
     require(result.coeffSignFlags.isEmpty(),
             "CABAC residual luma4x4 third suffix bypass bin stops before sign flag");
-    require(result.coeffAbsLevelSuffixBins.size() == 3,
+    require(result.coeffAbsLevelSuffixBins.size() == 4,
             "CABAC residual luma4x4 third suffix bypass bin count");
     require(result.coeffAbsLevelSuffixBins[0] == 0
                 && result.coeffAbsLevelSuffixBins[1] == 0
-                && result.coeffAbsLevelSuffixBins[2] == 0,
+                && result.coeffAbsLevelSuffixBins[2] == 0
+                && result.coeffAbsLevelSuffixBins[3] == 0,
             "CABAC residual luma4x4 third suffix bypass bin values");
     require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
             "CABAC residual luma4x4 third suffix bypass bin stage");
-    require(result.diagnosticMessage.contains(QStringLiteral("third suffix bypass bin")),
+    require(result.diagnosticMessage.contains(QStringLiteral("suffix bypass bin")),
             "CABAC residual luma4x4 third suffix bypass bin message");
+}
+
+void testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete()
+{
+    BitReader reader(QByteArray::fromHex("000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    H264CabacContextModelSet contexts =
+        initializedLuma4x4CoeffLevelContextsWithFifthContext(1, 1, 1, 1, 0);
+
+    const H264CabacResidualLuma4x4Result result =
+        h264ReadCabacResidualLuma4x4CodedBlockFlagsZero(reader, decoder, contexts, 8);
+    require(result.ok, "CABAC residual luma4x4 fourth suffix bypass bin result");
+    require(!result.complete, "CABAC residual luma4x4 fourth suffix bypass bin incomplete");
+    require(result.coeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin terminated count");
+    require(result.coeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin terminated value");
+    require(result.coeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin one-count count");
+    require(result.coeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC residual luma4x4 fourth suffix bypass bin one-count value");
+    require(result.coeffSignFlags.isEmpty(),
+            "CABAC residual luma4x4 fourth suffix bypass bin stops before sign flag");
+    require(result.coeffAbsLevelSuffixBins.size() == 4,
+            "CABAC residual luma4x4 fourth suffix bypass bin count");
+    require(result.coeffAbsLevelSuffixBins[0] == 0
+                && result.coeffAbsLevelSuffixBins[1] == 0
+                && result.coeffAbsLevelSuffixBins[2] == 0
+                && result.coeffAbsLevelSuffixBins[3] == 0,
+            "CABAC residual luma4x4 fourth suffix bypass bin values");
+    require(result.incompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC residual luma4x4 fourth suffix bypass bin stage");
+    require(result.diagnosticMessage.contains(QStringLiteral("fourth suffix bypass bin")),
+            "CABAC residual luma4x4 fourth suffix bypass bin message");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext()
@@ -3480,6 +3524,7 @@ int main()
     testReadResidualLuma4x4CoeffAbsLevelFirstSuffixBypassBinIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelSecondSuffixBypassBinIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelThirdSuffixBypassBinIncomplete();
+    testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete();
     testReadResidualLuma4x4CoeffAbsLevelNextBinMissingContext();
     testReadResidualLuma4x4LastSignificantZeroIncomplete();
     testReadResidualLuma4x4CodedBlockFlagsZeroSingleLuma8x8();

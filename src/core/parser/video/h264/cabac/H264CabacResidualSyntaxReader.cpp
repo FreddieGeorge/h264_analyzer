@@ -32,6 +32,7 @@ constexpr const char *Luma4x4CoeffAbsLevelSuffixBinNames[] = {
     "first",
     "second",
     "third",
+    "fourth",
 };
 
 int codedBlockFlagCtxIdx(H264CabacResidualBlockCategory category)
