@@ -1656,6 +1656,50 @@ void testReadCabacMacroblockSyntaxP8x8ResidualSecondSuffixBypassBinPartial()
             "CABAC macroblock syntax P_8x8 second suffix bypass bin message");
 }
 
+void testReadCabacMacroblockSyntaxP8x8ResidualThirdSuffixBypassBinPartial()
+{
+    BitReader reader(QByteArray::fromHex("00000000000000000000"));
+    H264CabacDecoder decoder = initializedDecoder(reader);
+
+    SliceInfo slice;
+    PpsInfo pps;
+    SpsInfo sps;
+    initializeP8x8LumaResidualSlice(slice, sps);
+    H264SliceDataContext context(reader, slice, pps, sps);
+
+    H264CabacContextModelSet contexts =
+        initializedP8x8LumaResidualCoeffLevelContextsWithFifthContext(context.currentQp, 1, 1, 1, 1, 0);
+
+    const H264CabacMacroblockSyntaxResult result =
+        h264ReadCabacMacroblockSyntax(context, decoder, contexts);
+    require(result.ok, "CABAC macroblock syntax P_8x8 third suffix bypass bin result");
+    require(!result.complete, "CABAC macroblock syntax P_8x8 third suffix bypass bin incomplete");
+    require(result.residualCoeffAbsLevelScanIndices.size() == 1,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin scan count");
+    require(result.residualCoeffAbsLevelScanIndices[0] == 0,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin scan index");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags.size() == 1,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin terminated count");
+    require(result.residualCoeffAbsLevelPrefixTerminatedFlags[0] == 1,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin terminated value");
+    require(result.residualCoeffAbsLevelPrefixOneCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin one-count count");
+    require(result.residualCoeffAbsLevelPrefixOneCounts[0] == 4,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin one-count value");
+    require(result.residualCoeffAbsLevelSuffixBins.size() == 3,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin suffix count");
+    require(result.residualCoeffAbsLevelSuffixBins[0] == 0
+                && result.residualCoeffAbsLevelSuffixBins[1] == 0
+                && result.residualCoeffAbsLevelSuffixBins[2] == 0,
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin suffix values");
+    require(result.residualCoeffSignFlags.isEmpty(),
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin no sign flag");
+    require(result.residualIncompleteStage == QStringLiteral("coeff_abs_level_minus1"),
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin stage");
+    require(result.diagnosticMessage.contains(QStringLiteral("third suffix bypass bin")),
+            "CABAC macroblock syntax P_8x8 third suffix bypass bin message");
+}
+
 void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
 {
     BitReader reader(QByteArray::fromHex("00000000000000000000"));
@@ -3404,6 +3448,7 @@ int main()
     testReadCabacMacroblockSyntaxP8x8ResidualLargeTerminatedPrefixStopsBeforeSign();
     testReadCabacMacroblockSyntaxP8x8ResidualFirstSuffixBypassBinPartial();
     testReadCabacMacroblockSyntaxP8x8ResidualSecondSuffixBypassBinPartial();
+    testReadCabacMacroblockSyntaxP8x8ResidualThirdSuffixBypassBinPartial();
     testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial();
     testReadCabacMacroblockSyntaxP8x8SmallNonZeroMvd();
     testReadCabacMacroblockSyntaxP8x8NonZeroMvdIncomplete();
