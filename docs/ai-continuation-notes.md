@@ -139,6 +139,26 @@ Important H.264 files:
   bypass bins, and then still returns incomplete without computing
   `coeff_abs_level_minus1`; macroblock-level partial results propagate those
   suffix bins and per-coefficient suffix-bin counts alongside the prefix state.
+  Once that remaining-level skeleton has all four currently covered suffix
+  bypass bins for a coefficient, it marks the per-coefficient
+  `coeffAbsLevelReadyForValueFlags` entry as ready; this is only value-compute
+  preparation and still does not calculate a real `coeff_abs_level_minus1`.
+  Ready entries also snapshot the prefix one-count in
+  `coeffAbsLevelReadyPrefixOneCounts`, so later value computation does not have
+  to reconstruct that input from the prefix-bin arrays. The same ready entries
+  snapshot the currently covered suffix bins as grouped
+  `coeffAbsLevelReadySuffixBins`, while the flat suffix-bin stream remains
+  available for diagnostics and compatibility. They also set
+  `coeffAbsLevelValueInputCompleteFlags` to mark that the current narrow-path
+  value inputs are complete; this still does not mean
+  `coeff_abs_level_minus1` has been computed. The fixed ready input currently
+  covered by tests (`prefixOneCount == 4` and four zero suffix bins) is marked
+  with `coeffAbsLevelFixedInputRecognizedFlags`; it is only an input-shape
+  recognition flag, not a decoded coefficient level.
+  Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
+  ready flag at zero and do not create suffix bins, ready prefix one-counts, or
+  ready suffix-bin groups, and they do not set value-input-complete or
+  fixed-input-recognized flags.
   Prefix-bin context checks, bin decoding, and diagnostic
   messages are centralized in the residual reader so adding the next prefix
   context does not duplicate the first/next/third/fourth/fifth-bin plumbing.

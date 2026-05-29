@@ -159,6 +159,21 @@ bool readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(BitReader &reader,
     return true;
 }
 
+bool isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(int prefixOneCount,
+                                                 const QVector<int> &suffixBins)
+{
+    if (prefixOneCount != 4 || suffixBins.size() != 4) {
+        return false;
+    }
+
+    for (int suffixBin : suffixBins) {
+        if (suffixBin != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
                                                      H264CabacDecoder &decoder,
                                                      int blockIndex,
@@ -168,6 +183,7 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
 {
     const char *lastSuffixBinName = "";
     int suffixBinCount = 0;
+    QVector<int> suffixBinsForCoeff;
     for (const char *suffixBinName : Luma4x4CoeffAbsLevelSuffixBinNames) {
         lastSuffixBinName = suffixBinName;
         if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
@@ -180,10 +196,19 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
                 result)) {
             return false;
         }
+        suffixBinsForCoeff.append(result.coeffAbsLevelSuffixBins.last());
         ++suffixBinCount;
     }
 
     result.coeffAbsLevelSuffixBinCounts.append(suffixBinCount);
+    if (!result.coeffAbsLevelReadyForValueFlags.isEmpty()) {
+        result.coeffAbsLevelReadyForValueFlags.last() = 1;
+    }
+    result.coeffAbsLevelReadyPrefixOneCounts.append(prefixOneCount);
+    result.coeffAbsLevelReadySuffixBins.append(suffixBinsForCoeff);
+    result.coeffAbsLevelValueInputCompleteFlags.append(1);
+    result.coeffAbsLevelFixedInputRecognizedFlags.append(
+        isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff) ? 1 : 0);
     result.incompleteStage = QStringLiteral("coeff_abs_level_minus1");
     result.diagnosticMessage =
         QStringLiteral("CABAC luma4x4 coeff_abs_level_minus1[%1][%2] %3 suffix bypass bin was decoded after prefix one-count %4; computing coeff_abs_level_minus1 is not implemented.")
@@ -253,6 +278,7 @@ bool readLuma4x4CoeffAbsLevelMinus1FirstBinSkeleton(BitReader &reader,
     result.coeffAbsLevelScanIndices.append(scanIndex);
     result.coeffAbsLevelInferredFinalFlags.append(inferredFinalScan ? 1 : 0);
     result.coeffAbsLevelPrefixFirstBins.append(bin);
+    result.coeffAbsLevelReadyForValueFlags.append(0);
     result.incompleteBlockIndex = blockIndex;
     result.incompleteScanIndex = scanIndex;
     result.diagnosticCode = QStringLiteral("cabac_residual_incomplete");
