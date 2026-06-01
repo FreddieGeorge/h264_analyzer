@@ -1329,6 +1329,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinZeroPartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready prefix one-count");
     require(result.residualCoeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready suffix bins");
+    require(result.residualCoeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no remaining input bins");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no remaining input count");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin zero no ready remaining input bins");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin zero no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -1393,6 +1399,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelThirdBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready prefix one-count");
     require(result.residualCoeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready suffix bins");
+    require(result.residualCoeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no remaining input bins");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no remaining input count");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level third-bin one no ready remaining input bins");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level third-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -1591,6 +1603,26 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinZeroPartial()
                 && result.residualCoeffAbsLevelReadySuffixBins[0][2] == 0
                 && result.residualCoeffAbsLevelReadySuffixBins[0][3] == 0,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready suffix values");
+    require(result.residualCoeffAbsLevelRemainingInputBins.size() == 4,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero remaining input count");
+    require(result.residualCoeffAbsLevelRemainingInputBins[0] == 0
+                && result.residualCoeffAbsLevelRemainingInputBins[1] == 0
+                && result.residualCoeffAbsLevelRemainingInputBins[2] == 0
+                && result.residualCoeffAbsLevelRemainingInputBins[3] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero remaining input values");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero remaining input bin-count count");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts[0] == 4,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero remaining input bin-count value");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins.size() == 1,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready remaining input group count");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins[0].size() == 4,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready remaining input group size");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins[0][0] == 0
+                && result.residualCoeffAbsLevelReadyRemainingInputBins[0][1] == 0
+                && result.residualCoeffAbsLevelReadyRemainingInputBins[0][2] == 0
+                && result.residualCoeffAbsLevelReadyRemainingInputBins[0][3] == 0,
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero ready remaining input values");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin zero value input complete count");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -1852,6 +1884,16 @@ void testReadCabacMacroblockSyntaxP8x8ResidualFourthSuffixBypassBinPartial()
                 && result.residualCoeffAbsLevelReadySuffixBins[0][2] == 0
                 && result.residualCoeffAbsLevelReadySuffixBins[0][3] == 0,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready suffix values");
+    require(result.residualCoeffAbsLevelRemainingInputBins.size() == 4,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin remaining input count");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin remaining input bin-count count");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts[0] == 4,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin remaining input bin-count value");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins.size() == 1,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready remaining input group count");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins[0].size() == 4,
+            "CABAC macroblock syntax P_8x8 fourth suffix bypass bin ready remaining input group size");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC macroblock syntax P_8x8 fourth suffix bypass bin value input complete count");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -1928,6 +1970,12 @@ void testReadCabacMacroblockSyntaxP8x8ResidualCoeffLevelFifthBinOnePartial()
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready prefix one-count");
     require(result.residualCoeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready suffix bins");
+    require(result.residualCoeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no remaining input bins");
+    require(result.residualCoeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no remaining input count");
+    require(result.residualCoeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no ready remaining input bins");
     require(result.residualCoeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC macroblock syntax P_8x8 coeff level fifth-bin one no value input complete flag");
     require(result.residualCoeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -2616,6 +2664,12 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level third-bin zero no ready prefix one-count");
     require(result.coeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no ready suffix bins");
+    require(result.coeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no remaining input bins");
+    require(result.coeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no remaining input count");
+    require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin zero no ready remaining input bins");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin zero no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -2668,6 +2722,12 @@ void testReadResidualLuma4x4CoeffAbsLevelThirdBinOneIncomplete()
             "CABAC residual luma4x4 coeff level third-bin one no ready prefix one-count");
     require(result.coeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no ready suffix bins");
+    require(result.coeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no remaining input bins");
+    require(result.coeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no remaining input count");
+    require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level third-bin one no ready remaining input bins");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level third-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -2872,6 +2932,26 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
                 && result.coeffAbsLevelReadySuffixBins[0][2] == 0
                 && result.coeffAbsLevelReadySuffixBins[0][3] == 0,
             "CABAC residual luma4x4 coeff level fifth-bin zero ready suffix values");
+    require(result.coeffAbsLevelRemainingInputBins.size() == 4,
+            "CABAC residual luma4x4 coeff level fifth-bin zero remaining input count");
+    require(result.coeffAbsLevelRemainingInputBins[0] == 0
+                && result.coeffAbsLevelRemainingInputBins[1] == 0
+                && result.coeffAbsLevelRemainingInputBins[2] == 0
+                && result.coeffAbsLevelRemainingInputBins[3] == 0,
+            "CABAC residual luma4x4 coeff level fifth-bin zero remaining input values");
+    require(result.coeffAbsLevelRemainingInputBinCounts.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero remaining input bin-count count");
+    require(result.coeffAbsLevelRemainingInputBinCounts[0] == 4,
+            "CABAC residual luma4x4 coeff level fifth-bin zero remaining input bin-count value");
+    require(result.coeffAbsLevelReadyRemainingInputBins.size() == 1,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready remaining input group count");
+    require(result.coeffAbsLevelReadyRemainingInputBins[0].size() == 4,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready remaining input group size");
+    require(result.coeffAbsLevelReadyRemainingInputBins[0][0] == 0
+                && result.coeffAbsLevelReadyRemainingInputBins[0][1] == 0
+                && result.coeffAbsLevelReadyRemainingInputBins[0][2] == 0
+                && result.coeffAbsLevelReadyRemainingInputBins[0][3] == 0,
+            "CABAC residual luma4x4 coeff level fifth-bin zero ready remaining input values");
     require(result.coeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC residual luma4x4 coeff level fifth-bin zero value input complete count");
     require(result.coeffAbsLevelValueInputCompleteFlags[0] == 1,
@@ -2931,6 +3011,12 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin one no ready prefix one-count");
     require(result.coeffAbsLevelReadySuffixBins.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no ready suffix bins");
+    require(result.coeffAbsLevelRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no remaining input bins");
+    require(result.coeffAbsLevelRemainingInputBinCounts.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no remaining input count");
+    require(result.coeffAbsLevelReadyRemainingInputBins.isEmpty(),
+            "CABAC residual luma4x4 coeff level fifth-bin one no ready remaining input bins");
     require(result.coeffAbsLevelValueInputCompleteFlags.isEmpty(),
             "CABAC residual luma4x4 coeff level fifth-bin one no value input complete flag");
     require(result.coeffAbsLevelFixedInputRecognizedFlags.isEmpty(),
@@ -3168,6 +3254,16 @@ void testReadResidualLuma4x4CoeffAbsLevelFourthSuffixBypassBinIncomplete()
                 && result.coeffAbsLevelReadySuffixBins[0][2] == 0
                 && result.coeffAbsLevelReadySuffixBins[0][3] == 0,
             "CABAC residual luma4x4 fourth suffix bypass bin ready suffix values");
+    require(result.coeffAbsLevelRemainingInputBins.size() == 4,
+            "CABAC residual luma4x4 fourth suffix bypass bin remaining input count");
+    require(result.coeffAbsLevelRemainingInputBinCounts.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin remaining input bin-count count");
+    require(result.coeffAbsLevelRemainingInputBinCounts[0] == 4,
+            "CABAC residual luma4x4 fourth suffix bypass bin remaining input bin-count value");
+    require(result.coeffAbsLevelReadyRemainingInputBins.size() == 1,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready remaining input group count");
+    require(result.coeffAbsLevelReadyRemainingInputBins[0].size() == 4,
+            "CABAC residual luma4x4 fourth suffix bypass bin ready remaining input group size");
     require(result.coeffAbsLevelValueInputCompleteFlags.size() == 1,
             "CABAC residual luma4x4 fourth suffix bypass bin value input complete count");
     require(result.coeffAbsLevelValueInputCompleteFlags[0] == 1,

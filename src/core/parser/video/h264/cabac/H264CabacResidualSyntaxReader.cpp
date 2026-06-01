@@ -185,6 +185,7 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
     const char *lastSuffixBinName = "";
     int suffixBinCount = 0;
     QVector<int> suffixBinsForCoeff;
+    QVector<int> remainingInputBinsForCoeff;
     for (const char *suffixBinName : Luma4x4CoeffAbsLevelSuffixBinNames) {
         lastSuffixBinName = suffixBinName;
         if (!readLuma4x4CoeffAbsLevelMinus1SuffixBypassBinSkeleton(
@@ -198,15 +199,19 @@ bool readLuma4x4CoeffAbsLevelMinus1RemainingSkeleton(BitReader &reader,
             return false;
         }
         suffixBinsForCoeff.append(result.coeffAbsLevelSuffixBins.last());
+        remainingInputBinsForCoeff.append(result.coeffAbsLevelSuffixBins.last());
+        result.coeffAbsLevelRemainingInputBins.append(result.coeffAbsLevelSuffixBins.last());
         ++suffixBinCount;
     }
 
     result.coeffAbsLevelSuffixBinCounts.append(suffixBinCount);
+    result.coeffAbsLevelRemainingInputBinCounts.append(suffixBinCount);
     if (!result.coeffAbsLevelReadyForValueFlags.isEmpty()) {
         result.coeffAbsLevelReadyForValueFlags.last() = 1;
     }
     result.coeffAbsLevelReadyPrefixOneCounts.append(prefixOneCount);
     result.coeffAbsLevelReadySuffixBins.append(suffixBinsForCoeff);
+    result.coeffAbsLevelReadyRemainingInputBins.append(remainingInputBinsForCoeff);
     result.coeffAbsLevelValueInputCompleteFlags.append(1);
     const bool fixedInputRecognized =
         isLuma4x4CoeffAbsLevelMinus1FixedReadyInput(prefixOneCount, suffixBinsForCoeff);
