@@ -173,7 +173,10 @@ Important H.264 files:
   separate remaining-input bin field can be introduced without churn. Parallel
   `coeffAbsLevelRemainingInputBins`, per-coefficient remaining-input counts, and
   grouped ready remaining-input bins now carry that more accurate pre-UEG0
-  meaning while preserving the older suffix-bin fields.
+  meaning while preserving the older suffix-bin fields. A pure
+  `H264CabacCoeffAbsLevelRemainingInput` helper input plus
+  `h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput()` now lock the
+  pre-UEG0 remaining-input shape independently from the reader pipeline.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or

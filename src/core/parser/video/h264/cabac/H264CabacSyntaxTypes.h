@@ -12,6 +12,12 @@ struct H264CabacSyntaxResult
     QString diagnosticMessage;
 };
 
+struct H264CabacCoeffAbsLevelRemainingInput
+{
+    int prefixOneCount = 0;
+    QVector<int> bins;
+};
+
 struct H264CabacMbTypeResult
 {
     bool ok = false;

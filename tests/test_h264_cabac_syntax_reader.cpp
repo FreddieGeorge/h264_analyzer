@@ -60,6 +60,20 @@ void testCoeffAbsLevelMinus1Ueg0CutoffHelper()
             "CABAC coeff_abs_level_minus1 prefix after cutoff is not pre-UEG0 remaining input");
 }
 
+void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
+{
+    require(h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 current narrow input has pre-UEG0 remaining input");
+    require(h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({13, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 prefix before cutoff has pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({14, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 cutoff does not have pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {}}),
+            "CABAC coeff_abs_level_minus1 empty bins are not complete pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 short bins are not complete pre-UEG0 remaining input");
+}
+
 H264CabacDecoder initializedDecoder(BitReader &reader)
 {
     H264CabacDecoder decoder;
@@ -3844,6 +3858,7 @@ void testReadBSliceMbSkipFlagWithCoveredContext()
 int main()
 {
     testCoeffAbsLevelMinus1Ueg0CutoffHelper();
+    testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper();
     testReadPSliceMbSkipFlag();
     testReadPSliceMbSkipFlagUsesLeftNeighbor();
     testReadPSliceMbTypeP16x16();
