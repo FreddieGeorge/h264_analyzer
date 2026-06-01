@@ -467,6 +467,13 @@ bool h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(
         && input.bins.size() == 4;
 }
 
+bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
+    const H264CabacCoeffAbsLevelRemainingInput &input)
+{
+    return h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(input.prefixOneCount)
+        && input.bins.size() == 4;
+}
+
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     BitReader &reader,
     H264CabacDecoder &decoder,
