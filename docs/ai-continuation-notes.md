@@ -176,7 +176,8 @@ Important H.264 files:
   meaning while preserving the older suffix-bin fields. A pure
   `H264CabacCoeffAbsLevelRemainingInput` helper input plus
   `h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput()` now lock the
-  pre-UEG0 remaining-input shape independently from the reader pipeline.
+  pre-UEG0 remaining-input shape, and the reader uses that helper when setting
+  the pre-UEG0 remaining-input flag.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or
