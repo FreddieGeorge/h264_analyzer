@@ -99,6 +99,8 @@ void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
     require(suffixValue == 11, "CABAC coeff_abs_level_minus1 mixed suffix value");
     require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 2, 0}}, &suffixValue),
             "CABAC coeff_abs_level_minus1 suffix value rejects non-binary bin");
+    require(suffixValue == 11,
+            "CABAC coeff_abs_level_minus1 non-binary suffix value output remains unchanged");
 }
 
 void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
@@ -112,6 +114,13 @@ void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
     require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0}},
                                                                &coeffAbsLevelMinus1Value),
             "CABAC coeff_abs_level_minus1 short UEG0 input does not compute coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == -1,
+            "CABAC coeff_abs_level_minus1 short UEG0 compute output remains unchanged");
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 2, 0}},
+                                                               &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 non-binary UEG0 input does not compute coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == -1,
+            "CABAC coeff_abs_level_minus1 non-binary UEG0 compute output remains unchanged");
     require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, nullptr),
             "CABAC coeff_abs_level_minus1 compute rejects null output");
     require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}},
