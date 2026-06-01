@@ -66,8 +66,14 @@ void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
             "CABAC coeff_abs_level_minus1 current narrow input has pre-UEG0 remaining input");
     require(h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({13, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 prefix before cutoff has pre-UEG0 remaining input");
+    require(h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 current narrow input needs additional pre-UEG0 parsing");
+    require(h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({13, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 prefix before cutoff needs additional pre-UEG0 parsing");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({14, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 cutoff does not have pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({14, {0, 0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 cutoff does not need pre-UEG0 parsing");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({4, {0, 0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 current narrow input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix({13, {0, 0, 0, 0}}),
@@ -78,8 +84,12 @@ void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
             "CABAC coeff_abs_level_minus1 cutoff short input cannot compute from UEG0 suffix");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {}}),
             "CABAC coeff_abs_level_minus1 empty bins are not complete pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {}}),
+            "CABAC coeff_abs_level_minus1 empty bins do not trigger additional pre-UEG0 parsing");
     require(!h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput({4, {0, 0, 0}}),
             "CABAC coeff_abs_level_minus1 short bins are not complete pre-UEG0 remaining input");
+    require(!h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing({4, {0, 0, 0}}),
+            "CABAC coeff_abs_level_minus1 short bins do not trigger additional pre-UEG0 parsing");
 }
 
 void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()

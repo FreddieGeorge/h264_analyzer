@@ -187,7 +187,10 @@ Important H.264 files:
   `coeff_abs_level_minus1` value only for cutoff-or-later UEG0 inputs and
   rejects the current pre-UEG0 reader input; it also remains disconnected from
   the reader pipeline. Its output parameter is only the pure helper result; no
-  reader result field carries a computed coefficient level yet.
+  reader result field carries a computed coefficient level yet. A pure
+  `h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing()` helper marks
+  current pre-UEG0 remaining inputs such as `prefixOneCount == 4` plus four bins
+  as needing more pre-UEG0 parsing rather than value computation.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or

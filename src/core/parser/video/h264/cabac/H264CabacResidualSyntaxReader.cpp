@@ -467,6 +467,12 @@ bool h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(
         && input.bins.size() == 4;
 }
 
+bool h264CabacCoeffAbsLevelMinus1NeedsAdditionalPreUeg0Parsing(
+    const H264CabacCoeffAbsLevelRemainingInput &input)
+{
+    return h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(input);
+}
+
 bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input)
 {
