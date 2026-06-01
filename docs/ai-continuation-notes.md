@@ -180,6 +180,12 @@ Important H.264 files:
   the pre-UEG0 remaining-input flag. A separate pure
   `h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix()` guard makes the
   current pre-UEG0 input explicitly non-computable by the UEG0 suffix path.
+  `h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue()` can read a binary UEG0
+  suffix value for cutoff-or-later inputs, but it is still a pure helper and is
+  not connected to coefficient reconstruction. A paired pure
+  `h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix()` helper computes only
+  cutoff-or-later UEG0 inputs and rejects the current pre-UEG0 reader input; it
+  also remains disconnected from the reader pipeline.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or

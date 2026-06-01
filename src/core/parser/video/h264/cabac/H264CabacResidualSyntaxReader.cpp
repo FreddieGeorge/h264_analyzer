@@ -474,6 +474,43 @@ bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
         && input.bins.size() == 4;
 }
 
+bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
+    const H264CabacCoeffAbsLevelRemainingInput &input,
+    int *suffixValue)
+{
+    if (suffixValue == nullptr || !h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(input)) {
+        return false;
+    }
+
+    int value = 0;
+    for (int bin : input.bins) {
+        if (bin != 0 && bin != 1) {
+            return false;
+        }
+        value = (value << 1) | bin;
+    }
+
+    *suffixValue = value;
+    return true;
+}
+
+bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(
+    const H264CabacCoeffAbsLevelRemainingInput &input,
+    int *value)
+{
+    if (value == nullptr) {
+        return false;
+    }
+
+    int suffixValue = 0;
+    if (!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(input, &suffixValue)) {
+        return false;
+    }
+
+    *value = input.prefixOneCount + suffixValue;
+    return true;
+}
+
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     BitReader &reader,
     H264CabacDecoder &decoder,

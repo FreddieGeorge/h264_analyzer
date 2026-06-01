@@ -82,6 +82,44 @@ void testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper()
             "CABAC coeff_abs_level_minus1 short bins are not complete pre-UEG0 remaining input");
 }
 
+void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
+{
+    int suffixValue = -1;
+    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({4, {0, 0, 0, 0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 pre-UEG0 input has no UEG0 suffix value");
+    require(suffixValue == -1,
+            "CABAC coeff_abs_level_minus1 pre-UEG0 suffix value output remains unchanged");
+    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, nullptr),
+            "CABAC coeff_abs_level_minus1 suffix value rejects null output");
+    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 0, 0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 zero suffix value result");
+    require(suffixValue == 0, "CABAC coeff_abs_level_minus1 zero suffix value");
+    require(h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {1, 0, 1, 1}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 mixed suffix value result");
+    require(suffixValue == 11, "CABAC coeff_abs_level_minus1 mixed suffix value");
+    require(!h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue({14, {0, 0, 2, 0}}, &suffixValue),
+            "CABAC coeff_abs_level_minus1 suffix value rejects non-binary bin");
+}
+
+void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
+{
+    int value = -1;
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({4, {0, 0, 0, 0}}, &value),
+            "CABAC coeff_abs_level_minus1 pre-UEG0 input does not compute value");
+    require(value == -1,
+            "CABAC coeff_abs_level_minus1 pre-UEG0 compute output remains unchanged");
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0}}, &value),
+            "CABAC coeff_abs_level_minus1 short UEG0 input does not compute value");
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, nullptr),
+            "CABAC coeff_abs_level_minus1 compute rejects null output");
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, &value),
+            "CABAC coeff_abs_level_minus1 zero UEG0 input computes value");
+    require(value == 14, "CABAC coeff_abs_level_minus1 zero UEG0 value");
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1, 1}}, &value),
+            "CABAC coeff_abs_level_minus1 mixed UEG0 input computes value");
+    require(value == 25, "CABAC coeff_abs_level_minus1 mixed UEG0 value");
+}
+
 H264CabacDecoder initializedDecoder(BitReader &reader)
 {
     H264CabacDecoder decoder;
@@ -2926,6 +2964,8 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin zero message");
     require(result.diagnosticMessage.contains(QStringLiteral("prefix one-count 4")),
             "CABAC residual luma4x4 coeff level fifth-bin zero one-count message");
+    require(result.diagnosticMessage.contains(QStringLiteral("computing coeff_abs_level_minus1 is not implemented")),
+            "CABAC residual luma4x4 coeff level fifth-bin zero compute-not-implemented message");
     require(result.coeffAbsLevelSuffixBins.size() == 4,
             "CABAC residual luma4x4 coeff level fifth-bin zero suffix count");
     require(result.coeffAbsLevelSuffixBins[0] == 0
@@ -2986,6 +3026,10 @@ void testReadResidualLuma4x4CoeffAbsLevelFifthBinZeroIncomplete()
             "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input count");
     require(result.coeffAbsLevelPreUeg0RemainingInputFlags[0] == 1,
             "CABAC residual luma4x4 coeff level fifth-bin zero pre-UEG0 remaining input value");
+    require(!h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
+                {result.coeffAbsLevelReadyPrefixOneCounts[0],
+                 result.coeffAbsLevelReadyRemainingInputBins[0]}),
+            "CABAC residual luma4x4 coeff level fifth-bin zero cannot compute from UEG0 suffix");
 }
 
 void testReadResidualLuma4x4CoeffAbsLevelFifthBinOneIncomplete()
@@ -3867,6 +3911,8 @@ int main()
 {
     testCoeffAbsLevelMinus1Ueg0CutoffHelper();
     testCoeffAbsLevelMinus1PreUeg0RemainingInputHelper();
+    testCoeffAbsLevelMinus1Ueg0SuffixValueHelper();
+    testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper();
     testReadPSliceMbSkipFlag();
     testReadPSliceMbSkipFlagUsesLeftNeighbor();
     testReadPSliceMbTypeP16x16();

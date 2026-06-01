@@ -19,6 +19,12 @@ bool h264CabacCoeffAbsLevelMinus1HasPreUeg0RemainingInput(
     const H264CabacCoeffAbsLevelRemainingInput &input);
 bool h264CabacCoeffAbsLevelMinus1CanComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input);
+bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
+    const H264CabacCoeffAbsLevelRemainingInput &input,
+    int *suffixValue);
+bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(
+    const H264CabacCoeffAbsLevelRemainingInput &input,
+    int *value);
 
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     BitReader &reader,
