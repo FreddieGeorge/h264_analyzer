@@ -183,9 +183,11 @@ Important H.264 files:
   `h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue()` can read a binary UEG0
   suffix value for cutoff-or-later inputs, but it is still a pure helper and is
   not connected to coefficient reconstruction. A paired pure
-  `h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix()` helper computes only
-  cutoff-or-later UEG0 inputs and rejects the current pre-UEG0 reader input; it
-  also remains disconnected from the reader pipeline.
+  `h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix()` helper computes a
+  `coeff_abs_level_minus1` value only for cutoff-or-later UEG0 inputs and
+  rejects the current pre-UEG0 reader input; it also remains disconnected from
+  the reader pipeline. Its output parameter is only the pure helper result; no
+  reader result field carries a computed coefficient level yet.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or

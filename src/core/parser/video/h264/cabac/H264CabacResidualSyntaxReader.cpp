@@ -496,9 +496,9 @@ bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
 
 bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input,
-    int *value)
+    int *coeffAbsLevelMinus1Value)
 {
-    if (value == nullptr) {
+    if (coeffAbsLevelMinus1Value == nullptr) {
         return false;
     }
 
@@ -507,7 +507,7 @@ bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(
         return false;
     }
 
-    *value = input.prefixOneCount + suffixValue;
+    *coeffAbsLevelMinus1Value = input.prefixOneCount + suffixValue;
     return true;
 }
 

@@ -24,7 +24,7 @@ bool h264CabacCoeffAbsLevelMinus1ReadUeg0SuffixValue(
     int *suffixValue);
 bool h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix(
     const H264CabacCoeffAbsLevelRemainingInput &input,
-    int *value);
+    int *coeffAbsLevelMinus1Value);
 
 H264CabacResidualBlockResult h264ReadCabacResidualCodedBlockFlagZero(
     BitReader &reader,

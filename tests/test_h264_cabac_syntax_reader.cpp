@@ -103,21 +103,25 @@ void testCoeffAbsLevelMinus1Ueg0SuffixValueHelper()
 
 void testCoeffAbsLevelMinus1Ueg0SuffixComputeHelper()
 {
-    int value = -1;
-    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({4, {0, 0, 0, 0}}, &value),
-            "CABAC coeff_abs_level_minus1 pre-UEG0 input does not compute value");
-    require(value == -1,
+    int coeffAbsLevelMinus1Value = -1;
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({4, {0, 0, 0, 0}},
+                                                               &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 pre-UEG0 input does not compute coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == -1,
             "CABAC coeff_abs_level_minus1 pre-UEG0 compute output remains unchanged");
-    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0}}, &value),
-            "CABAC coeff_abs_level_minus1 short UEG0 input does not compute value");
+    require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0}},
+                                                               &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 short UEG0 input does not compute coeff_abs_level_minus1");
     require(!h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, nullptr),
             "CABAC coeff_abs_level_minus1 compute rejects null output");
-    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}}, &value),
-            "CABAC coeff_abs_level_minus1 zero UEG0 input computes value");
-    require(value == 14, "CABAC coeff_abs_level_minus1 zero UEG0 value");
-    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1, 1}}, &value),
-            "CABAC coeff_abs_level_minus1 mixed UEG0 input computes value");
-    require(value == 25, "CABAC coeff_abs_level_minus1 mixed UEG0 value");
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {0, 0, 0, 0}},
+                                                              &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 zero UEG0 input computes coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == 14, "CABAC coeff_abs_level_minus1 zero UEG0 value");
+    require(h264CabacCoeffAbsLevelMinus1ComputeFromUeg0Suffix({14, {1, 0, 1, 1}},
+                                                              &coeffAbsLevelMinus1Value),
+            "CABAC coeff_abs_level_minus1 mixed UEG0 input computes coeff_abs_level_minus1");
+    require(coeffAbsLevelMinus1Value == 25, "CABAC coeff_abs_level_minus1 mixed UEG0 value");
 }
 
 H264CabacDecoder initializedDecoder(BitReader &reader)
