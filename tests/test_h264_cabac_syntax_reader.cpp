@@ -40,14 +40,24 @@ void testCoeffAbsLevelMinus1Ueg0CutoffHelper()
             "CABAC coeff_abs_level_minus1 UEG0 cutoff");
     require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(-1),
             "CABAC coeff_abs_level_minus1 UEG0 negative prefix does not use suffix");
+    require(!h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput(-1),
+            "CABAC coeff_abs_level_minus1 negative prefix is not pre-UEG0 remaining input");
     require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(4),
             "CABAC coeff_abs_level_minus1 UEG0 current narrow input does not use suffix");
+    require(h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput(4),
+            "CABAC coeff_abs_level_minus1 current narrow input is pre-UEG0 remaining input");
     require(!h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(13),
             "CABAC coeff_abs_level_minus1 UEG0 prefix before cutoff does not use suffix");
+    require(h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput(13),
+            "CABAC coeff_abs_level_minus1 prefix before cutoff is pre-UEG0 remaining input");
     require(h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(14),
             "CABAC coeff_abs_level_minus1 UEG0 cutoff uses suffix");
+    require(!h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput(14),
+            "CABAC coeff_abs_level_minus1 cutoff is not pre-UEG0 remaining input");
     require(h264CabacCoeffAbsLevelMinus1UsesUeg0Suffix(15),
             "CABAC coeff_abs_level_minus1 UEG0 prefix after cutoff uses suffix");
+    require(!h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput(15),
+            "CABAC coeff_abs_level_minus1 prefix after cutoff is not pre-UEG0 remaining input");
 }
 
 H264CabacDecoder initializedDecoder(BitReader &reader)

@@ -165,7 +165,12 @@ Important H.264 files:
   That tightening has started with
   `coeffAbsLevelPreUeg0RemainingInputFlags`, which marks the currently covered
   fixed input as pre-UEG0 remaining-level input while preserving the older flat
-  and grouped suffix-bin diagnostic fields for compatibility.
+  and grouped suffix-bin diagnostic fields for compatibility. The flag now uses
+  the pure `h264CabacCoeffAbsLevelMinus1IsPreUeg0RemainingInput()` helper, which
+  is true for non-negative prefix one-counts below the UEG0 cutoff and false at
+  or above `uCoff == 14`. Do not rename the older suffix-bin fields in the next
+  step; treat them as compatibility/diagnostic bypass-bin recordings until a
+  separate remaining-input bin field can be introduced without churn.
   Direct-sign paths and covered-prefix-not-terminated paths keep the aligned
   ready flag at zero and do not create suffix bins, ready prefix one-counts, or
   ready suffix-bin groups, and they do not set value-input-complete or
